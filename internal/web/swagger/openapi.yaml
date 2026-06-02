@@ -1,0 +1,384 @@
+openapi: 3.0.3
+info:
+  title: brrewery API
+  version: 0.1.0
+  description: Package catalog and session-authenticated management API.
+servers:
+  - url: /
+    description: Current host
+components:
+  securitySchemes:
+    SessionAuth:
+      type: apiKey
+      in: cookie
+      name: session
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+    LoginResponse:
+      type: object
+      properties:
+        username:
+          type: string
+    VersionInfo:
+      type: object
+      properties:
+        version:
+          type: string
+        commit:
+          type: string
+        date:
+          type: string
+    DetectionSpec:
+      type: object
+      properties:
+        binaries:
+          type: array
+          items:
+            type: string
+        systemd_units:
+          type: array
+          items:
+            type: string
+        paths:
+          type: array
+          items:
+            type: string
+        depends_on:
+          type: array
+          items:
+            type: string
+    PlaybookPaths:
+      type: object
+      properties:
+        install:
+          type: string
+        upgrade:
+          type: string
+        remove:
+          type: string
+    Package:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        dependencies:
+          type: array
+          items:
+            type: string
+        detection:
+          $ref: '#/components/schemas/DetectionSpec'
+        playbooks:
+          $ref: '#/components/schemas/PlaybookPaths'
+    PackageStatus:
+      allOf:
+        - $ref: '#/components/schemas/Package'
+        - type: object
+          properties:
+            installed:
+              type: boolean
+            dependencies_satisfied:
+              type: boolean
+    PackageListResponse:
+      type: object
+      properties:
+        packages:
+          type: array
+          items:
+            $ref: '#/components/schemas/PackageStatus'
+    LoadAvg:
+      type: object
+      properties:
+        "1m":
+          type: number
+          format: double
+        "5m":
+          type: number
+          format: double
+        "15m":
+          type: number
+          format: double
+    SystemMemory:
+      type: object
+      properties:
+        total_bytes:
+          type: integer
+          format: int64
+        available_bytes:
+          type: integer
+          format: int64
+        used_bytes:
+          type: integer
+          format: int64
+        used_percent:
+          type: number
+          format: double
+    SystemDisk:
+      type: object
+      properties:
+        mount:
+          type: string
+        total_bytes:
+          type: integer
+          format: int64
+        used_bytes:
+          type: integer
+          format: int64
+        available_bytes:
+          type: integer
+          format: int64
+        used_percent:
+          type: number
+          format: double
+    NetworkCounters:
+      type: object
+      properties:
+        rx_bytes:
+          type: integer
+          format: int64
+        tx_bytes:
+          type: integer
+          format: int64
+    DiskIOCounters:
+      type: object
+      properties:
+        read_bytes:
+          type: integer
+          format: int64
+        write_bytes:
+          type: integer
+          format: int64
+        read_ops:
+          type: integer
+          format: int64
+        write_ops:
+          type: integer
+          format: int64
+    TrafficPeriod:
+      type: object
+      properties:
+        label:
+          type: string
+        rx_bytes:
+          type: integer
+          format: int64
+        tx_bytes:
+          type: integer
+          format: int64
+    VnstatReport:
+      type: object
+      properties:
+        installed:
+          type: boolean
+        message:
+          type: string
+        version:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrafficPeriod'
+        months:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrafficPeriod'
+    SystemInfo:
+      type: object
+      properties:
+        hostname:
+          type: string
+        uptime_seconds:
+          type: number
+          format: double
+        cpu_count:
+          type: integer
+        cpu_name:
+          type: string
+        cpu_percent:
+          type: number
+          format: double
+        disk_io_busy_percent:
+          type: number
+          format: double
+          description: Block-device I/O busy percent for disk.mount (btop io% from sysfs stat).
+        load:
+          $ref: '#/components/schemas/LoadAvg'
+        memory:
+          $ref: '#/components/schemas/SystemMemory'
+        disk:
+          $ref: '#/components/schemas/SystemDisk'
+        network:
+          $ref: '#/components/schemas/NetworkCounters'
+        disk_io:
+          $ref: '#/components/schemas/DiskIOCounters'
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /api/v1/auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/logout:
+    post:
+      summary: Logout
+      security:
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Logged out
+  /api/v1/version:
+    get:
+      summary: Version metadata
+      security:
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Version info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionInfo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/packages:
+    get:
+      summary: List packages
+      security:
+        - SessionAuth: []
+      responses:
+        '200':
+          description: Package list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/packages/{id}:
+    get:
+      summary: Get package by ID
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Package detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageStatus'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /api/v1/system:
+    get:
+      summary: Host system metrics
+      security:
+        - SessionAuth: []
+      responses:
+        '200':
+          description: System metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Not available on this platform
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/traffic/vnstat:
+    get:
+      summary: Historic traffic from vnstat
+      security:
+        - SessionAuth: []
+      responses:
+        '200':
+          description: vnstat report or not-installed notice
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VnstatReport'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: vnstat query failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

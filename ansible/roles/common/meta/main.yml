@@ -1,0 +1,4 @@
+---
+galaxy_info:
+  role_name: common
+  description: Common tasks for brrewery packages (M2)

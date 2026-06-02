@@ -1,0 +1,8 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: sonarr upgrade placeholder
+      ansible.builtin.debug:
+        msg: "brrewery stub playbook for sonarr upgrade"

@@ -1,0 +1,8 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: organizr install placeholder
+      ansible.builtin.debug:
+        msg: "brrewery stub playbook for organizr install"

@@ -1,0 +1,67 @@
+version: "2"
+
+issues:
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - goimports
+    - gofmt
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/autobrr/brrewery
+
+linters:
+  enable:
+    - containedctx
+    - copyloopvar
+    - dupl
+    - errcheck
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - funlen
+    - gocognit
+    - gocritic
+    - gosec
+    - interfacebloat
+    - loggercheck
+    - mirror
+    - misspell
+    - noctx
+    - perfsprint
+    - prealloc
+    - revive
+    - testifylint
+    - unconvert
+    - whitespace
+
+  settings:
+    dupl:
+      threshold: 100
+    gocognit:
+      min-complexity: 15
+    funlen:
+      lines: 80
+    interfacebloat:
+      max: 5
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+    exhaustive:
+      default-signifies-exhaustive: false
+    gosec:
+      excludes:
+        - G115
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling

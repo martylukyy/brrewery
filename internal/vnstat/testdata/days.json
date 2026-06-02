@@ -1,0 +1,47 @@
+{
+  "vnstatversion": "2.12",
+  "jsonversion": "2",
+  "interfaces": [
+    {
+      "name": "eth0",
+      "traffic": {
+        "day": [
+          {
+            "date": { "year": 2026, "month": 5, "day": 29 },
+            "rx": 1000000,
+            "tx": 500000
+          },
+          {
+            "date": { "year": 2026, "month": 5, "day": 30 },
+            "rx": 3000000,
+            "tx": 1500000
+          }
+        ]
+      }
+    },
+    {
+      "name": "wlan0",
+      "traffic": {
+        "day": [
+          {
+            "date": { "year": 2026, "month": 5, "day": 30 },
+            "rx": 1000000,
+            "tx": 500000
+          }
+        ]
+      }
+    },
+    {
+      "name": "lo",
+      "traffic": {
+        "day": [
+          {
+            "date": { "year": 2026, "month": 5, "day": 30 },
+            "rx": 999999,
+            "tx": 999999
+          }
+        ]
+      }
+    }
+  ]
+}

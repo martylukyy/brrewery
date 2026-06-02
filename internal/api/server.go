@@ -1,0 +1,108 @@
+package api
+
+import (
+	"io/fs"
+	"net/http"
+	"strings"
+
+	"github.com/alexedwards/scs/v2"
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/zerolog"
+
+	"github.com/autobrr/brrewery/internal/api/handlers"
+	"github.com/autobrr/brrewery/internal/api/middleware"
+	"github.com/autobrr/brrewery/internal/auth"
+	"github.com/autobrr/brrewery/internal/httputil"
+	pkgdomain "github.com/autobrr/brrewery/internal/packages"
+	"github.com/autobrr/brrewery/internal/system"
+	"github.com/autobrr/brrewery/internal/vnstat"
+	webapp "github.com/autobrr/brrewery/internal/web"
+)
+
+type Server struct {
+	logger         zerolog.Logger
+	authService    *auth.Service
+	sessionManager *scs.SessionManager
+	packages       *pkgdomain.Service
+	system         *system.Collector
+	vnstat         *vnstat.Collector
+	embedFS        fs.FS
+}
+
+func NewServer(
+	logger *zerolog.Logger,
+	authService *auth.Service,
+	sessionManager *scs.SessionManager,
+	packagesService *pkgdomain.Service,
+	systemCollector *system.Collector,
+	vnstatCollector *vnstat.Collector,
+	embedFS fs.FS,
+) *Server {
+	return &Server{
+		logger:         *logger,
+		authService:    authService,
+		sessionManager: sessionManager,
+		packages:       packagesService,
+		system:         systemCollector,
+		vnstat:         vnstatCollector,
+		embedFS:        embedFS,
+	}
+}
+
+func (s *Server) Handler() http.Handler {
+	r := chi.NewRouter()
+	r.Use(chimw.RequestID)
+	r.Use(chimw.RealIP)
+	r.Use(chimw.Recoverer)
+	r.Use(s.sessionManager.LoadAndSave)
+	r.Use(secureCookieMiddleware)
+
+	health := handlers.NewHealthHandler()
+	r.Get("/health", health.Health)
+
+	r.Route("/api/v1", func(r chi.Router) {
+		authHandler := handlers.NewAuthHandler(s.authService)
+		r.Post("/auth/login", authHandler.Login)
+
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RequireAuth(s.authService))
+			r.Post("/auth/logout", authHandler.Logout)
+
+			version := handlers.NewVersionHandler()
+			r.Get("/version", version.Version)
+
+			pkgs := handlers.NewPackagesHandler(s.packages)
+			r.Get("/packages", pkgs.List)
+			r.Get("/packages/{id}", pkgs.Get)
+
+			sys := handlers.NewSystemHandler(s.system)
+			r.Get("/system", sys.Get)
+
+			vn := handlers.NewVnstatHandler(s.vnstat)
+			r.Get("/traffic/vnstat", vn.Get)
+		})
+	})
+
+	if s.embedFS != nil {
+		webHandler := webapp.NewHandler(s.embedFS)
+		r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
+			if strings.HasPrefix(req.URL.Path, "/api/") {
+				httputil.WriteError(w, http.StatusNotFound, "Not found")
+				return
+			}
+			webHandler.ServeSPA(w, req)
+		})
+	}
+
+	return r
+}
+
+func secureCookieMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Forwarded-Proto") == "https" {
+			r = r.WithContext(r.Context())
+		}
+		next.ServeHTTP(w, r)
+	})
+}

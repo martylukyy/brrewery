@@ -1,0 +1,18 @@
+[Unit]
+Description=brrewery package management API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/brrewery serve
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/brrewery /var/log/brrewery
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

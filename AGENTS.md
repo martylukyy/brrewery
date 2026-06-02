@@ -25,8 +25,9 @@ Later on other users can be added since brrewery should be a multi-tenant softwa
 
 ## Security related notes
 
-Do not store any user information in a file or a database.
-Prompt the user for passwords or tokens on the frontend in case such information needs to be provided during installation of packages.
+Do not store package install secrets (API keys, tokens, etc.) in files or a database — prompt for them in the frontend at install time only.
+Dashboard operator accounts use bcrypt password hashes in `/var/lib/brrewery/users.json` (`0o600`); this is intentional and is not the same as persisted package credentials.
+Do not store other user profile data in a database.
 
 ## Owner Collaboration Notes
 
@@ -155,10 +156,12 @@ PRs need a clear summary, testing checklist, and UI screenshots for visual tweak
 ## Architecture Quick Reference
 
 ```text
-cmd/brrewery/main.go         CLI entrypoint (serve, generate-config, create-user, etc.)
-internal/api/                HTTP handlers + middleware (chi router)
-internal/services/           Domain services (autobrr, plex, prowlarr, qbittorrent, radarr, sabnzbd, sonarr)
-internal/models/             Data models + store interfaces
-pkg/                         Shared utilities
+cmd/brrewery/main.go         CLI entrypoint (serve, version, create-admin)
+internal/api/                HTTP handlers + middleware (chi router, scs sessions)
+internal/auth/               File-backed users + bcrypt
+internal/packages/           Catalog, filesystem detect, ansible runner (M2)
+internal/paths/              Fixed production paths
+internal/web/                Embedded SPA dist + OpenAPI
+ansible/                     Package playbooks (install/upgrade/remove per package id)
 web/src/                     React + Vite + TypeScript + TailwindCSS
 ```
