@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE_DIR="$ROOT"
 BINARY_DEST="/usr/local/bin/brrewery"
 WEB_ROOT="/var/www/brrewery"
 LIB_DIR="/var/lib/brrewery"
@@ -10,46 +11,64 @@ LOG_DIR="/var/log/brrewery"
 ANSIBLE_DEST="/usr/share/brrewery/ansible"
 SSL_DIR="/etc/ssl/brrewery"
 NGINX_ETC="/etc/nginx"
+REPO_URL="${BRREWERY_REPO_URL:-https://github.com/autobrr/brrewery.git}"
+REPO_REF="${BRREWERY_REPO_REF:-main}"
+CLONE_DIR="${BRREWERY_CLONE_DIR:-/tmp/brrewery-src}"
 
 if [[ "${EUID:-}" -ne 0 ]]; then
   echo "Run as root: sudo $0" >&2
   exit 1
 fi
 
+bootstrap_source() {
+  if [[ -f "$ROOT/Makefile" && -d "$ROOT/ansible" && -d "$ROOT/contrib" ]]; then
+    SOURCE_DIR="$ROOT"
+    return
+  fi
+
+  echo "==> Fetching brrewery source from GitHub"
+  rm -rf "$CLONE_DIR"
+  git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$CLONE_DIR"
+  SOURCE_DIR="$CLONE_DIR"
+}
+
 echo "==> Installing dependencies"
 if command -v apt-get >/dev/null 2>&1; then
   apt-get update -qq
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx ansible openssl
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    nginx git vnstat sudo ansible openssl
 elif command -v pacman >/dev/null 2>&1; then
-  pacman -Sy --noconfirm nginx ansible openssl
+  pacman -Sy --noconfirm nginx git vnstat sudo ansible openssl
 else
-  echo "Unsupported distro: install nginx, ansible, and openssl manually." >&2
+  echo "Unsupported distro: install nginx, git, vnstat, sudo, ansible, and openssl manually." >&2
   exit 1
 fi
+
+bootstrap_source
 
 echo "==> Creating directories"
 install -d -m 0750 "$LIB_DIR" "$LOG_DIR" "$WEB_ROOT" "$ANSIBLE_DEST" "$SSL_DIR"
 install -d -m 0755 "$(dirname "$BINARY_DEST")"
 
 echo "==> Building brrewery"
-if [[ -f "$ROOT/Makefile" ]]; then
-  (cd "$ROOT" && make build)
+if [[ -f "$SOURCE_DIR/Makefile" ]]; then
+  (cd "$SOURCE_DIR" && make build)
 else
-  echo "Missing Makefile in $ROOT" >&2
+  echo "Missing Makefile in $SOURCE_DIR" >&2
   exit 1
 fi
 
 echo "==> Installing binary and ansible playbooks"
-install -m 0755 "$ROOT/brrewery" "$BINARY_DEST"
+install -m 0755 "$SOURCE_DIR/brrewery" "$BINARY_DEST"
 rm -rf "${ANSIBLE_DEST:?}"/*
-cp -a "$ROOT/ansible/." "$ANSIBLE_DEST/"
+cp -a "$SOURCE_DIR/ansible/." "$ANSIBLE_DEST/"
 
 echo "==> Deploying web assets"
 rm -rf "${WEB_ROOT:?}"/*
-if [[ -d "$ROOT/internal/web/dist" ]]; then
-  cp -a "$ROOT/internal/web/dist/." "$WEB_ROOT/"
-elif [[ -d "$ROOT/web/dist" ]]; then
-  cp -a "$ROOT/web/dist/." "$WEB_ROOT/"
+if [[ -d "$SOURCE_DIR/internal/web/dist" ]]; then
+  cp -a "$SOURCE_DIR/internal/web/dist/." "$WEB_ROOT/"
+elif [[ -d "$SOURCE_DIR/web/dist" ]]; then
+  cp -a "$SOURCE_DIR/web/dist/." "$WEB_ROOT/"
 fi
 
 echo "==> TLS certificates"
@@ -64,14 +83,14 @@ fi
 
 echo "==> nginx configuration"
 install -d -m 0755 "$NGINX_ETC/sites-available" "$NGINX_ETC/sites-enabled"
-cp -a "$ROOT/contrib/nginx/." "$NGINX_ETC/"
+cp -a "$SOURCE_DIR/contrib/nginx/." "$NGINX_ETC/"
 ln -sf ../sites-available/brrewery.conf "$NGINX_ETC/sites-enabled/brrewery.conf"
 nginx -t
 systemctl enable nginx
 systemctl reload nginx || systemctl start nginx
 
 echo "==> systemd unit"
-install -m 0644 "$ROOT/contrib/systemd/brrewery.service" /etc/systemd/system/brrewery.service
+install -m 0644 "$SOURCE_DIR/contrib/systemd/brrewery.service" /etc/systemd/system/brrewery.service
 systemctl daemon-reload
 systemctl enable brrewery
 systemctl restart brrewery
