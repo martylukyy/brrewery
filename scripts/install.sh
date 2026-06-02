@@ -14,7 +14,7 @@ SSL_DIR="/etc/ssl/brrewery"
 NGINX_ETC="/etc/nginx"
 REPO_URL="${BRREWERY_REPO_URL:-https://github.com/martylukyy/brrewery.git}"
 REPO_REF="${BRREWERY_REPO_REF:-develop}"
-CLONE_DIR="${BRREWERY_CLONE_DIR:-/tmp/brrewery-src}"
+CLONE_DIR="${BRREWERY_CLONE_DIR:-/etc/brrewery}"
 NODE_INSTALL_DIR="/usr/local/lib/nodejs"
 
 if [[ "${EUID:-}" -ne 0 ]]; then
