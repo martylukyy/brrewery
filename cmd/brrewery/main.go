@@ -30,6 +30,8 @@ import (
 	webapp "github.com/autobrr/brrewery/internal/web"
 )
 
+var errOSPasswordVerificationFailed = errors.New("OS password verification failed")
+
 func main() {
 	root := &cobra.Command{
 		Use:   "brrewery",
@@ -222,15 +224,26 @@ func promptCredentials() (username, password string, err error) {
 		return "", "", errors.New("username cannot be empty")
 	}
 
-	fmt.Printf("Password for '%s': ", username)
-	password, err = readPassword()
-	if err != nil {
-		return "", "", err
-	}
-	fmt.Println()
+	const maxPasswordAttempts = 3
+	for attempt := 1; attempt <= maxPasswordAttempts; attempt++ {
+		fmt.Printf("Password for '%s': ", username)
+		password, err = readPassword()
+		if err != nil {
+			return "", "", err
+		}
+		fmt.Println()
 
-	if err := verifyOSPassword(username, password); err != nil {
-		return "", "", err
+		if err := verifyOSPassword(username, password); err != nil {
+			if !errors.Is(err, errOSPasswordVerificationFailed) {
+				return "", "", err
+			}
+			if attempt == maxPasswordAttempts {
+				return "", "", err
+			}
+			fmt.Fprintf(os.Stderr, "Wrong password, try again (%d/%d)\n", attempt, maxPasswordAttempts)
+			continue
+		}
+		break
 	}
 
 	return username, password, nil
@@ -330,13 +343,18 @@ func verifyOSPassword(username, password string) error {
 	}
 
 	const pythonCheck = `
-import crypt
 import os
-import spwd
 import sys
 
 username = os.environ.get("BRREWERY_VERIFY_USER", "")
 password = os.environ.get("BRREWERY_VERIFY_PASS", "")
+
+try:
+    import crypt
+    import spwd
+except Exception as e:
+    print(f"IMPORT_ERROR:{e}")
+    sys.exit(10)
 
 try:
     entry = spwd.getspnam(username)
@@ -351,6 +369,7 @@ if not hash_value or hash_value in ("!", "*", "x") or hash_value.startswith("!")
 
 if crypt.crypt(password, hash_value) == hash_value:
     sys.exit(0)
+print("MISMATCH")
 sys.exit(1)
 `
 
@@ -360,7 +379,8 @@ sys.exit(1)
 		"BRREWERY_VERIFY_USER="+username,
 		"BRREWERY_VERIFY_PASS="+password,
 	)
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
 			return fmt.Errorf("verify OS password: %w", err)
@@ -368,13 +388,18 @@ sys.exit(1)
 
 		switch exitErr.ExitCode() {
 		case 1:
-			return errors.New("OS password verification failed")
+			return errOSPasswordVerificationFailed
 		case 2:
 			return errors.New("cannot verify OS password: permission denied reading shadow password database")
 		case 3:
 			return fmt.Errorf("OS user '%s' not found", username)
 		case 4:
 			return fmt.Errorf("OS user '%s' does not have a usable password", username)
+		case 10:
+			// Some environments don't expose Python shadow-password modules.
+			// Do not block initial setup when verification backend is unavailable.
+			fmt.Fprintf(os.Stderr, "Warning: skipping OS password verification (%s)\n", strings.TrimSpace(string(output)))
+			return nil
 		default:
 			return fmt.Errorf("OS password verification failed (exit code %d)", exitErr.ExitCode())
 		}
