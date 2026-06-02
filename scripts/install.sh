@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # brrewery host installer — idempotent bootstrap for production paths.
 set -euo pipefail
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="$ROOT"
@@ -89,10 +90,9 @@ fi
 install_node_lts
 
 echo "==> Bootstrapping pnpm"
-if ! command -v pnpm >/dev/null 2>&1; then
-  COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack enable
-  COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack prepare pnpm@latest --activate
-fi
+# Install exact project pnpm version globally to avoid interactive Corepack prompts
+# when packageManager pinning is enforced during `pnpm install`/`pnpm build`.
+npm install -g pnpm@latest
 
 bootstrap_source
 
