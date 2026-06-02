@@ -226,4 +226,3 @@ fi
 
 echo "==> brrewery installed"
 echo "    Dashboard: https://127.0.0.1/ (self-signed TLS)"
-echo "    Backend:   127.0.0.1:8080 (proxied at /api/)"
