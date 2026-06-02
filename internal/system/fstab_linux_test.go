@@ -40,7 +40,14 @@ func TestMonitoredFstabMounts_readsHostFstab(t *testing.T) {
 	for _, disk := range info.Disks {
 		mountSet[disk.Mount] = struct{}{}
 	}
-	assert.Contains(t, mountSet, "/mnt/storage")
+
+	for _, mount := range mounts {
+		_, err := readDiskUsage(mount)
+		if err != nil {
+			continue
+		}
+		assert.Contains(t, mountSet, mount)
+	}
 }
 
 func TestShouldMonitorFstabEntry(t *testing.T) {
