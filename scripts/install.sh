@@ -90,8 +90,8 @@ install_node_lts
 
 echo "==> Bootstrapping pnpm"
 if ! command -v pnpm >/dev/null 2>&1; then
-  corepack enable
-  corepack prepare pnpm@latest --activate
+  COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack enable
+  COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack prepare pnpm@latest --activate
 fi
 
 bootstrap_source
