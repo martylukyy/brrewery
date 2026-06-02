@@ -186,7 +186,14 @@ fi
 
 echo "==> nginx configuration"
 install -d -m 0755 "$NGINX_ETC/sites-available" "$NGINX_ETC/sites-enabled"
-cp -a "$SOURCE_DIR/contrib/nginx/." "$NGINX_ETC/"
+install -d -m 0755 "$NGINX_ETC/nginxconfig.io"
+install -m 0644 "$SOURCE_DIR/contrib/nginx/nginx.conf" "$NGINX_ETC/nginx.conf"
+install -m 0644 "$SOURCE_DIR/contrib/nginx/nginxconfig.io/general.conf" "$NGINX_ETC/nginxconfig.io/general.conf"
+install -m 0644 "$SOURCE_DIR/contrib/nginx/nginxconfig.io/security.conf" "$NGINX_ETC/nginxconfig.io/security.conf"
+install -m 0644 "$SOURCE_DIR/contrib/nginx/nginxconfig.io/proxy.conf" "$NGINX_ETC/nginxconfig.io/proxy.conf"
+install -m 0644 "$SOURCE_DIR/contrib/nginx/nginxconfig.io/ssl.conf" "$NGINX_ETC/nginxconfig.io/ssl.conf"
+install -m 0644 "$SOURCE_DIR/contrib/nginx/sites-available/brrewery.conf" "$NGINX_ETC/sites-available/brrewery.conf"
+rm -f "$NGINX_ETC/sites-enabled/default" "$NGINX_ETC/sites-available/default"
 ln -sf ../sites-available/brrewery.conf "$NGINX_ETC/sites-enabled/brrewery.conf"
 nginx -t
 systemctl enable nginx
