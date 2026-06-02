@@ -14,6 +14,7 @@ NGINX_ETC="/etc/nginx"
 REPO_URL="${BRREWERY_REPO_URL:-https://github.com/martylukyy/brrewery.git}"
 REPO_REF="${BRREWERY_REPO_REF:-develop}"
 CLONE_DIR="${BRREWERY_CLONE_DIR:-/tmp/brrewery-src}"
+NODE_INSTALL_DIR="/usr/local/lib/nodejs"
 
 if [[ "${EUID:-}" -ne 0 ]]; then
   echo "Run as root: sudo $0" >&2
@@ -32,15 +33,60 @@ bootstrap_source() {
   SOURCE_DIR="$CLONE_DIR"
 }
 
+install_node_lts() {
+  local arch
+  case "$(uname -m)" in
+  x86_64) arch="x64" ;;
+  aarch64) arch="arm64" ;;
+  *)
+    echo "Unsupported architecture for Node.js LTS install: $(uname -m)" >&2
+    exit 1
+    ;;
+  esac
+
+  echo "==> Installing latest Node.js LTS from official mirror"
+  local node_version
+  node_version="$(
+    curl -fsSL https://nodejs.org/dist/index.json | python3 -c '
+import json, sys
+for release in json.load(sys.stdin):
+    if release.get("lts"):
+        print(release["version"])
+        break
+'
+  )"
+  if [[ -z "$node_version" ]]; then
+    echo "Failed to resolve latest Node.js LTS version" >&2
+    exit 1
+  fi
+
+  local tarball="node-${node_version}-linux-${arch}.tar.xz"
+  local url="https://nodejs.org/dist/${node_version}/${tarball}"
+  local tmp_tar="/tmp/${tarball}"
+
+  curl -fsSL "$url" -o "$tmp_tar"
+  install -d -m 0755 "$NODE_INSTALL_DIR"
+  rm -rf "${NODE_INSTALL_DIR:?}/node-${node_version}-linux-${arch}"
+  tar -xJf "$tmp_tar" -C "$NODE_INSTALL_DIR"
+  rm -f "$tmp_tar"
+
+  ln -sf "${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/node" /usr/local/bin/node
+  ln -sf "${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/npm" /usr/local/bin/npm
+  ln -sf "${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/npx" /usr/local/bin/npx
+  ln -sf "${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/corepack" /usr/local/bin/corepack
+}
+
 echo "==> Installing dependencies"
 if command -v apt-get >/dev/null 2>&1; then
   apt-get update -qq
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    nginx git vnstat sudo ansible openssl make nodejs npm
+    nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3
 else
   echo "Unsupported distro: apt-get is required." >&2
   exit 1
 fi
+
+install_node_lts
 
 echo "==> Bootstrapping pnpm"
 if ! command -v pnpm >/dev/null 2>&1; then
