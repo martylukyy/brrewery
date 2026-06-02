@@ -8,7 +8,7 @@ type Props = {
 };
 
 export function PackageNav({ packages, selectedId, onSelect, onInstallClick }: Props) {
-  const installed = packages.filter((pkg) => pkg.installed && pkg.id !== "nginx");
+  const installed = packages.filter((pkg) => pkg.installed);
 
   return (
     <nav className="flex h-full flex-col border-r border-zinc-800 bg-zinc-900/40">

@@ -9,10 +9,10 @@ describe("PackagesTable", () => {
       <PackagesTable
         packages={[
           {
-            id: "nginx",
-            name: "nginx",
-            description: "Web server",
-            category: "web",
+            id: "sonarr",
+            name: "Sonarr",
+            description: "TV series management",
+            category: "arr",
             installed: true,
             dependencies_satisfied: true,
           },
@@ -20,8 +20,8 @@ describe("PackagesTable", () => {
       />,
     );
 
-    expect(screen.getByText("nginx")).toBeInTheDocument();
+    expect(screen.getByText("Sonarr")).toBeInTheDocument();
     expect(screen.getByText("Installed")).toBeInTheDocument();
-    expect(screen.getByText("Web server")).toBeInTheDocument();
+    expect(screen.getByText("TV series management")).toBeInTheDocument();
   });
 });

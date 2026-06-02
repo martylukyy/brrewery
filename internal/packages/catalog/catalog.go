@@ -30,8 +30,6 @@ func entry(id, name, desc, category string, deps []string, det *model.DetectionS
 // All returns the static package catalog.
 func All() []model.Package {
 	return []model.Package{
-		entry("nginx", "nginx", "High-performance web server and reverse proxy", "web",
-			nil, &model.DetectionSpec{Binaries: []string{"nginx"}, SystemdUnits: []string{"nginx.service"}}),
 		entry("qbittorrent", "qBittorrent", "BitTorrent client", "download",
 			nil, &model.DetectionSpec{Binaries: []string{"qbittorrent-nox"}, SystemdUnits: []string{"qbittorrent.service"}}),
 		entry("autobrr", "autobrr", "Automation for torrents and *arr", "automation",

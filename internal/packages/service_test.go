@@ -12,8 +12,8 @@ func TestService_List(t *testing.T) {
 
 	svc := NewService()
 	list := svc.List()
-	require.Len(t, list, 17)
-	assert.Equal(t, "nginx", list[0].ID)
+	require.Len(t, list, 16)
+	assert.Equal(t, "qbittorrent", list[0].ID)
 }
 
 func TestService_Get(t *testing.T) {
