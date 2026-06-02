@@ -22,6 +22,37 @@ if [[ "${EUID:-}" -ne 0 ]]; then
   exit 1
 fi
 
+run_with_spinner() {
+  local message="$1"
+  shift
+
+  local spinner='|/-\'
+  local i=0
+  local pid
+  local exit_code
+
+  "$@" >/tmp/brrewery-install-deps.log 2>&1 &
+  pid=$!
+
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r%s %c" "$message" "${spinner:i++%${#spinner}:1}"
+    sleep 0.1
+  done
+
+  wait "$pid"
+  exit_code=$?
+
+  if [[ "$exit_code" -eq 0 ]]; then
+    printf "\r%s ✓\n" "$message"
+    return 0
+  fi
+
+  printf "\r%s ✗\n" "$message"
+  echo "Dependency installation failed. Last 40 log lines:" >&2
+  tail -n 40 /tmp/brrewery-install-deps.log >&2 || true
+  return "$exit_code"
+}
+
 bootstrap_source() {
   if [[ -f "$ROOT/Makefile" && -d "$ROOT/ansible" && -d "$ROOT/contrib" ]]; then
     SOURCE_DIR="$ROOT"
@@ -104,9 +135,11 @@ bootstrap_pnpm() {
 
 echo "==> Installing dependencies"
 if command -v apt >/dev/null 2>&1; then
-  apt update -qq
-  DEBIAN_FRONTEND=noninteractive apt install -y -qq \
-    nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3 golang-go
+  run_with_spinner "Installing dependencies" bash -c '
+    apt update -qq &&
+      DEBIAN_FRONTEND=noninteractive apt install -y -qq \
+        nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3 golang-go
+  '
 else
   echo "Unsupported distro: apt is required." >&2
   exit 1
