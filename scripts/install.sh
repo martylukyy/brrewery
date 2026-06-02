@@ -12,7 +12,7 @@ ANSIBLE_DEST="/usr/share/brrewery/ansible"
 SSL_DIR="/etc/ssl/brrewery"
 NGINX_ETC="/etc/nginx"
 REPO_URL="${BRREWERY_REPO_URL:-https://github.com/martylukyy/brrewery.git}"
-REPO_REF="${BRREWERY_REPO_REF:-main}"
+REPO_REF="${BRREWERY_REPO_REF:-develop}"
 CLONE_DIR="${BRREWERY_CLONE_DIR:-/tmp/brrewery-src}"
 
 if [[ "${EUID:-}" -ne 0 ]]; then
