@@ -22,6 +22,14 @@ const packages: PackageStatus[] = [
     installed: false,
     dependencies_satisfied: true,
   },
+  {
+    id: "nginx",
+    name: "Nginx",
+    description: "",
+    category: "web",
+    installed: true,
+    dependencies_satisfied: true,
+  },
 ];
 
 describe("PackageNav", () => {
@@ -37,6 +45,7 @@ describe("PackageNav", () => {
 
     expect(screen.getByRole("button", { name: "Sonarr" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Radarr" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Nginx" })).not.toBeInTheDocument();
   });
 
   it("calls onInstallClick for add button", async () => {
