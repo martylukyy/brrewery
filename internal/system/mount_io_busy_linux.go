@@ -146,6 +146,48 @@ func readBlockStatBusyMs(path string) (uint64, error) {
 	return ioTime, nil
 }
 
+func readBlockStatSectors(path string) (readSectors uint64, writeSectors uint64, err error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, 0, fmt.Errorf("read block stat: %w", err)
+	}
+
+	fields := strings.Fields(string(data))
+	// Linux block stat exposes read sectors at index 2 and write sectors at index 6.
+	if len(fields) < 7 {
+		return 0, 0, fmt.Errorf("parse block stat: only %d fields", len(fields))
+	}
+
+	readSectors, err = strconv.ParseUint(fields[2], 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse block stat read sectors: %w", err)
+	}
+
+	writeSectors, err = strconv.ParseUint(fields[6], 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse block stat write sectors: %w", err)
+	}
+
+	return readSectors, writeSectors, nil
+}
+
+func readMountIOCounters(mount string) (DiskIOCounters, error) {
+	statPath, err := mountDiskIOStatPath(mount)
+	if err != nil {
+		return DiskIOCounters{}, err
+	}
+
+	readSectors, writeSectors, err := readBlockStatSectors(statPath)
+	if err != nil {
+		return DiskIOCounters{}, err
+	}
+
+	return DiskIOCounters{
+		ReadBytes:  readSectors * diskSectorSize,
+		WriteBytes: writeSectors * diskSectorSize,
+	}, nil
+}
+
 // readMountIOBusy returns disk I/O utilization for the mount's backing block device.
 // Same basis as iostat %util: 100 * Δbusy_ms / interval_ms, clamped 0–100.
 func (c *Collector) readMountIOBusy(mount string, uptime float64) (float64, error) {

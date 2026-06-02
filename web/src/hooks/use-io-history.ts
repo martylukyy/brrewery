@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { DiskIOCounters, NetworkCounters, SystemInfo } from "@/lib/api";
+import type { NetworkCounters, SystemInfo } from "@/lib/api";
 import { CHART_HISTORY_MAX_POINTS } from "@/lib/chart-interval";
 
-export type IOSample = {
+export type NetworkSample = {
   rxPerSec: number;
   txPerSec: number;
+};
+
+export type DiskIOSample = {
   readPerSec: number;
   writePerSec: number;
 };
@@ -13,7 +16,7 @@ export type IOSample = {
 type Snapshot = {
   at: number;
   network: NetworkCounters;
-  diskIO: DiskIOCounters;
+  diskByMount: Record<string, { readBytes: number; writeBytes: number }>;
 };
 
 function ratePerSec(current: number, previous: number, seconds: number): number {
@@ -23,9 +26,13 @@ function ratePerSec(current: number, previous: number, seconds: number): number 
   return (current - previous) / seconds;
 }
 
-export function useIOHistory(info: SystemInfo | undefined): IOSample[] {
+export function useIOHistory(info: SystemInfo | undefined): {
+  networkHistory: NetworkSample[];
+  diskHistoryByMount: Record<string, DiskIOSample[]>;
+} {
   const previous = useRef<Snapshot | null>(null);
-  const [history, setHistory] = useState<IOSample[]>([]);
+  const [networkHistory, setNetworkHistory] = useState<NetworkSample[]>([]);
+  const [diskHistoryByMount, setDiskHistoryByMount] = useState<Record<string, DiskIOSample[]>>({});
 
   useEffect(() => {
     if (!info) {
@@ -34,23 +41,45 @@ export function useIOHistory(info: SystemInfo | undefined): IOSample[] {
 
     const now = Date.now();
     const prev = previous.current;
+    const diskByMount = Object.fromEntries(
+      (info.disks ?? []).map((disk) => [disk.mount, {
+        readBytes: disk.io_read_bytes ?? 0,
+        writeBytes: disk.io_write_bytes ?? 0,
+      }]),
+    );
+
     if (prev) {
       const seconds = (now - prev.at) / 1000;
-      const sample: IOSample = {
+      const networkSample: NetworkSample = {
         rxPerSec: ratePerSec(info.network.rx_bytes, prev.network.rx_bytes, seconds),
         txPerSec: ratePerSec(info.network.tx_bytes, prev.network.tx_bytes, seconds),
-        readPerSec: ratePerSec(info.disk_io.read_bytes, prev.diskIO.read_bytes, seconds),
-        writePerSec: ratePerSec(info.disk_io.write_bytes, prev.diskIO.write_bytes, seconds),
       };
-      setHistory((current) => [...current, sample].slice(-CHART_HISTORY_MAX_POINTS));
+      setNetworkHistory((current) => [...current, networkSample].slice(-CHART_HISTORY_MAX_POINTS));
+
+      setDiskHistoryByMount((current) => {
+        const next: Record<string, DiskIOSample[]> = {};
+        for (const [mount, counters] of Object.entries(diskByMount)) {
+          const prevDisk = prev.diskByMount[mount];
+          if (!prevDisk) {
+            next[mount] = current[mount] ?? [];
+            continue;
+          }
+          const sample: DiskIOSample = {
+            readPerSec: ratePerSec(counters.readBytes, prevDisk.readBytes, seconds),
+            writePerSec: ratePerSec(counters.writeBytes, prevDisk.writeBytes, seconds),
+          };
+          next[mount] = [...(current[mount] ?? []), sample].slice(-CHART_HISTORY_MAX_POINTS);
+        }
+        return next;
+      });
     }
 
     previous.current = {
       at: now,
       network: info.network,
-      diskIO: info.disk_io,
+      diskByMount,
     };
   }, [info]);
 
-  return history;
+  return { networkHistory, diskHistoryByMount };
 }

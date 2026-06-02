@@ -17,7 +17,6 @@ describe("Dashboard", () => {
           cpu_count: 4,
           cpu_name: "Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz",
           cpu_percent: 42.5,
-          disk_io_busy_percent: 3.2,
           load: { "1m": 0.5, "5m": 0.4, "15m": 0.3 },
           memory: {
             total_bytes: 8_000_000_000,
@@ -25,13 +24,28 @@ describe("Dashboard", () => {
             used_bytes: 4_000_000_000,
             used_percent: 50,
           },
-          disk: {
-            mount: "/",
-            total_bytes: 100_000_000_000,
-            used_bytes: 40_000_000_000,
-            available_bytes: 60_000_000_000,
-            used_percent: 40,
-          },
+          disks: [
+            {
+              mount: "/",
+              total_bytes: 100_000_000_000,
+              used_bytes: 40_000_000_000,
+              available_bytes: 60_000_000_000,
+              used_percent: 40,
+              io_busy_percent: 3.2,
+              io_read_bytes: 10_000_000,
+              io_write_bytes: 5_000_000,
+            },
+            {
+              mount: "/mnt/storage",
+              total_bytes: 50_000_000_000,
+              used_bytes: 10_000_000_000,
+              available_bytes: 40_000_000_000,
+              used_percent: 20,
+              io_busy_percent: 1.5,
+              io_read_bytes: 2_000_000,
+              io_write_bytes: 1_000_000,
+            },
+          ],
           network: { rx_bytes: 1_000_000, tx_bytes: 500_000 },
           disk_io: {
             read_bytes: 10_000_000,
@@ -61,8 +75,11 @@ describe("Dashboard", () => {
     expect(screen.getByText("Memory")).toBeInTheDocument();
     expect(screen.getByText("1m")).toBeInTheDocument();
     expect(screen.getByText("Network throughput")).toBeInTheDocument();
-    expect(screen.getByText("I/O busy")).toBeInTheDocument();
+    expect(screen.getByText("/")).toBeInTheDocument();
+    expect(screen.getByText("/mnt/storage")).toBeInTheDocument();
+    expect(screen.getAllByText("Disk usage")).toHaveLength(2);
+    expect(screen.getAllByText("I/O busy")).toHaveLength(2);
     expect(screen.getByText("3.20%")).toBeInTheDocument();
-    expect(screen.getByText("Disk I/O")).toBeInTheDocument();
+    expect(screen.getAllByText("Disk I/O")).toHaveLength(2);
   });
 });

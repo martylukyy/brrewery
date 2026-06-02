@@ -154,6 +154,18 @@ components:
         used_percent:
           type: number
           format: double
+        io_busy_percent:
+          type: number
+          format: double
+          description: Block-device I/O busy percent for this mount (iostat %util from sysfs stat).
+        io_read_bytes:
+          type: integer
+          format: int64
+          description: Cumulative read bytes for disk backing this mount.
+        io_write_bytes:
+          type: integer
+          format: int64
+          description: Cumulative write bytes for disk backing this mount.
     NetworkCounters:
       type: object
       properties:
@@ -221,16 +233,19 @@ components:
         cpu_percent:
           type: number
           format: double
-        disk_io_busy_percent:
-          type: number
-          format: double
-          description: Block-device I/O busy percent for disk.mount (btop io% from sysfs stat).
         load:
           $ref: '#/components/schemas/LoadAvg'
         memory:
           $ref: '#/components/schemas/SystemMemory'
+        disks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemDisk'
+          description: Disk usage for fstab mount points (swap and EFI excluded).
         disk:
           $ref: '#/components/schemas/SystemDisk'
+          deprecated: true
+          description: Deprecated. First entry of disks, kept for older clients.
         network:
           $ref: '#/components/schemas/NetworkCounters'
         disk_io:

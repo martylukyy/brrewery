@@ -10,7 +10,6 @@ const base: SystemInfo = {
   cpu_count: 4,
   cpu_name: "Test CPU",
   cpu_percent: 0,
-  disk_io_busy_percent: 0,
   load: { "1m": 0, "5m": 0, "15m": 0 },
   memory: {
     total_bytes: 1,
@@ -18,13 +17,17 @@ const base: SystemInfo = {
     used_bytes: 0,
     used_percent: 0,
   },
-  disk: {
-    mount: "/",
-    total_bytes: 1,
-    used_bytes: 0,
-    available_bytes: 1,
-    used_percent: 0,
-  },
+  disks: [
+    {
+      mount: "/",
+      total_bytes: 1,
+      used_bytes: 0,
+      available_bytes: 1,
+      used_percent: 0,
+      io_read_bytes: 2000,
+      io_write_bytes: 1000,
+    },
+  ],
   network: { rx_bytes: 1000, tx_bytes: 500 },
   disk_io: { read_bytes: 2000, write_bytes: 1000, read_ops: 10, write_ops: 5 },
 };
@@ -44,7 +47,8 @@ describe("useIOHistory", () => {
       { initialProps: { info: base } },
     );
 
-    expect(result.current).toHaveLength(0);
+    expect(result.current.networkHistory).toHaveLength(0);
+    expect(result.current.diskHistoryByMount["/"] ?? []).toHaveLength(0);
 
     act(() => {
       vi.setSystemTime(new Date(start.getTime() + 5000));
@@ -52,15 +56,22 @@ describe("useIOHistory", () => {
         info: {
           ...base,
           network: { rx_bytes: 6000, tx_bytes: 2500 },
-          disk_io: { read_bytes: 12_000, write_bytes: 6000, read_ops: 20, write_ops: 8 },
+          disks: [
+            {
+              ...base.disks[0],
+              io_read_bytes: 12_000,
+              io_write_bytes: 6000,
+            },
+          ],
         },
       });
     });
 
-    expect(result.current).toHaveLength(1);
-    expect(result.current[0]?.rxPerSec).toBe(1000);
-    expect(result.current[0]?.txPerSec).toBe(400);
-    expect(result.current[0]?.readPerSec).toBe(2000);
-    expect(result.current[0]?.writePerSec).toBe(1000);
+    expect(result.current.networkHistory).toHaveLength(1);
+    expect(result.current.networkHistory[0]?.rxPerSec).toBe(1000);
+    expect(result.current.networkHistory[0]?.txPerSec).toBe(400);
+    expect(result.current.diskHistoryByMount["/"]).toHaveLength(1);
+    expect(result.current.diskHistoryByMount["/"]?.[0]?.readPerSec).toBe(2000);
+    expect(result.current.diskHistoryByMount["/"]?.[0]?.writePerSec).toBe(1000);
   });
 });

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ChartIntervalSelect } from "@/components/chart-interval-select";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
-import type { IOSample } from "@/hooks/use-io-history";
+import type { DiskIOSample } from "@/hooks/use-io-history";
 import {
   DEFAULT_CHART_INTERVAL,
   type ChartIntervalId,
@@ -14,10 +14,11 @@ import {
 import { formatRate } from "@/lib/format";
 
 type Props = {
-  history: IOSample[];
+  history: DiskIOSample[];
+  chartIdSuffix: string;
 };
 
-export function DiskIOChart({ history }: Props) {
+export function DiskIOChart({ history, chartIdSuffix }: Props) {
   const [intervalId, setIntervalId] = useState<ChartIntervalId>(DEFAULT_CHART_INTERVAL);
 
   const interval = getChartInterval(intervalId);
@@ -41,7 +42,7 @@ export function DiskIOChart({ history }: Props) {
       pollSeconds={interval.pollMs / 1000}
       action={
         <ChartIntervalSelect
-          id="disk-chart-interval"
+          id={`disk-chart-interval-${chartIdSuffix}`}
           value={intervalId}
           onChange={setIntervalId}
         />

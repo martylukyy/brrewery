@@ -44,7 +44,7 @@ func (c *Collector) Collect() (Info, error) {
 		return Info{}, err
 	}
 
-	disk, err := readDiskUsage("/")
+	disks, err := c.readMonitoredDisks(uptime)
 	if err != nil {
 		return Info{}, err
 	}
@@ -64,29 +64,64 @@ func (c *Collector) Collect() (Info, error) {
 		return Info{}, err
 	}
 
-	diskIOBusy, err := c.readMountIOBusy(disk.Mount, uptime)
-	if err != nil {
-		diskIOBusy = 0
-	}
-
 	cpuName, err := readCPUModelName()
 	if err != nil {
 		return Info{}, err
 	}
 
-	return Info{
-		Hostname:          hostname,
-		UptimeSeconds:     uptime,
-		CPUCount:          runtime.NumCPU(),
-		CPUName:           cpuName,
-		CPUPercent:        cpuPercent,
-		DiskIOBusyPercent: diskIOBusy,
+	info := Info{
+		Hostname:      hostname,
+		UptimeSeconds: uptime,
+		CPUCount:      runtime.NumCPU(),
+		CPUName:       cpuName,
+		CPUPercent:    cpuPercent,
 		Load:          load,
 		Memory:        memory,
-		Disk:          disk,
+		Disks:         disks,
 		Network:       network,
 		DiskIO:        diskIO,
-	}, nil
+	}
+	if len(disks) > 0 {
+		info.Disk = &disks[0]
+	}
+	return info, nil
+}
+
+func (c *Collector) readMonitoredDisks(uptime float64) ([]DiskUsage, error) {
+	mounts, err := monitoredFstabMounts()
+	if err != nil {
+		return nil, err
+	}
+	if len(mounts) == 0 {
+		mounts = []string{"/"}
+	}
+
+	disks := make([]DiskUsage, 0, len(mounts))
+	for _, mount := range mounts {
+		usage, err := readDiskUsage(mount)
+		if err != nil {
+			continue
+		}
+
+		ioBusy, err := c.readMountIOBusy(mount, uptime)
+		if err != nil {
+			ioBusy = 0
+		}
+		usage.IOBusyPercent = ioBusy
+
+		ioCounters, err := readMountIOCounters(mount)
+		if err == nil {
+			usage.IOReadBytes = ioCounters.ReadBytes
+			usage.IOWriteBytes = ioCounters.WriteBytes
+		}
+		disks = append(disks, usage)
+	}
+
+	if len(disks) == 0 {
+		return nil, fmt.Errorf("no mounted filesystems from fstab")
+	}
+
+	return disks, nil
 }
 
 func readUptime() (float64, error) {

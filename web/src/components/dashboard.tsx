@@ -30,7 +30,7 @@ export function Dashboard() {
     queryFn: getSystemInfo,
     refetchInterval: SYSTEM_POLL_MS,
   });
-  const ioHistory = useIOHistory(system.data);
+  const { networkHistory, diskHistoryByMount } = useIOHistory(system.data);
 
   if (system.isLoading) {
     return <p className="text-zinc-400">Loading system metrics…</p>;
@@ -46,9 +46,8 @@ export function Dashboard() {
   }
 
   const memoryPercent = Math.min(100, Math.max(0, info.memory.used_percent));
-  const diskPercent = Math.min(100, Math.max(0, info.disk.used_percent));
   const cpuPercent = Math.min(100, Math.max(0, info.cpu_percent));
-  const diskIOBusyPercent = clampPercent(info.disk_io_busy_percent);
+  const disks = info.disks ?? [];
   const loadPercent = loadGaugePercent(info.load["1m"], info.cpu_count);
 
   return (
@@ -83,29 +82,38 @@ export function Dashboard() {
 
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 [&>*]:h-full">
-        <GaugePanel
-          label={`Disk (${info.disk.mount})`}
-          value={diskPercent}
-          display={`${diskPercent.toFixed(1)}%`}
-          footer={
-            <p className="flex h-full items-center justify-center text-center text-xs text-zinc-500">
-              {formatBytes(info.disk.used_bytes)} / {formatBytes(info.disk.total_bytes)}
-            </p>
-          }
-        />
-        <GaugePanel
-          label="I/O busy"
-          value={diskIOBusyPercent}
-          display={`${diskIOBusyPercent.toFixed(2)}%`}
-        />
-        <div className="md:col-span-2 xl:col-span-2">
-          <DiskIOChart history={ioHistory} />
-        </div>
-      </div>
-
+      {disks.map((disk) => {
+        const usedPercent = Math.min(100, Math.max(0, disk.used_percent));
+        const busyPercent = clampPercent(disk.io_busy_percent);
+        const chartIdSuffix = disk.mount.replaceAll("/", "-").replaceAll(" ", "-");
+        return (
+          <section key={disk.mount} className="space-y-3">
+            <h2 className="text-lg font-semibold text-zinc-100">{disk.mount}</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 [&>*]:h-full">
+              <GaugePanel
+                label="Disk usage"
+                value={usedPercent}
+                display={`${usedPercent.toFixed(1)}%`}
+                footer={
+                  <p className="flex h-full items-center justify-center text-center text-xs text-zinc-500">
+                    {formatBytes(disk.used_bytes)} / {formatBytes(disk.total_bytes)}
+                  </p>
+                }
+              />
+              <GaugePanel
+                label="I/O busy"
+                value={busyPercent}
+                display={`${busyPercent.toFixed(2)}%`}
+              />
+              <div className="md:col-span-2 xl:col-span-2">
+                <DiskIOChart history={diskHistoryByMount[disk.mount] ?? []} chartIdSuffix={chartIdSuffix} />
+              </div>
+            </div>
+          </section>
+        );
+      })}
       <div className="grid gap-4 lg:grid-cols-2">
-        <NetworkThroughputChart history={ioHistory} />
+        <NetworkThroughputChart history={networkHistory} />
         <VnstatPanel />
       </div>
     </div>

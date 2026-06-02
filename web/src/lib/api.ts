@@ -95,6 +95,9 @@ export type SystemDisk = {
   used_bytes: number;
   available_bytes: number;
   used_percent: number;
+  io_busy_percent?: number;
+  io_read_bytes?: number;
+  io_write_bytes?: number;
 };
 
 export type NetworkCounters = {
@@ -115,13 +118,31 @@ export type SystemInfo = {
   cpu_count: number;
   cpu_name: string;
   cpu_percent: number;
-  disk_io_busy_percent?: number;
   load: LoadAvg;
   memory: SystemMemory;
-  disk: SystemDisk;
+  disks: SystemDisk[];
+  /** @deprecated Use disks. Present on older API responses. */
+  disk?: SystemDisk;
   network: NetworkCounters;
   disk_io: DiskIOCounters;
 };
+
+/** @deprecated Use disks. Present on older API responses. */
+export type SystemInfoRaw = SystemInfo & {
+  disk_io_busy_percent?: number;
+};
+
+export function normalizeSystemInfo(info: SystemInfoRaw): SystemInfo {
+  const disks = info.disks?.length ? info.disks : info.disk ? [info.disk] : [];
+  const peakIO = info.disk_io_busy_percent;
+  const normalized = disks.map((disk, index) => {
+    if (disk.io_busy_percent != null || peakIO == null || index !== 0) {
+      return disk;
+    }
+    return { ...disk, io_busy_percent: peakIO };
+  });
+  return { ...info, disks: normalized };
+}
 
 export function login(body: LoginRequest) {
   return apiFetch<LoginResponse>("/auth/login", {
@@ -158,7 +179,7 @@ export function listPackages() {
 }
 
 export function getSystemInfo() {
-  return apiFetch<SystemInfo>("/system");
+  return apiFetch<SystemInfoRaw>("/system").then(normalizeSystemInfo);
 }
 
 export type TrafficPeriod = {

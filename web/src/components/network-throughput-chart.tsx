@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ChartIntervalSelect } from "@/components/chart-interval-select";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
-import type { IOSample } from "@/hooks/use-io-history";
+import type { NetworkSample } from "@/hooks/use-io-history";
 import {
   DEFAULT_CHART_INTERVAL,
   type ChartIntervalId,
@@ -20,7 +20,7 @@ import {
 } from "@/lib/network-scale";
 
 type Props = {
-  history: IOSample[];
+  history: NetworkSample[];
 };
 
 export function NetworkThroughputChart({ history }: Props) {

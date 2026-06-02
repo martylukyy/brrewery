@@ -19,8 +19,17 @@ func TestCollector_Collect(t *testing.T) {
 	assert.Positive(t, info.UptimeSeconds)
 	assert.Positive(t, info.CPUCount)
 	assert.NotZero(t, info.Memory.TotalBytes)
-	assert.NotZero(t, info.Disk.TotalBytes)
-	assert.Equal(t, "/", info.Disk.Mount)
+	require.NotEmpty(t, info.Disks)
+
+	var root *DiskUsage
+	for i := range info.Disks {
+		if info.Disks[i].Mount == "/" {
+			root = &info.Disks[i]
+			break
+		}
+	}
+	require.NotNil(t, root)
+	assert.NotZero(t, root.TotalBytes)
 }
 
 func TestReadNetworkCounters(t *testing.T) {

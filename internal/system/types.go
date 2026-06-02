@@ -6,10 +6,10 @@ type Info struct {
 	CPUCount      int             `json:"cpu_count"`
 	CPUName       string          `json:"cpu_name"`
 	CPUPercent    float64         `json:"cpu_percent"`
-	DiskIOBusyPercent float64     `json:"disk_io_busy_percent"`
 	Load          LoadAvg         `json:"load"`
 	Memory        Memory          `json:"memory"`
-	Disk          DiskUsage       `json:"disk"`
+	Disks         []DiskUsage     `json:"disks"`
+	Disk          *DiskUsage      `json:"disk,omitempty"` // deprecated: first disks entry for older UIs
 	Network       NetworkCounters `json:"network"`
 	DiskIO        DiskIOCounters  `json:"disk_io"`
 }
@@ -47,4 +47,7 @@ type DiskUsage struct {
 	UsedBytes      uint64  `json:"used_bytes"`
 	AvailableBytes uint64  `json:"available_bytes"`
 	UsedPercent    float64 `json:"used_percent"`
+	IOBusyPercent  float64 `json:"io_busy_percent,omitempty"`
+	IOReadBytes    uint64  `json:"io_read_bytes,omitempty"`
+	IOWriteBytes   uint64  `json:"io_write_bytes,omitempty"`
 }
