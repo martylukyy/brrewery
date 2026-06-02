@@ -60,13 +60,24 @@ run_with_spinner() {
   return "$exit_code"
 }
 
+run_with_log() {
+  local message="$1"
+  shift
+
+  printf "\n→ %s\n" "$message"
+  {
+    printf "\n=== %s ===\n" "$message"
+    "$@"
+  } 2>&1 | tee -a "$INSTALL_LOG"
+}
+
 bootstrap_source() {
   if [[ -f "$ROOT/Makefile" && -d "$ROOT/ansible" && -d "$ROOT/contrib" ]]; then
     SOURCE_DIR="$ROOT"
     return
   fi
 
-  run_with_spinner "Fetching brrewery source" bash -c "
+  run_with_log "Fetching brrewery source" bash -c "
       rm -rf \"$CLONE_DIR\" &&
         git clone --depth 1 --branch \"$REPO_REF\" \"$REPO_URL\" \"$CLONE_DIR\"
     "
@@ -217,10 +228,12 @@ run_with_spinner "Configuring systemd unit" bash -c "
     systemctl restart brrewery
 "
 
-if ! "$BINARY_DEST" create-admin >>"$INSTALL_LOG" 2>&1; then
-  echo "Create admin user (interactive)"
-  "$BINARY_DEST" create-admin 2>&1 | tee -a "$INSTALL_LOG"
-fi
+run_with_log "Creating admin user" bash -c "
+  if ! \"$BINARY_DEST\" create-admin; then
+    echo 'Create admin user (interactive)'
+    \"$BINARY_DEST\" create-admin
+  fi
+"
 
 echo "✓ brrewery installed"
 echo "    Dashboard: https://127.0.0.1/ (self-signed TLS)"
