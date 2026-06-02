@@ -103,12 +103,12 @@ bootstrap_pnpm() {
 }
 
 echo "==> Installing dependencies"
-if command -v apt-get >/dev/null 2>&1; then
-  apt-get update -qq
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+if command -v apt >/dev/null 2>&1; then
+  apt update -qq
+  DEBIAN_FRONTEND=noninteractive apt install -y -qq \
     nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3 golang-go
 else
-  echo "Unsupported distro: apt-get is required." >&2
+  echo "Unsupported distro: apt is required." >&2
   exit 1
 fi
 
