@@ -307,6 +307,14 @@ func listOSUsers() ([]string, error) {
 		if username == "" {
 			continue
 		}
+		uid, err := strconv.Atoi(strings.TrimSpace(parts[2]))
+		if err != nil {
+			continue
+		}
+		shell := strings.TrimSpace(parts[6])
+		if uid < 1000 || !hasLoginShell(shell) {
+			continue
+		}
 		if _, exists := seen[username]; exists {
 			continue
 		}
@@ -315,6 +323,15 @@ func listOSUsers() ([]string, error) {
 	}
 	sort.Strings(users)
 	return users, nil
+}
+
+func hasLoginShell(shell string) bool {
+	switch shell {
+	case "", "/usr/sbin/nologin", "/sbin/nologin", "/bin/false", "nologin", "false":
+		return false
+	default:
+		return true
+	}
 }
 
 func readPassword() (string, error) {
