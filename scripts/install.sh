@@ -26,7 +26,7 @@ run_with_spinner() {
   local message="$1"
   shift
 
-  local spinner='|/-\'
+  local -a spinner=(⣷ ⣯ ⣟ ⡿ ⢿ ⣻ ⣽ ⣾)
   local i=0
   local pid
   local exit_code
@@ -35,8 +35,8 @@ run_with_spinner() {
   pid=$!
 
   while kill -0 "$pid" 2>/dev/null; do
-    printf "\r%s %c" "$message" "${spinner:i++%${#spinner}:1}"
-    sleep 0.1
+    printf "\r%s %s" "$message" "${spinner[i++ % ${#spinner[@]}]}"
+    sleep 0.08
   done
 
   wait "$pid"
