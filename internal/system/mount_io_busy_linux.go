@@ -16,10 +16,10 @@ type mountIOSample struct {
 	uptime   float64
 }
 
-func mountSourceDevice(mount string) (string, error) {
+func mountSourceDevice(mount string) (source string, deviceID string, err error) {
 	file, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
-		return "", fmt.Errorf("read mountinfo: %w", err)
+		return "", "", fmt.Errorf("read mountinfo: %w", err)
 	}
 	defer file.Close()
 
@@ -39,46 +39,77 @@ func mountSourceDevice(mount string) (string, error) {
 				continue
 			}
 			if i+2 >= len(fields) {
-				return "", fmt.Errorf("mount %q: missing source device", mount)
+				return "", "", fmt.Errorf("mount %q: missing source device", mount)
 			}
-			return fields[i+2], nil
+			return fields[i+2], fields[2], nil
 		}
-		return "", fmt.Errorf("mount %q: missing mountinfo separator", mount)
+		return "", "", fmt.Errorf("mount %q: missing mountinfo separator", mount)
 	}
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("scan mountinfo: %w", err)
+		return "", "", fmt.Errorf("scan mountinfo: %w", err)
 	}
 
-	return "", fmt.Errorf("mount %q: not found", mount)
+	return "", "", fmt.Errorf("mount %q: not found", mount)
 }
 
 // mountDiskIOStatPath returns the backing block-device stat file for a mount.
 // Uses the top-level /sys/block/<disk>/stat path so whole-device I/O (e.g. fio on
 // /dev/nvme0n1) is reflected, not only traffic attributed to a partition node.
 func mountDiskIOStatPath(mount string) (string, error) {
-	device, err := mountSourceDevice(mount)
+	device, deviceID, err := mountSourceDevice(mount)
 	if err != nil {
 		return "", err
 	}
-	if !strings.HasPrefix(device, "/dev/") {
-		return "", fmt.Errorf("mount %q: unsupported device %q", mount, device)
-	}
 
-	devname := filepath.Base(device)
-	for len(devname) >= 2 {
-		statPath := filepath.Join("/sys/block", devname, "stat")
-		if fileReadable(statPath) {
-			return statPath, nil
+	if strings.HasPrefix(device, "/dev/") {
+		devname := filepath.Base(device)
+		for len(devname) >= 2 {
+			statPath := filepath.Join("/sys/block", devname, "stat")
+			if fileReadable(statPath) {
+				return statPath, nil
+			}
+			devname = devname[:len(devname)-1]
 		}
-		devname = devname[:len(devname)-1]
 	}
 
-	return "", fmt.Errorf("mount %q: block stat not found for %s", mount, device)
+	// Some environments (e.g. CI containers) expose source device as /dev/root.
+	// Fall back to resolving the mount major:minor through /sys/dev/block.
+	resolved, err := resolveDiskFromDeviceID(deviceID)
+	if err != nil {
+		return "", fmt.Errorf("mount %q: block stat not found for %s: %w", mount, device, err)
+	}
+
+	statPath := filepath.Join("/sys/block", resolved, "stat")
+	if !fileReadable(statPath) {
+		return "", fmt.Errorf("mount %q: missing stat path %s", mount, statPath)
+	}
+
+	return statPath, nil
 }
 
 func fileReadable(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func resolveDiskFromDeviceID(deviceID string) (string, error) {
+	if deviceID == "" {
+		return "", fmt.Errorf("empty device id")
+	}
+
+	target, err := filepath.EvalSymlinks(filepath.Join("/sys/dev/block", deviceID))
+	if err != nil {
+		return "", fmt.Errorf("resolve /sys/dev/block/%s: %w", deviceID, err)
+	}
+
+	parts := strings.Split(target, string(filepath.Separator))
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] == "block" && i+1 < len(parts) {
+			return parts[i+1], nil
+		}
+	}
+
+	return "", fmt.Errorf("could not map %s to /sys/block disk", deviceID)
 }
 
 // blockStatBusyMsIndex is the 0-based field index of "time doing I/Os (ms)" (iostat %util).
