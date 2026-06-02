@@ -263,7 +263,16 @@ func promptOSUserSelection() (string, error) {
 		fmt.Printf("  %d) %s\n", i+1, user)
 	}
 
-	fmt.Print("Choice [1-", len(users), "]: ")
+	defaultUser, hasDefault, err := userByUID(1000)
+	if err != nil {
+		return "", err
+	}
+	if hasDefault {
+		fmt.Print("Choice [1-", len(users), ", default uid 1000 (", defaultUser, ")]: ")
+	} else {
+		fmt.Print("Choice [1-", len(users), "]: ")
+	}
+
 	choiceReader := bufio.NewReader(os.Stdin)
 	choiceRaw, err := choiceReader.ReadString('\n')
 	if err != nil {
@@ -271,6 +280,9 @@ func promptOSUserSelection() (string, error) {
 	}
 	choiceRaw = strings.TrimSpace(choiceRaw)
 	if choiceRaw == "" {
+		if hasDefault {
+			return defaultUser, nil
+		}
 		return "", errors.New("selection cannot be empty")
 	}
 
@@ -332,6 +344,38 @@ func hasLoginShell(shell string) bool {
 	default:
 		return true
 	}
+}
+
+func userByUID(wantUID int) (string, bool, error) {
+	passwdBytes, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return "", false, fmt.Errorf("read /etc/passwd: %w", err)
+	}
+
+	for _, line := range strings.Split(string(passwdBytes), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Split(line, ":")
+		if len(parts) < 7 {
+			continue
+		}
+
+		uid, err := strconv.Atoi(strings.TrimSpace(parts[2]))
+		if err != nil || uid != wantUID {
+			continue
+		}
+
+		username := strings.TrimSpace(parts[0])
+		shell := strings.TrimSpace(parts[6])
+		if username == "" || !hasLoginShell(shell) {
+			return "", false, nil
+		}
+		return username, true, nil
+	}
+
+	return "", false, nil
 }
 
 func readPassword() (string, error) {
