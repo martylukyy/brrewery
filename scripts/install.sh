@@ -77,6 +77,31 @@ for release in json.load(sys.stdin):
   ln -sf "${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/corepack" /usr/local/bin/corepack
 }
 
+bootstrap_pnpm() {
+  echo "==> Bootstrapping pnpm"
+  # Install exact project pnpm version to match packageManager pin.
+  npm install -g pnpm@11.5.0
+
+  local npm_prefix
+  npm_prefix="$(npm prefix -g)"
+  local npm_bin_dir="${npm_prefix}/bin"
+  export PATH="${npm_bin_dir}:/usr/local/bin:${PATH}"
+
+  # Ensure pnpm is resolvable regardless of npm global prefix configuration.
+  if [[ -x "${npm_bin_dir}/pnpm" ]]; then
+    ln -sf "${npm_bin_dir}/pnpm" /usr/local/bin/pnpm
+  fi
+  if [[ -x "${npm_bin_dir}/pnpx" ]]; then
+    ln -sf "${npm_bin_dir}/pnpx" /usr/local/bin/pnpx
+  fi
+
+  if ! command -v pnpm >/dev/null 2>&1; then
+    echo "pnpm install succeeded but binary is not on PATH" >&2
+    exit 1
+  fi
+  pnpm --version >/dev/null
+}
+
 echo "==> Installing dependencies"
 if command -v apt-get >/dev/null 2>&1; then
   apt-get update -qq
@@ -88,12 +113,7 @@ else
 fi
 
 install_node_lts
-
-echo "==> Bootstrapping pnpm"
-# Install exact project pnpm version globally to avoid interactive Corepack prompts
-# when packageManager pinning is enforced during `pnpm install`/`pnpm build`.
-npm install -g pnpm@latest
-
+bootstrap_pnpm
 bootstrap_source
 
 echo "==> Creating directories"
