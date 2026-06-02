@@ -9,6 +9,7 @@ BINARY_DEST="/usr/local/bin/brrewery"
 WEB_ROOT="/var/www/brrewery"
 LIB_DIR="/var/lib/brrewery"
 LOG_DIR="/var/log/brrewery"
+INSTALL_LOG="/var/log/brrewery-install.log"
 ANSIBLE_DEST="/usr/share/brrewery/ansible"
 SSL_DIR="/etc/ssl/brrewery"
 NGINX_ETC="/etc/nginx"
@@ -22,6 +23,9 @@ if [[ "${EUID:-}" -ne 0 ]]; then
   exit 1
 fi
 
+: >"$INSTALL_LOG"
+chmod 0640 "$INSTALL_LOG"
+
 run_with_spinner() {
   local message="$1"
   shift
@@ -31,7 +35,10 @@ run_with_spinner() {
   local pid
   local exit_code
 
-  "$@" >/tmp/brrewery-install-deps.log 2>&1 &
+  {
+    printf '\n=== %s ===\n' "$message"
+    "$@"
+  } >>"$INSTALL_LOG" 2>&1 &
   pid=$!
 
   while kill -0 "$pid" 2>/dev/null; do
@@ -48,8 +55,8 @@ run_with_spinner() {
   fi
 
   printf "\r%s ✗\n" "$message"
-  echo "Dependency installation failed. Last 40 log lines:" >&2
-  tail -n 40 /tmp/brrewery-install-deps.log >&2 || true
+  echo "$message failed. Last 40 log lines ($INSTALL_LOG):" >&2
+  tail -n 40 "$INSTALL_LOG" >&2 || true
   return "$exit_code"
 }
 
@@ -60,8 +67,10 @@ bootstrap_source() {
   fi
 
   echo "==> Fetching brrewery source from GitHub"
-  rm -rf "$CLONE_DIR"
-  git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$CLONE_DIR"
+  run_with_spinner "Fetching brrewery source" bash -c "
+      rm -rf \"$CLONE_DIR\" &&
+        git clone --depth 1 --branch \"$REPO_REF\" \"$REPO_URL\" \"$CLONE_DIR\"
+    "
   SOURCE_DIR="$CLONE_DIR"
 }
 
@@ -155,7 +164,12 @@ install -d -m 0755 "$(dirname "$BINARY_DEST")"
 
 echo "==> Building brrewery"
 if [[ -f "$SOURCE_DIR/Makefile" ]]; then
-  (cd "$SOURCE_DIR" && make build)
+  run_with_spinner "Building frontend" bash -c "
+      cd \"$SOURCE_DIR/web\" && pnpm install && pnpm build
+    "
+  rm -rf "$SOURCE_DIR/internal/web/dist"
+  cp -r "$SOURCE_DIR/web/dist" "$SOURCE_DIR/internal/web/"
+  run_with_spinner "Building backend" bash -c "cd \"$SOURCE_DIR\" && make backend"
 else
   echo "Missing Makefile in $SOURCE_DIR" >&2
   exit 1
