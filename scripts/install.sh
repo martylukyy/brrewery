@@ -36,12 +36,16 @@ echo "==> Installing dependencies"
 if command -v apt-get >/dev/null 2>&1; then
   apt-get update -qq
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    nginx git vnstat sudo ansible openssl
-elif command -v pacman >/dev/null 2>&1; then
-  pacman -Sy --noconfirm nginx git vnstat sudo ansible openssl
+    nginx git vnstat sudo ansible openssl make nodejs npm
 else
-  echo "Unsupported distro: install nginx, git, vnstat, sudo, ansible, and openssl manually." >&2
+  echo "Unsupported distro: apt-get is required." >&2
   exit 1
+fi
+
+echo "==> Bootstrapping pnpm"
+if ! command -v pnpm >/dev/null 2>&1; then
+  corepack enable
+  corepack prepare pnpm@latest --activate
 fi
 
 bootstrap_source
