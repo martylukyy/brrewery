@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sort"
 	"strconv"
@@ -15,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	gcrypt "github.com/GehirnInc/crypt"
+	yescrypt "github.com/openwall/yescrypt-go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -403,68 +404,98 @@ func verifyOSPassword(username, password string) error {
 		return errors.New("password cannot be empty")
 	}
 
-	const pythonCheck = `
-import os
-import sys
-
-username = os.environ.get("BRREWERY_VERIFY_USER", "")
-password = os.environ.get("BRREWERY_VERIFY_PASS", "")
-
-try:
-    import crypt
-    import spwd
-except Exception as e:
-    print(f"IMPORT_ERROR:{e}")
-    sys.exit(10)
-
-try:
-    entry = spwd.getspnam(username)
-except PermissionError:
-    sys.exit(2)
-except KeyError:
-    sys.exit(3)
-
-hash_value = entry.sp_pwdp
-if not hash_value or hash_value in ("!", "*", "x") or hash_value.startswith("!") or hash_value.startswith("*"):
-    sys.exit(4)
-
-if crypt.crypt(password, hash_value) == hash_value:
-    sys.exit(0)
-print("MISMATCH")
-sys.exit(1)
-`
-
-	cmd := exec.Command("python3", "-c", pythonCheck)
-	cmd.Env = append(
-		os.Environ(),
-		"BRREWERY_VERIFY_USER="+username,
-		"BRREWERY_VERIFY_PASS="+password,
-	)
-	output, err := cmd.CombinedOutput()
+	shadowBytes, err := os.ReadFile("/etc/shadow")
 	if err != nil {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			return fmt.Errorf("verify OS password: %w", err)
-		}
-
-		switch exitErr.ExitCode() {
-		case 1:
-			return errOSPasswordVerificationFailed
-		case 2:
+		if errors.Is(err, os.ErrPermission) {
 			return errors.New("cannot verify OS password: permission denied reading shadow password database")
-		case 3:
-			return fmt.Errorf("OS user '%s' not found", username)
-		case 4:
-			return fmt.Errorf("OS user '%s' does not have a usable password", username)
-		case 10:
-			// Some environments don't expose Python shadow-password modules.
-			// Do not block initial setup when verification backend is unavailable.
-			fmt.Fprintf(os.Stderr, "Warning: skipping OS password verification (%s)\n", strings.TrimSpace(string(output)))
-			return nil
-		default:
-			return fmt.Errorf("OS password verification failed (exit code %d)", exitErr.ExitCode())
 		}
+		return errors.New("cannot verify OS password: verification backend unavailable")
+	}
+
+	hashValue, found := shadowHashForUser(string(shadowBytes), username)
+	if !found {
+		return fmt.Errorf("OS user '%s' not found", username)
+	}
+	if isUnusableShadowHash(hashValue) {
+		return fmt.Errorf("OS user '%s' does not have a usable password", username)
+	}
+
+	ok, err := verifyShadowHash(password, hashValue)
+	if err != nil {
+		return errors.New("cannot verify OS password: verification backend unavailable")
+	}
+	if !ok {
+		return errOSPasswordVerificationFailed
 	}
 
 	return nil
+}
+
+func shadowHashForUser(shadowContent, username string) (string, bool) {
+	for _, line := range strings.Split(shadowContent, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.Split(line, ":")
+		if len(parts) < 2 {
+			continue
+		}
+		if parts[0] != username {
+			continue
+		}
+		return parts[1], true
+	}
+	return "", false
+}
+
+func isUnusableShadowHash(hashValue string) bool {
+	if hashValue == "" {
+		return true
+	}
+	if hashValue == "!" || hashValue == "*" || hashValue == "x" {
+		return true
+	}
+	return strings.HasPrefix(hashValue, "!") || strings.HasPrefix(hashValue, "*")
+}
+
+func verifyShadowHash(password, hashValue string) (bool, error) {
+	if isYescryptHash(hashValue) {
+		computed, err := yescrypt.Hash([]byte(password), []byte(hashValue))
+		if err != nil {
+			return false, err
+		}
+		return string(computed) == hashValue, nil
+	}
+
+	if !isSupportedClassicCryptHash(hashValue) {
+		return false, errors.New("unsupported shadow hash format")
+	}
+
+	crypter := gcrypt.NewFromHash(hashValue)
+	if crypter == nil {
+		return false, errors.New("unsupported shadow hash format")
+	}
+
+	if err := crypter.Verify(hashValue, []byte(password)); err != nil {
+		if errors.Is(err, gcrypt.ErrKeyMismatch) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
+func isYescryptHash(hashValue string) bool {
+	return strings.HasPrefix(hashValue, "$y$") || strings.HasPrefix(hashValue, "$gy$")
+}
+
+func isSupportedClassicCryptHash(hashValue string) bool {
+	return strings.HasPrefix(hashValue, "$1$") ||
+		strings.HasPrefix(hashValue, "$2a$") ||
+		strings.HasPrefix(hashValue, "$2y$") ||
+		strings.HasPrefix(hashValue, "$5$") ||
+		strings.HasPrefix(hashValue, "$6$")
 }
