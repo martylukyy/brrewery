@@ -80,16 +80,16 @@ export function GaugePanel({ label, value, display, footer }: Props) {
   const fillClass = gaugeFillClass(clamped);
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+    <div className="flex h-full min-h-0 flex-col overflow-visible rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
       <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">
         {label}
       </p>
       <div
-        className="mx-auto mt-3 flex w-full min-w-0 shrink-0 items-end justify-center"
+        className="mx-auto mt-3 flex w-full min-w-0 shrink-0 items-end justify-center overflow-visible"
         style={{ height: GAUGE_SLOT_HEIGHT_PX }}
       >
         <div
-          className="relative h-full w-[88%] max-w-full"
+          className="relative h-full w-[18rem] min-w-[18rem] max-w-none"
           role="img"
           aria-label={`${label}: ${display}`}
         >
@@ -126,7 +126,8 @@ export function GaugePanel({ label, value, display, footer }: Props) {
           </div>
         </div>
       </div>
-      <div className="flex min-h-11 w-full flex-1 flex-col items-center justify-center px-16 pt-3 text-center">
+      <div className="flex min-h-11 w-full flex-1 flex-col items-center justify-center pt-3 text-center px-4 sm:px-8 xl:px-12">
+ 
         {footer != null && (
           <div className="flex h-full w-full flex-1 flex-col">{footer}</div>
         )}

@@ -54,7 +54,7 @@ describe("Dashboard", () => {
     );
 
     expect(await screen.findByText(/brrewery-host/)).toBeInTheDocument();
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("brrewery")).toBeInTheDocument();
     expect(screen.getByText("CPU")).toBeInTheDocument();
     expect(screen.getByText("42.5%")).toBeInTheDocument();
     expect(screen.getByText("Load average")).toBeInTheDocument();

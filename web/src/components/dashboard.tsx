@@ -60,7 +60,7 @@ export function Dashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 [&>*]:h-full">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 [&>*]:h-full">
         <GaugePanel
           label="CPU"
           value={cpuPercent}
@@ -83,7 +83,7 @@ export function Dashboard() {
 
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-4 [&>*]:h-full">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 [&>*]:h-full">
         <GaugePanel
           label={`Disk (${info.disk.mount})`}
           value={diskPercent}
@@ -99,7 +99,7 @@ export function Dashboard() {
           value={diskIOBusyPercent}
           display={`${diskIOBusyPercent.toFixed(2)}%`}
         />
-        <div className="lg:col-span-2">
+        <div className="md:col-span-2 xl:col-span-2">
           <DiskIOChart history={ioHistory} />
         </div>
       </div>
