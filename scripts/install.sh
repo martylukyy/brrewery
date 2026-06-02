@@ -11,7 +11,7 @@ LOG_DIR="/var/log/brrewery"
 ANSIBLE_DEST="/usr/share/brrewery/ansible"
 SSL_DIR="/etc/ssl/brrewery"
 NGINX_ETC="/etc/nginx"
-REPO_URL="${BRREWERY_REPO_URL:-https://github.com/autobrr/brrewery.git}"
+REPO_URL="${BRREWERY_REPO_URL:-https://github.com/martylukyy/brrewery.git}"
 REPO_REF="${BRREWERY_REPO_REF:-main}"
 CLONE_DIR="${BRREWERY_CLONE_DIR:-/tmp/brrewery-src}"
 
