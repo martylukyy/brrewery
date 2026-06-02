@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -201,27 +205,103 @@ func setupLogger() zerolog.Logger {
 }
 
 func promptCredentials() (username, password string, err error) {
-	fmt.Print("Username: ")
-	if _, err = fmt.Scanln(&username); err != nil {
-		return "", "", fmt.Errorf("read username: %w", err)
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		username, err = promptOSUserSelection()
+		if err != nil {
+			return "", "", err
+		}
+	} else {
+		fmt.Print("Username: ")
+		if _, err = fmt.Scanln(&username); err != nil {
+			return "", "", fmt.Errorf("read username: %w", err)
+		}
+		username = strings.TrimSpace(username)
 	}
-	username = strings.TrimSpace(username)
+
 	if username == "" {
 		return "", "", errors.New("username cannot be empty")
 	}
 
-	fmt.Print("Password: ")
+	fmt.Printf("Password for '%s': ", username)
 	password, err = readPassword()
 	if err != nil {
 		return "", "", err
 	}
 	fmt.Println()
 
-	if len(password) < 8 {
-		return "", "", errors.New("password must be at least 8 characters")
+	if err := verifyOSPassword(username, password); err != nil {
+		return "", "", err
 	}
 
 	return username, password, nil
+}
+
+func promptOSUserSelection() (string, error) {
+	users, err := listOSUsers()
+	if err != nil {
+		return "", err
+	}
+	if len(users) == 0 {
+		return "", errors.New("no OS users found")
+	}
+
+	fmt.Println("Select OS user for initial admin account:")
+	for i, user := range users {
+		fmt.Printf("  %d) %s\n", i+1, user)
+	}
+
+	fmt.Print("Choice [1-", len(users), "]: ")
+	choiceReader := bufio.NewReader(os.Stdin)
+	choiceRaw, err := choiceReader.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("read user selection: %w", err)
+	}
+	choiceRaw = strings.TrimSpace(choiceRaw)
+	if choiceRaw == "" {
+		return "", errors.New("selection cannot be empty")
+	}
+
+	choice, err := strconv.Atoi(choiceRaw)
+	if err != nil {
+		return "", errors.New("selection must be a number")
+	}
+	if choice < 1 || choice > len(users) {
+		return "", fmt.Errorf("selection must be between 1 and %d", len(users))
+	}
+
+	return users[choice-1], nil
+}
+
+func listOSUsers() ([]string, error) {
+	passwdBytes, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return nil, fmt.Errorf("read /etc/passwd: %w", err)
+	}
+
+	seen := make(map[string]struct{})
+	users := make([]string, 0)
+	for _, line := range strings.Split(string(passwdBytes), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Split(line, ":")
+		if len(parts) < 7 {
+			continue
+		}
+
+		username := strings.TrimSpace(parts[0])
+		if username == "" {
+			continue
+		}
+		if _, exists := seen[username]; exists {
+			continue
+		}
+		seen[username] = struct{}{}
+		users = append(users, username)
+	}
+	sort.Strings(users)
+	return users, nil
 }
 
 func readPassword() (string, error) {
@@ -239,4 +319,66 @@ func readPassword() (string, error) {
 		return "", fmt.Errorf("read password: %w", err)
 	}
 	return string(bytes), nil
+}
+
+func verifyOSPassword(username, password string) error {
+	if username == "" {
+		return errors.New("username cannot be empty")
+	}
+	if password == "" {
+		return errors.New("password cannot be empty")
+	}
+
+	const pythonCheck = `
+import crypt
+import os
+import spwd
+import sys
+
+username = os.environ.get("BRREWERY_VERIFY_USER", "")
+password = os.environ.get("BRREWERY_VERIFY_PASS", "")
+
+try:
+    entry = spwd.getspnam(username)
+except PermissionError:
+    sys.exit(2)
+except KeyError:
+    sys.exit(3)
+
+hash_value = entry.sp_pwdp
+if not hash_value or hash_value in ("!", "*", "x") or hash_value.startswith("!") or hash_value.startswith("*"):
+    sys.exit(4)
+
+if crypt.crypt(password, hash_value) == hash_value:
+    sys.exit(0)
+sys.exit(1)
+`
+
+	cmd := exec.Command("python3", "-c", pythonCheck)
+	cmd.Env = append(
+		os.Environ(),
+		"BRREWERY_VERIFY_USER="+username,
+		"BRREWERY_VERIFY_PASS="+password,
+	)
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			return fmt.Errorf("verify OS password: %w", err)
+		}
+
+		switch exitErr.ExitCode() {
+		case 1:
+			return errors.New("OS password verification failed")
+		case 2:
+			return errors.New("cannot verify OS password: permission denied reading shadow password database")
+		case 3:
+			return fmt.Errorf("OS user '%s' not found", username)
+		case 4:
+			return fmt.Errorf("OS user '%s' does not have a usable password", username)
+		default:
+			return fmt.Errorf("OS password verification failed (exit code %d)", exitErr.ExitCode())
+		}
+	}
+
+	return nil
 }
