@@ -236,4 +236,4 @@ run_with_log "Creating admin user" bash -c "
 "
 
 echo "✓ brrewery installed"
-echo "    Dashboard: https://127.0.0.1/ (self-signed TLS)"
+echo "  Access the dashboard at: https://127.0.0.1/"
