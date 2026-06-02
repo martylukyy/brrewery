@@ -10,7 +10,10 @@ INTERNAL_WEB_DIR = internal/web
 
 LDFLAGS = -ldflags "-X github.com/autobrr/brrewery/internal/buildinfo.Version=$(VERSION) -X github.com/autobrr/brrewery/internal/buildinfo.Commit=$(GIT_COMMIT) -X github.com/autobrr/brrewery/internal/buildinfo.Date=$(BUILD_DATE)"
 
-.PHONY: all build frontend backend dev dev-backend dev-frontend clean test test-openapi lint lint-full lint-json lint-fix fmt gofix-changed gofix-check-changed precommit deps help ansible-syntax-check
+PROD_BIN = /usr/local/bin/$(BINARY_NAME)
+PROD_WEB_ROOT = /var/www/brrewery
+
+.PHONY: all build frontend backend prod dev dev-backend dev-frontend clean test test-openapi lint lint-full lint-json lint-fix fmt gofix-changed gofix-check-changed precommit deps help ansible-syntax-check
 
 all: build
 
@@ -26,6 +29,14 @@ frontend:
 backend:
 	@echo "Building backend..."
 	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/brrewery
+
+prod: build
+	@echo "Installing $(BINARY_NAME) to $(PROD_BIN)..."
+	install -m 0755 $(BINARY_NAME) $(PROD_BIN)
+	@echo "Deploying web assets to $(PROD_WEB_ROOT)..."
+	install -d -m 0755 $(PROD_WEB_ROOT)
+	rm -rf $(PROD_WEB_ROOT)/*
+	cp -a $(INTERNAL_WEB_DIR)/dist/. $(PROD_WEB_ROOT)/
 
 dev:
 	@echo "Starting development mode..."
@@ -111,4 +122,4 @@ deps:
 	cd $(WEB_DIR) && pnpm install
 
 help:
-	@echo "Targets: build, frontend, backend, dev, test, test-openapi, lint, precommit, ansible-syntax-check"
+	@echo "Targets: build, frontend, backend, prod, dev, test, test-openapi, lint, precommit, ansible-syntax-check"
