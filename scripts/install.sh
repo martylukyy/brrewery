@@ -80,7 +80,7 @@ echo "==> Installing dependencies"
 if command -v apt-get >/dev/null 2>&1; then
   apt-get update -qq
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3
+    nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3 golang-go
 else
   echo "Unsupported distro: apt-get is required." >&2
   exit 1
