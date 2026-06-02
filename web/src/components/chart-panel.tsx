@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 type Props = {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   waiting: boolean;
   pollSeconds: number;
   action?: ReactNode;
@@ -22,7 +22,7 @@ export function ChartPanel({
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-zinc-200">{title}</h2>
-          <p className="text-xs text-zinc-500">{subtitle}</p>
+          {subtitle && <p className="text-xs text-zinc-500">{subtitle}</p>}
           {waiting && (
             <p className="mt-1 text-xs text-zinc-600">
               Collecting samples… (updates every {pollSeconds}s)

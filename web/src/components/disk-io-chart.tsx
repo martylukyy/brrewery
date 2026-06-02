@@ -16,9 +16,10 @@ import { formatRate } from "@/lib/format";
 type Props = {
   history: DiskIOSample[];
   chartIdSuffix: string;
+  mountPoint: string;
 };
 
-export function DiskIOChart({ history, chartIdSuffix }: Props) {
+export function DiskIOChart({ history, chartIdSuffix, mountPoint }: Props) {
   const [intervalId, setIntervalId] = useState<ChartIntervalId>(DEFAULT_CHART_INTERVAL);
 
   const interval = getChartInterval(intervalId);
@@ -36,8 +37,7 @@ export function DiskIOChart({ history, chartIdSuffix }: Props) {
 
   return (
     <ChartPanel
-      title="Disk I/O"
-      subtitle="Read and write throughput (block devices)"
+      title={`${mountPoint} throughput`}
       waiting={sliced.length < 2}
       pollSeconds={interval.pollMs / 1000}
       action={

@@ -106,7 +106,11 @@ export function Dashboard() {
                 display={`${busyPercent.toFixed(2)}%`}
               />
               <div className="md:col-span-2 xl:col-span-2">
-                <DiskIOChart history={diskHistoryByMount[disk.mount] ?? []} chartIdSuffix={chartIdSuffix} />
+                <DiskIOChart
+                  history={diskHistoryByMount[disk.mount] ?? []}
+                  chartIdSuffix={chartIdSuffix}
+                  mountPoint={disk.mount}
+                />
               </div>
             </div>
           </section>

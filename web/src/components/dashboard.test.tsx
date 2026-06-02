@@ -80,6 +80,7 @@ describe("Dashboard", () => {
     expect(screen.getAllByText("Disk usage")).toHaveLength(2);
     expect(screen.getAllByText("I/O busy")).toHaveLength(2);
     expect(screen.getByText("3.20%")).toBeInTheDocument();
-    expect(screen.getAllByText("Disk I/O")).toHaveLength(2);
+    expect(screen.getByText("/ throughput")).toBeInTheDocument();
+    expect(screen.getByText("/mnt/storage throughput")).toBeInTheDocument();
   });
 });

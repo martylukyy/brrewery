@@ -43,7 +43,6 @@ export function NetworkThroughputChart({ history }: Props) {
   return (
     <ChartPanel
       title="Network throughput"
-      subtitle="Receive and transmit rates (all interfaces)"
       waiting={sliced.length < 2}
       pollSeconds={interval.pollMs / 1000}
       action={
