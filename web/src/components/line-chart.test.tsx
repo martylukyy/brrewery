@@ -2,13 +2,15 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { LineChart } from "@/components/line-chart";
+import { formatRate } from "@/lib/format";
 
 describe("LineChart", () => {
   it("uses fixed maxValue for Y scale", () => {
     const { container } = render(
       <LineChart
         maxValue={100}
-        series={[{ label: "A", color: "#fff", values: [0, 50, 200] }]}
+        formatValue={formatRate}
+        series={[{ label: "A", colorClass: "text-zinc-100", values: [0, 50, 200] }]}
       />,
     );
 
@@ -24,14 +26,30 @@ describe("LineChart", () => {
       <LineChart
         pointCount={5}
         maxValue={100}
-        series={[{ label: "A", color: "#fff", values: [null, null, null, 10, 20] }]}
+        formatValue={formatRate}
+        series={[{ label: "A", colorClass: "text-zinc-100", values: [null, null, null, 10, 20] }]}
       />,
     );
 
     const polyline = container.querySelector("polyline");
     const points = polyline?.getAttribute("points") ?? "";
     const xs = points.split(" ").map((p) => Number(p.split(",")[0]));
-    expect(xs[0]).toBeCloseTo(358, 0);
-    expect(xs[1]).toBeCloseTo(476, 0);
+    expect(xs[0]).toBeCloseTo(324, 0);
+    expect(xs[1]).toBeCloseTo(432, 0);
+  });
+
+  it("renders Y-axis scale labels when formatValue is set", () => {
+    const { getByTestId } = render(
+      <LineChart
+        maxValue={100}
+        formatValue={(value) => `${value} B/s`}
+        series={[{ label: "A", colorClass: "text-zinc-100", values: [0, 50] }]}
+      />,
+    );
+
+    const axis = getByTestId("chart-y-axis");
+    expect(axis).toHaveTextContent("100 B/s");
+    expect(axis).toHaveTextContent("50 B/s");
+    expect(axis).toHaveTextContent("0 B/s");
   });
 });

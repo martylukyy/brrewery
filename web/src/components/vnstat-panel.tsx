@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { ChartPanelControls } from "@/components/chart-panel-controls";
+import { VnstatRangeSelect, type VnstatRangeId } from "@/components/vnstat-range-select";
 import { getVnstatReport, type TrafficPeriod } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 
@@ -11,7 +13,7 @@ export function VnstatPanel() {
     queryFn: getVnstatReport,
     refetchInterval: 60_000,
   });
-  const [range, setRange] = useState<"days" | "months" | "top10">("days");
+  const [range, setRange] = useState<VnstatRangeId>("days");
   const report = vnstat.data;
   const tableConfig = useMemo(() => {
     switch (range) {
@@ -65,20 +67,9 @@ export function VnstatPanel() {
     <Panel
       title="vnStat - Historic traffic"
       headerRight={
-        <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-          Range
-          <select
-            className="w-fit rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm normal-case tracking-normal text-zinc-200 focus:border-zinc-500 focus:outline-none"
-            value={range}
-            onChange={(event) => {
-              setRange(event.target.value as "days" | "months" | "top10");
-            }}
-          >
-            <option value="months">Last 12 months</option>
-            <option value="days">Last 30 days</option>
-            <option value="top10">Top 10 days overall</option>
-          </select>
-        </label>
+        <ChartPanelControls
+          timeRange={<VnstatRangeSelect value={range} onChange={setRange} />}
+        />
       }
     >
       <div>

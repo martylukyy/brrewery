@@ -1,6 +1,8 @@
 import { useState } from "react";
 
 import { ChartIntervalSelect } from "@/components/chart-interval-select";
+import { ChartPanelControls } from "@/components/chart-panel-controls";
+import { ChartScaleSelect } from "@/components/chart-scale-select";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
 import type { NetworkSample } from "@/hooks/use-io-history";
@@ -46,35 +48,31 @@ export function NetworkThroughputChart({ history }: Props) {
       waiting={sliced.length < 2}
       pollSeconds={interval.pollMs / 1000}
       action={
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <ChartIntervalSelect
-            id="network-chart-interval"
-            value={intervalId}
-            onChange={setIntervalId}
-          />
-          <label className="flex items-center gap-2 text-xs text-zinc-500">
-            <span>Scale</span>
-            <select
+        <ChartPanelControls
+          leading={
+            <ChartScaleSelect
+              id="network-chart-scale"
               value={networkScale}
-              onChange={(e) => setNetworkScale(e.target.value as NetworkScaleId)}
-              className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-200"
-              aria-label="Network chart scale"
-            >
-              {NETWORK_SCALE_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+              options={NETWORK_SCALE_OPTIONS}
+              onChange={setNetworkScale}
+              ariaLabel="Network chart scale"
+            />
+          }
+          timeRange={
+            <ChartIntervalSelect
+              id="network-chart-interval"
+              value={intervalId}
+              onChange={setIntervalId}
+            />
+          }
+        />
       }
     >
       <LineChart
         pointCount={pointCount}
         series={[
-          { label: "Download", color: "#38bdf8", values: rx },
-          { label: "Upload", color: "#a78bfa", values: tx },
+          { label: "Download", colorClass: "text-sky-400", values: rx },
+          { label: "Upload", colorClass: "text-emerald-400", values: tx },
         ]}
         maxValue={networkScaleMaxBytes(networkScale)}
         formatValue={formatRate}

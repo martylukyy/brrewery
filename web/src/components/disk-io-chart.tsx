@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { ChartIntervalSelect } from "@/components/chart-interval-select";
+import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
 import type { DiskIOSample } from "@/hooks/use-io-history";
@@ -41,18 +42,22 @@ export function DiskIOChart({ history, chartIdSuffix, mountPoint }: Props) {
       waiting={sliced.length < 2}
       pollSeconds={interval.pollMs / 1000}
       action={
-        <ChartIntervalSelect
-          id={`disk-chart-interval-${chartIdSuffix}`}
-          value={intervalId}
-          onChange={setIntervalId}
+        <ChartPanelControls
+          timeRange={
+            <ChartIntervalSelect
+              id={`disk-chart-interval-${chartIdSuffix}`}
+              value={intervalId}
+              onChange={setIntervalId}
+            />
+          }
         />
       }
     >
       <LineChart
         pointCount={pointCount}
         series={[
-          { label: "Read", color: "#34d399", values: read },
-          { label: "Write", color: "#fbbf24", values: write },
+          { label: "Read", colorClass: "text-sky-400", values: read },
+          { label: "Write", colorClass: "text-emerald-400", values: write },
         ]}
         formatValue={formatRate}
       />
