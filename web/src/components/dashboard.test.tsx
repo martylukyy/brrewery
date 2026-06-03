@@ -68,11 +68,12 @@ describe("Dashboard", () => {
     );
 
     expect(await screen.findByText(/brrewery-host/)).toBeInTheDocument();
-    expect(screen.getByText("brrewery")).toBeInTheDocument();
     expect(screen.getByText("CPU")).toBeInTheDocument();
     expect(screen.getByText("42.5%")).toBeInTheDocument();
     expect(screen.getByText("Load average")).toBeInTheDocument();
     expect(screen.getByText("Memory")).toBeInTheDocument();
+    expect(screen.getByText("Uptime")).toBeInTheDocument();
+    expect(screen.getByText("1h 0m")).toBeInTheDocument();
     expect(screen.getByText("1m")).toBeInTheDocument();
     expect(screen.getByText("Network throughput")).toBeInTheDocument();
     expect(screen.getByText("/")).toBeInTheDocument();

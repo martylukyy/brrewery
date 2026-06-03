@@ -75,12 +75,31 @@ func (s *Service) Login(ctx context.Context, username, password string) (*User, 
 	return user, nil
 }
 
+func (s *Service) VerifyPassword(username, password string) error {
+	user, err := s.store.GetByUsername(username)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return ErrInvalidPassword
+		}
+		return err
+	}
+	if !CheckPassword(user.PasswordHash, password) {
+		return ErrInvalidPassword
+	}
+	return nil
+}
+
 func (s *Service) Logout(ctx context.Context) error {
 	return s.session.Destroy(ctx)
 }
 
 func (s *Service) IsAuthenticated(ctx context.Context) bool {
 	return s.session.GetBool(ctx, SessionKey())
+}
+
+func (s *Service) Username(ctx context.Context) (string, bool) {
+	username := s.session.GetString(ctx, "username")
+	return username, username != ""
 }
 
 func newUserID() (string, error) {

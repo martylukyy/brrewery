@@ -11,6 +11,8 @@ const packages: PackageStatus[] = [
     name: "Sonarr",
     description: "",
     category: "arr",
+    icon: "/packages/sonarr.png",
+    web_path: "/sonarr/",
     installed: true,
     dependencies_satisfied: true,
   },
@@ -22,6 +24,14 @@ const packages: PackageStatus[] = [
     installed: false,
     dependencies_satisfied: true,
   },
+  {
+    id: "rtorrent",
+    name: "rTorrent",
+    description: "",
+    category: "download",
+    installed: true,
+    dependencies_satisfied: true,
+  },
 ];
 
 describe("PackageNav", () => {
@@ -29,30 +39,41 @@ describe("PackageNav", () => {
     render(
       <PackageNav
         packages={packages}
-        selectedId={null}
-        onSelect={() => {}}
-        onInstallClick={() => {}}
+        onManageClick={() => {}}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Sonarr" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Radarr" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sonarr" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Radarr" })).not.toBeInTheDocument();
+    expect(screen.getByText("rTorrent")).toBeInTheDocument();
   });
 
-  it("calls onInstallClick for add button", async () => {
+  it("opens installed apps in a new tab", () => {
+    render(
+      <PackageNav
+        packages={packages}
+        onManageClick={() => {}}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Sonarr" });
+    expect(link).toHaveAttribute("href", `${window.location.origin}/sonarr/`);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("calls onManageClick for manage button", async () => {
     const user = userEvent.setup();
-    const onInstallClick = vi.fn();
+    const onManageClick = vi.fn();
 
     render(
       <PackageNav
         packages={packages}
-        selectedId={null}
-        onSelect={() => {}}
-        onInstallClick={onInstallClick}
+        onManageClick={onManageClick}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Install packages" }));
-    expect(onInstallClick).toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Manage packages" }));
+    expect(onManageClick).toHaveBeenCalled();
   });
 });

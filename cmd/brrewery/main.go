@@ -25,6 +25,9 @@ import (
 	"github.com/autobrr/brrewery/internal/auth"
 	"github.com/autobrr/brrewery/internal/buildinfo"
 	pkgdomain "github.com/autobrr/brrewery/internal/packages"
+	"github.com/autobrr/brrewery/internal/packages/ansible"
+	"github.com/autobrr/brrewery/internal/packages/detect"
+	"github.com/autobrr/brrewery/internal/packages/jobs"
 	"github.com/autobrr/brrewery/internal/paths"
 	"github.com/autobrr/brrewery/internal/system"
 	"github.com/autobrr/brrewery/internal/vnstat"
@@ -63,7 +66,11 @@ func runServe() *cobra.Command {
 			session := auth.NewSessionManager(secret)
 			store := auth.NewFileStore(paths.UserStorePath)
 			authService := auth.NewService(store, session)
-			packagesService := pkgdomain.NewService()
+			packagesService := pkgdomain.NewServiceWithDeps(
+				detect.NewEvaluator(),
+				ansible.NewRunner(paths.ResolveAnsibleRoot()),
+				jobs.NewStoreAt(paths.ResolveJobsDir()),
+			)
 
 			embedFS, err := webapp.DistFS()
 			if err != nil {
@@ -80,7 +87,7 @@ func runServe() *cobra.Command {
 				embedFS,
 			)
 			httpServer := &http.Server{
-				Addr:              paths.BackendListenAddress,
+				Addr:              paths.ListenAddress(),
 				Handler:           server.Handler(),
 				ReadHeaderTimeout: 10 * time.Second,
 				ReadTimeout:       30 * time.Second,
@@ -90,7 +97,7 @@ func runServe() *cobra.Command {
 
 			errCh := make(chan error, 1)
 			go func() {
-				logger.Info().Str("addr", paths.BackendListenAddress).Msg("starting server")
+				logger.Info().Str("addr", paths.ListenAddress()).Msg("starting server")
 				if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					errCh <- err
 				}

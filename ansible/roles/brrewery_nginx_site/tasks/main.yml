@@ -1,0 +1,21 @@
+---
+- name: Validate nginx site role variables
+  ansible.builtin.assert:
+    that:
+      - brrewery_package_id | length > 0
+      - brrewery_package_web_path | length > 0
+      - brrewery_package_upstream | length > 0
+    fail_msg: brrewery_nginx_site requires brrewery_package_id, brrewery_package_web_path, and brrewery_package_upstream
+
+- name: Ensure brrewery nginx packages directory exists
+  ansible.builtin.file:
+    path: "{{ brrewery_nginx_packages_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Install package nginx location
+  ansible.builtin.template:
+    src: location.conf.j2
+    dest: "{{ brrewery_nginx_packages_dir }}/{{ brrewery_package_id }}.conf"
+    mode: "0644"
+  notify: Reload nginx

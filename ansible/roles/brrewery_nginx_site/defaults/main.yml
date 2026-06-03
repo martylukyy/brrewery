@@ -1,0 +1,4 @@
+brrewery_nginx_packages_dir: /etc/nginx/brrewery/packages
+brrewery_package_id: ""
+brrewery_package_web_path: ""
+brrewery_package_upstream: ""

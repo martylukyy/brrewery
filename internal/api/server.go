@@ -72,9 +72,16 @@ func (s *Server) Handler() http.Handler {
 			version := handlers.NewVersionHandler()
 			r.Get("/version", version.Version)
 
-			pkgs := handlers.NewPackagesHandler(s.packages)
+			pkgs := handlers.NewPackagesHandler(s.packages, s.authService)
 			r.Get("/packages", pkgs.List)
 			r.Get("/packages/{id}", pkgs.Get)
+			r.Post("/packages/{id}/install", pkgs.Install)
+			r.Post("/packages/{id}/upgrade", pkgs.Upgrade)
+			r.Post("/packages/{id}/remove", pkgs.Remove)
+
+			jobsHandler := handlers.NewJobsHandler(s.packages)
+			r.Get("/jobs/{id}", jobsHandler.Get)
+			r.Get("/jobs/{id}/logs", jobsHandler.Logs)
 
 			sys := handlers.NewSystemHandler(s.system)
 			r.Get("/system", sys.Get)

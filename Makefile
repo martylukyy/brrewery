@@ -13,7 +13,7 @@ LDFLAGS = -ldflags "-X github.com/autobrr/brrewery/internal/buildinfo.Version=$(
 PROD_BIN = /usr/local/bin/$(BINARY_NAME)
 PROD_WEB_ROOT = /var/www/brrewery
 
-.PHONY: all build frontend backend prod dev dev-backend dev-frontend clean test test-openapi lint lint-full lint-json lint-fix fmt gofix-changed gofix-check-changed precommit deps help ansible-syntax-check
+.PHONY: all build frontend backend prod dev dev-backend dev-frontend clean test test-openapi lint lint-full lint-json lint-fix fmt gofix-changed gofix-check-changed precommit deps help ansible-syntax-check sync-ansible
 
 all: build
 
@@ -44,11 +44,12 @@ dev:
 
 dev-backend:
 	@echo "Starting backend development server..."
-	air -c .air.toml
+	@mkdir -p tmp/brrewery-jobs
+	BRREWERY_LISTEN_ADDR=127.0.0.1:8081 BRREWERY_ANSIBLE_ROOT=$(CURDIR)/ansible BRREWERY_JOBS_DIR=$(CURDIR)/tmp/brrewery-jobs air -c .air.toml
 
 dev-frontend:
 	@echo "Starting frontend development server..."
-	cd $(WEB_DIR) && pnpm dev
+	cd $(WEB_DIR) && VITE_BACKEND_URL=http://127.0.0.1:8081 pnpm dev
 
 clean:
 	@echo "Cleaning..."
@@ -65,6 +66,12 @@ test-openapi:
 ansible-syntax-check:
 	@echo "Checking Ansible playbooks..."
 	@find ansible/playbooks -name '*.yml' -print0 | xargs -0 -n1 ansible-playbook --syntax-check
+
+sync-ansible:
+	@echo "Syncing ansible playbooks to /usr/share/brrewery/ansible..."
+	install -d -m 0755 /usr/share/brrewery/ansible
+	rm -rf /usr/share/brrewery/ansible/*
+	cp -a ansible/. /usr/share/brrewery/ansible/
 
 fmt:
 	@echo "Formatting changed Go code..."

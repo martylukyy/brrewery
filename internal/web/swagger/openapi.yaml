@@ -58,6 +58,11 @@ components:
           type: array
           items:
             type: string
+        systemd_user_units:
+          type: array
+          description: Systemd unit templates expanded with the brrewery admin username ({user} placeholder).
+          items:
+            type: string
         paths:
           type: array
           items:
@@ -75,6 +80,21 @@ components:
           type: string
         remove:
           type: string
+    InstallSecret:
+      type: object
+      required: [key, label, type]
+      properties:
+        key:
+          type: string
+          description: Extra-var key supplied in the install request.
+        label:
+          type: string
+        type:
+          type: string
+          enum: [password]
+        verify_brrewery_password:
+          type: boolean
+          description: When true, the value must match the logged-in brrewery account password.
     Package:
       type: object
       properties:
@@ -86,6 +106,16 @@ components:
           type: string
         category:
           type: string
+        icon:
+          type: string
+          description: URL path to the package icon bundled with the brrewery frontend.
+        web_path:
+          type: string
+          description: Reverse-proxy path used to open the installed application.
+        install_secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstallSecret'
         dependencies:
           type: array
           items:
@@ -110,6 +140,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PackageStatus'
+    JobAction:
+      type: string
+      enum: [install, upgrade, remove]
+    JobStatus:
+      type: string
+      enum: [queued, running, succeeded, failed]
+    Job:
+      type: object
+      required: [id, package_id, action, status, started_at]
+      properties:
+        id:
+          type: string
+        package_id:
+          type: string
+        action:
+          $ref: '#/components/schemas/JobAction'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        error:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+    InstallRequest:
+      type: object
+      properties:
+        extra_vars:
+          type: object
+          additionalProperties:
+            type: string
+    InstallResponse:
+      type: object
+      required: [job_id]
+      properties:
+        job_id:
+          type: string
+    JobLogsResponse:
+      type: object
+      properties:
+        lines:
+          type: array
+          items:
+            type: string
     LoadAvg:
       type: object
       properties:
@@ -349,6 +425,192 @@ paths:
           description: Unauthorized
         '404':
           description: Not found
+  /api/v1/packages/{id}/install:
+    post:
+      summary: Start package install job
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+      responses:
+        '202':
+          description: Install job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Package not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Package already installed or dependencies not satisfied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/packages/{id}/upgrade:
+    post:
+      summary: Start package upgrade job
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+      responses:
+        '202':
+          description: Upgrade job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Package not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Package not installed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/packages/{id}/remove:
+    post:
+      summary: Start package remove job
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+      responses:
+        '202':
+          description: Remove job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Package not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Package not installed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}:
+    get:
+      summary: Get install job status
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}/logs:
+    get:
+      summary: Get install job logs
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job log lines
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobLogsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/system:
     get:
       summary: Host system metrics

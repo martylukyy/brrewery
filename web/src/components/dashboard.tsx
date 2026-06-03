@@ -49,16 +49,10 @@ export function Dashboard() {
   const cpuPercent = Math.min(100, Math.max(0, info.cpu_percent));
   const disks = info.disks ?? [];
   const loadPercent = loadGaugePercent(info.load["1m"], info.cpu_count);
+  const showDiskHeadings = disks.length > 1;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-baseline justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-zinc-100">brrewery</h1>
-        <p className="text-sm text-zinc-400">
-          {info.hostname} · uptime {formatUptime(info.uptime_seconds)}
-        </p>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 [&>*]:h-full">
         <GaugePanel
           label="CPU"
@@ -79,7 +73,7 @@ export function Dashboard() {
             </p>
           }
         />
-
+        <UptimePanel uptimeSeconds={info.uptime_seconds} hostname={info.hostname} />
       </div>
 
       {disks.map((disk) => {
@@ -88,7 +82,9 @@ export function Dashboard() {
         const chartIdSuffix = disk.mount.replaceAll("/", "-").replaceAll(" ", "-");
         return (
           <section key={disk.mount} className="space-y-3">
-            <h2 className="text-lg font-semibold text-zinc-100">{disk.mount}</h2>
+            {showDiskHeadings ? (
+              <h2 className="text-lg font-semibold text-zinc-100">{disk.mount}</h2>
+            ) : null}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 [&>*]:h-full">
               <GaugePanel
                 label="Disk usage"
@@ -116,9 +112,28 @@ export function Dashboard() {
           </section>
         );
       })}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <NetworkThroughputChart history={networkHistory} />
         <VnstatPanel />
+      </div>
+    </div>
+  );
+}
+
+function UptimePanel({ uptimeSeconds, hostname }: { uptimeSeconds: number; hostname: string }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">
+        Uptime
+      </p>
+      <div className="flex flex-1 flex-col items-center justify-center py-6">
+        <span className="text-2xl font-semibold tabular-nums text-zinc-100">
+          {formatUptime(uptimeSeconds)}
+        </span>
+      </div>
+      <div className="flex min-h-11 items-center justify-center px-4 text-center">
+        <p className="line-clamp-2 text-xs text-zinc-500">{hostname}</p>
       </div>
     </div>
   );

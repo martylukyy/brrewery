@@ -10,8 +10,7 @@ Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/brrewery /var/log/brrewery
+ReadWritePaths=/var/lib/brrewery /var/log/brrewery /usr/local/bin /etc/systemd/system /var/lib /tmp /home
 PrivateTmp=true
 
 [Install]

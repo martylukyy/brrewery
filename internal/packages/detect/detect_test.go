@@ -61,14 +61,50 @@ func TestInstalled(t *testing.T) {
 			eval: NewEvaluator(),
 			want: false,
 		},
+		{
+			name: "user scoped unit active",
+			spec: model.DetectionSpec{
+				Binaries:         []string{"autobrr"},
+				SystemdUserUnits: []string{"autobrr@{user}.service"},
+			},
+			eval: &Evaluator{
+				lookPath: func(string) (string, error) { return "/usr/local/bin/autobrr", nil },
+				systemctl: func(_ context.Context, unit string) error {
+					if unit == "autobrr@admin.service" {
+						return nil
+					}
+					return errors.New("inactive")
+				},
+			},
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.eval.Installed(&tt.spec)
+			if tt.name == "user scoped unit active" {
+				got = tt.eval.InstalledForUser(&tt.spec, "admin")
+			}
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestInstalledForUserRequiresUsernameForUserUnits(t *testing.T) {
+	t.Parallel()
+
+	eval := &Evaluator{
+		lookPath:  func(string) (string, error) { return "/usr/local/bin/autobrr", nil },
+		systemctl: func(context.Context, string) error { return nil },
+	}
+	spec := model.DetectionSpec{
+		Binaries:         []string{"autobrr"},
+		SystemdUserUnits: []string{"autobrr@{user}.service"},
+	}
+
+	assert.False(t, eval.InstalledForUser(&spec, ""))
+	assert.True(t, eval.InstalledForUser(&spec, "admin"))
 }
 
 type fakeFileInfo struct{}

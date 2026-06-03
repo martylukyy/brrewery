@@ -208,6 +208,7 @@ fi
 run_with_spinner "Configuring nginx" bash -c "
   install -d -m 0755 \"$NGINX_ETC/sites-available\" \"$NGINX_ETC/sites-enabled\" &&
     install -d -m 0755 \"$NGINX_ETC/nginxconfig.io\" &&
+    install -d -m 0755 /etc/nginx/brrewery/packages &&
     install -m 0644 \"$SOURCE_DIR/contrib/nginx/nginx.conf\" \"$NGINX_ETC/nginx.conf\" &&
     install -m 0644 \"$SOURCE_DIR/contrib/nginx/nginxconfig.io/general.conf\" \"$NGINX_ETC/nginxconfig.io/general.conf\" &&
     install -m 0644 \"$SOURCE_DIR/contrib/nginx/nginxconfig.io/security.conf\" \"$NGINX_ETC/nginxconfig.io/security.conf\" &&

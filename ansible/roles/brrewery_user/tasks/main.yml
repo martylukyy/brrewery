@@ -1,0 +1,16 @@
+---
+- name: Require brrewery_user extra var
+  ansible.builtin.assert:
+    that:
+      - brrewery_user is defined
+      - brrewery_user | length > 0
+    fail_msg: brrewery_user must be supplied by the brrewery install API
+
+- name: Resolve brrewery primary group
+  ansible.builtin.command: id -gn {{ brrewery_user }}
+  register: brrewery_group_cmd
+  changed_when: false
+
+- name: Set brrewery group fact
+  ansible.builtin.set_fact:
+    brrewery_group: "{{ brrewery_group_cmd.stdout }}"

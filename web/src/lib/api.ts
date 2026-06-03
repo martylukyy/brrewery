@@ -63,11 +63,21 @@ export type VersionInfo = {
   date: string;
 };
 
+export type InstallSecret = {
+  key: string;
+  label: string;
+  type: "password" | string;
+  verify_brrewery_password?: boolean;
+};
+
 export type PackageStatus = {
   id: string;
   name: string;
   description: string;
   category: string;
+  icon?: string;
+  web_path?: string;
+  install_secrets?: InstallSecret[];
   installed: boolean;
   dependencies_satisfied: boolean;
 };
@@ -176,6 +186,59 @@ export async function checkSession(): Promise<VersionInfo | null> {
 
 export function listPackages() {
   return apiFetch<PackageListResponse>("/packages");
+}
+
+export type JobAction = "install" | "upgrade" | "remove";
+
+export type JobStatus = "queued" | "running" | "succeeded" | "failed";
+
+export type PackageJob = {
+  id: string;
+  package_id: string;
+  action: JobAction;
+  status: JobStatus;
+  error?: string;
+  started_at: string;
+  finished_at?: string;
+};
+
+export type PackageJobRequest = {
+  extra_vars?: Record<string, string>;
+};
+
+export type PackageJobResponse = {
+  job_id: string;
+};
+
+export type JobLogsResponse = {
+  lines: string[];
+};
+
+export function startPackageJob(id: string, action: JobAction, body: PackageJobRequest = {}) {
+  return apiFetch<PackageJobResponse>(`/packages/${encodeURIComponent(id)}/${action}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function installPackage(id: string, body: PackageJobRequest = {}) {
+  return startPackageJob(id, "install", body);
+}
+
+export function upgradePackage(id: string, body: PackageJobRequest = {}) {
+  return startPackageJob(id, "upgrade", body);
+}
+
+export function removePackage(id: string, body: PackageJobRequest = {}) {
+  return startPackageJob(id, "remove", body);
+}
+
+export function getJob(id: string) {
+  return apiFetch<PackageJob>(`/jobs/${encodeURIComponent(id)}`);
+}
+
+export function getJobLogs(id: string) {
+  return apiFetch<JobLogsResponse>(`/jobs/${encodeURIComponent(id)}/logs`);
 }
 
 export function getSystemInfo() {

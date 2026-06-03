@@ -1,0 +1,6 @@
+# Managed by brrewery — {{ brrewery_package_id }}
+location ^~ {{ brrewery_package_web_path }} {
+    include /etc/nginx/nginxconfig.io/proxy.conf;
+    proxy_set_header X-Forwarded-Host $http_host;
+    proxy_pass {{ brrewery_package_upstream }};
+}

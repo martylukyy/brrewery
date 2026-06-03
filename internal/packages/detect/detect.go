@@ -9,6 +9,8 @@ import (
 	"github.com/autobrr/brrewery/internal/packages/model"
 )
 
+const userPlaceholder = "{user}"
+
 // Evaluator checks filesystem and systemd state for package detection.
 type Evaluator struct {
 	lookPath  func(string) (string, error)
@@ -28,23 +30,50 @@ func NewEvaluator() *Evaluator {
 }
 
 func (e *Evaluator) Installed(spec *model.DetectionSpec) bool {
+	return e.InstalledForUser(spec, "")
+}
+
+func (e *Evaluator) InstalledForUser(spec *model.DetectionSpec, username string) bool {
 	if spec == nil {
 		return false
 	}
 	if !e.checkBinaries(spec.Binaries) {
 		return false
 	}
-	if !e.checkUnits(spec.SystemdUnits) {
-		return false
-	}
 	if !e.checkPaths(spec.Paths) {
 		return false
+	}
+	if len(spec.SystemdUnits) > 0 && !e.checkUnits(spec.SystemdUnits) {
+		return false
+	}
+	if len(spec.SystemdUserUnits) > 0 {
+		if username == "" {
+			return false
+		}
+		if !e.checkUnits(expandUserUnits(spec.SystemdUserUnits, username)) {
+			return false
+		}
 	}
 	return e.hasChecks(spec)
 }
 
 func (e *Evaluator) hasChecks(spec *model.DetectionSpec) bool {
-	return len(spec.Binaries) > 0 || len(spec.SystemdUnits) > 0 || len(spec.Paths) > 0
+	return len(spec.Binaries) > 0 ||
+		len(spec.SystemdUnits) > 0 ||
+		len(spec.SystemdUserUnits) > 0 ||
+		len(spec.Paths) > 0
+}
+
+func expandUserUnits(templates []string, username string) []string {
+	out := make([]string, 0, len(templates))
+	for _, template := range templates {
+		template = strings.TrimSpace(template)
+		if template == "" {
+			continue
+		}
+		out = append(out, strings.ReplaceAll(template, userPlaceholder, username))
+	}
+	return out
 }
 
 func (e *Evaluator) checkBinaries(binaries []string) bool {
@@ -87,14 +116,14 @@ func (e *Evaluator) checkPaths(paths []string) bool {
 	return true
 }
 
-func (e *Evaluator) DependenciesSatisfied(deps []string, lookup func(string) model.DetectionSpec) bool {
+func (e *Evaluator) DependenciesSatisfied(username string, deps []string, lookup func(string) model.DetectionSpec) bool {
 	for _, dep := range deps {
 		dep = strings.TrimSpace(dep)
 		if dep == "" {
 			continue
 		}
 		spec := lookup(dep)
-		if !e.Installed(&spec) {
+		if !e.InstalledForUser(&spec, username) {
 			return false
 		}
 	}

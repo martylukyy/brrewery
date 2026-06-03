@@ -35,4 +35,6 @@ ansible-playbook --connection=local <playbook> -e @extra-vars.json
 
 Extra-vars for package secrets are supplied from the API/UI per install and are **never** written to disk by brrewery.
 
+Every install automatically receives `brrewery_user` (the logged-in brrewery admin OS username). Playbooks should include the `brrewery_user` role to resolve the matching primary group as `brrewery_group`. Package data, config, and systemd user services must run as that user for future multi-user support.
+
 After a successful run, install status is re-probed via filesystem detection only (no playbook marker files).

@@ -3,20 +3,23 @@ package catalog
 import (
 	"path/filepath"
 
+	"github.com/autobrr/brrewery/internal/packages/extravars"
 	"github.com/autobrr/brrewery/internal/packages/model"
 	"github.com/autobrr/brrewery/internal/paths"
 )
 
 func playbook(id, name string) string {
-	return filepath.Join(paths.AnsibleRoot, "playbooks", "packages", id, name+".yml")
+	return filepath.Join(paths.ResolveAnsibleRoot(), "playbooks", "packages", id, name+".yml")
 }
 
-func entry(id, name, desc, category string, deps []string, det *model.DetectionSpec) model.Package {
+func entry(id, name, desc, category, webPath string, deps []string, det *model.DetectionSpec) model.Package {
 	return model.Package{
 		ID:           id,
 		Name:         name,
 		Description:  desc,
 		Category:     category,
+		Icon:         iconPath(id),
+		WebPath:      webPath,
 		Dependencies: deps,
 		Detection:    *det,
 		Playbooks: model.PlaybookPaths{
@@ -27,40 +30,56 @@ func entry(id, name, desc, category string, deps []string, det *model.DetectionS
 	}
 }
 
+func withInstallSecrets(pkg model.Package, specs []model.InstallSecret) model.Package {
+	pkg.InstallSecrets = specs
+	return pkg
+}
+
 // All returns the static package catalog.
 func All() []model.Package {
 	return []model.Package{
-		entry("qbittorrent", "qBittorrent", "BitTorrent client", "download",
+		entry("qbittorrent", "qBittorrent", "BitTorrent client", "download", "/qbittorrent/",
 			nil, &model.DetectionSpec{Binaries: []string{"qbittorrent-nox"}, SystemdUnits: []string{"qbittorrent.service"}}),
-		entry("autobrr", "autobrr", "Automation for torrents and *arr", "automation",
-			nil, &model.DetectionSpec{Binaries: []string{"autobrr"}, SystemdUnits: []string{"autobrr.service"}}),
-		entry("sonarr", "Sonarr", "TV series management", "arr",
+		withInstallSecrets(
+			entry("autobrr", "autobrr", "Automation for torrents and *arr", "automation", "/autobrr/",
+				nil, &model.DetectionSpec{
+					Binaries:         []string{"autobrr"},
+					SystemdUserUnits: []string{"autobrr@{user}.service"},
+				}),
+			[]model.InstallSecret{{
+				Key:                    extravars.BrreweryUserPassword,
+				Label:                  "Brrewery password",
+				Type:                   "password",
+				VerifyBrreweryPassword: true,
+			}},
+		),
+		entry("sonarr", "Sonarr", "TV series management", "arr", "/sonarr/",
 			nil, &model.DetectionSpec{Binaries: []string{"sonarr"}, SystemdUnits: []string{"sonarr.service"}}),
-		entry("radarr", "Radarr", "Movie management", "arr",
+		entry("radarr", "Radarr", "Movie management", "arr", "/radarr/",
 			nil, &model.DetectionSpec{Binaries: []string{"radarr"}, SystemdUnits: []string{"radarr.service"}}),
-		entry("prowlarr", "Prowlarr", "Indexer manager", "arr",
+		entry("prowlarr", "Prowlarr", "Indexer manager", "arr", "/prowlarr/",
 			nil, &model.DetectionSpec{Binaries: []string{"prowlarr"}, SystemdUnits: []string{"prowlarr.service"}}),
-		entry("lidarr", "Lidarr", "Music management", "arr",
+		entry("lidarr", "Lidarr", "Music management", "arr", "/lidarr/",
 			nil, &model.DetectionSpec{Binaries: []string{"lidarr"}, SystemdUnits: []string{"lidarr.service"}}),
-		entry("bazarr", "Bazarr", "Subtitle management", "arr",
+		entry("bazarr", "Bazarr", "Subtitle management", "arr", "/bazarr/",
 			nil, &model.DetectionSpec{Binaries: []string{"bazarr"}, SystemdUnits: []string{"bazarr.service"}}),
-		entry("sabnzbd", "SABnzbd", "Usenet downloader", "download",
+		entry("sabnzbd", "SABnzbd", "Usenet downloader", "download", "/sabnzbd/",
 			nil, &model.DetectionSpec{Binaries: []string{"sabnzbdplus"}, SystemdUnits: []string{"sabnzbdplus.service"}}),
-		entry("deluge", "Deluge", "BitTorrent client", "download",
+		entry("deluge", "Deluge", "BitTorrent client", "download", "/deluge/",
 			nil, &model.DetectionSpec{Binaries: []string{"deluged"}, SystemdUnits: []string{"deluged.service"}}),
-		entry("rtorrent", "rTorrent", "BitTorrent client", "download",
+		entry("rtorrent", "rTorrent", "BitTorrent client", "download", "",
 			nil, &model.DetectionSpec{Binaries: []string{"rtorrent"}, SystemdUnits: []string{"rtorrent.service"}}),
-		entry("rutorrent", "ruTorrent", "Web UI for rTorrent", "download",
+		entry("rutorrent", "ruTorrent", "Web UI for rTorrent", "download", "/rutorrent/",
 			[]string{"rtorrent"}, &model.DetectionSpec{Paths: []string{"/srv/rutorrent"}}),
-		entry("jellyfin", "Jellyfin", "Media server", "media",
+		entry("jellyfin", "Jellyfin", "Media server", "media", "/jellyfin/",
 			nil, &model.DetectionSpec{Binaries: []string{"jellyfin"}, SystemdUnits: []string{"jellyfin.service"}}),
-		entry("plex", "Plex", "Media server", "media",
+		entry("plex", "Plex", "Media server", "media", "/plex/",
 			nil, &model.DetectionSpec{SystemdUnits: []string{"plexmediaserver.service"}}),
-		entry("organizr", "Organizr", "HTPC dashboard", "dashboard",
+		entry("organizr", "Organizr", "HTPC dashboard", "dashboard", "/organizr/",
 			nil, &model.DetectionSpec{Paths: []string{"/srv/organizr"}}),
-		entry("filebrowser", "File Browser", "Web file manager", "tools",
+		entry("filebrowser", "File Browser", "Web file manager", "tools", "/filebrowser/",
 			nil, &model.DetectionSpec{Binaries: []string{"filebrowser"}, SystemdUnits: []string{"filebrowser.service"}}),
-		entry("emby", "Emby", "Media server", "media",
+		entry("emby", "Emby", "Media server", "media", "/emby/",
 			nil, &model.DetectionSpec{SystemdUnits: []string{"emby-server.service"}}),
 	}
 }
