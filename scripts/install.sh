@@ -69,6 +69,7 @@ run_with_log() {
     printf "\n=== %s ===\n" "$message"
     "$@"
   } 2>&1 | tee -a "$INSTALL_LOG"
+  echo
 }
 
 bootstrap_source() {
