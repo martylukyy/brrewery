@@ -82,7 +82,7 @@ export function VnstatPanel() {
       }
     >
       <div>
-        <TrafficTable periods={tableConfig.periods} />
+        <TrafficTable periods={tableConfig.periods} reverse={range !== "top10"} />
       </div>
     </Panel>
   );
@@ -113,7 +113,7 @@ function Panel({
   );
 }
 
-function TrafficTable({ periods }: { periods: TrafficPeriod[] }) {
+function TrafficTable({ periods, reverse = true }: { periods: TrafficPeriod[]; reverse?: boolean }) {
   if (periods.length === 0) {
     return (
       <div>
@@ -122,7 +122,7 @@ function TrafficTable({ periods }: { periods: TrafficPeriod[] }) {
     );
   }
 
-  const rows = [...periods].reverse();
+  const rows = reverse ? [...periods].reverse() : periods;
 
   return (
     <div>

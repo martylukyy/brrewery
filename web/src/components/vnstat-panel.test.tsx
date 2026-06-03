@@ -65,6 +65,8 @@ describe("VnstatPanel", () => {
     expect(screen.getByText("2026-05")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Range"), { target: { value: "top10" } });
-    expect(screen.getByText("2026-05-30")).toBeInTheDocument();
+    const top10Rows = screen.getAllByRole("row").slice(1);
+    expect(top10Rows[0]).toHaveTextContent("2026-05-30");
+    expect(top10Rows[1]).toHaveTextContent("2026-05-31");
   });
 });
