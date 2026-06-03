@@ -1,8 +1,0 @@
----
-- hosts: localhost
-  connection: local
-  gather_facts: false
-  tasks:
-    - name: bazarr remove placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for bazarr remove"

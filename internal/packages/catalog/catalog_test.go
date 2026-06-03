@@ -12,7 +12,7 @@ func TestAll_HasExpectedPackages(t *testing.T) {
 	t.Parallel()
 
 	pkgs := All()
-	require.Len(t, pkgs, 16)
+	require.Len(t, pkgs, 14)
 
 	ids := make(map[string]struct{}, len(pkgs))
 	for _, pkg := range pkgs {
@@ -31,8 +31,8 @@ func TestAll_HasExpectedPackages(t *testing.T) {
 
 	for _, want := range []string{
 		"qbittorrent", "autobrr", "sonarr", "radarr", "prowlarr",
-		"lidarr", "bazarr", "sabnzbd", "deluge", "rtorrent", "rutorrent",
-		"jellyfin", "plex", "organizr", "filebrowser", "emby",
+		"lidarr", "sabnzbd", "deluge", "rtorrent", "rutorrent",
+		"jellyfin", "plex", "filebrowser", "emby",
 	} {
 		_, ok := ids[want]
 		assert.True(t, ok, "missing package %s", want)

@@ -12,7 +12,6 @@ const FALLBACK_COLORS: Record<string, string> = {
   radarr: "#ffc230",
   prowlarr: "#f59e0b",
   lidarr: "#34d399",
-  bazarr: "#a855f7",
   qbittorrent: "#2563eb",
   sabnzbd: "#f97316",
   deluge: "#0891b2",
@@ -20,7 +19,6 @@ const FALLBACK_COLORS: Record<string, string> = {
   rutorrent: "#84cc16",
   jellyfin: "#a855f7",
   plex: "#eab308",
-  organizr: "#6366f1",
   filebrowser: "#0ea5e9",
   emby: "#52b54b",
 };
