@@ -41,14 +41,35 @@ function polar(angleDeg: number) {
   };
 }
 
-/** Long arc from start to end, sweeping through the top. */
+function arcSweepSpan(fromDeg: number, toDeg: number): number {
+  let span = fromDeg - toDeg;
+  while (span <= 0) {
+    span += 360;
+  }
+  return span;
+}
+
 function arcPath(fromDeg: number, toDeg: number) {
   const start = polar(fromDeg);
   const end = polar(toDeg);
-  return `M ${start.x} ${start.y} A ${R} ${R} 0 1 1 ${end.x} ${end.y}`;
+  const largeArc = arcSweepSpan(fromDeg, toDeg) > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${R} ${R} 0 ${largeArc} 1 ${end.x} ${end.y}`;
 }
 
 const TRACK_PATH = arcPath(ARC_START, ARC_END);
+
+/** Partial fill arc from the left endpoint toward the right, through the top. */
+export function gaugeFillPath(percent: number): string | null {
+  const clamped = Math.min(100, Math.max(0, percent));
+  if (clamped <= 0) {
+    return null;
+  }
+  if (clamped >= 100) {
+    return TRACK_PATH;
+  }
+  const fillEnd = ARC_START - (clamped / 100) * ARC_DEGREES;
+  return arcPath(ARC_START, fillEnd);
+}
 
 function gaugeViewBox() {
   const sampleAngles = [ARC_START, ARC_END, 90, 180, 0];
@@ -78,6 +99,7 @@ const VIEW_BOX = gaugeViewBox();
 export function GaugePanel({ label, value, display, footer }: Props) {
   const clamped = Math.min(100, Math.max(0, value));
   const fillClass = gaugeFillClass(clamped);
+  const fillPath = gaugeFillPath(clamped);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-visible rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
@@ -101,22 +123,19 @@ export function GaugePanel({ label, value, display, footer }: Props) {
           >
             <path
               d={TRACK_PATH}
-              pathLength={100}
               fill="none"
               stroke="currentColor"
               strokeWidth={STROKE}
               strokeLinecap="round"
               className="text-zinc-800"
             />
-            {clamped > 0 && (
+            {fillPath && (
               <path
-                d={TRACK_PATH}
-                pathLength={100}
+                d={fillPath}
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={STROKE}
                 strokeLinecap="round"
-                strokeDasharray={`${clamped} 100`}
                 className={fillClass}
               />
             )}

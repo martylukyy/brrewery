@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { GaugePanel, gaugeFillClass } from "@/components/gauge-panel";
+import { GaugePanel, gaugeFillClass, gaugeFillPath } from "@/components/gauge-panel";
 
 describe("gaugeFillClass", () => {
   it("maps fill level to traffic-light colors", () => {
@@ -11,6 +11,17 @@ describe("gaugeFillClass", () => {
     expect(gaugeFillClass(90)).toBe("text-orange-500");
     expect(gaugeFillClass(90.1)).toBe("text-red-700");
     expect(gaugeFillClass(100)).toBe("text-red-700");
+  });
+});
+
+describe("gaugeFillPath", () => {
+  it("uses the short arc for partial fill so low values start on the left", () => {
+    expect(gaugeFillPath(1)).toMatch(/A 42 42 0 0 1/);
+    expect(gaugeFillPath(50)).toMatch(/A 42 42 0 0 1/);
+  });
+
+  it("uses the long arc for a full fill", () => {
+    expect(gaugeFillPath(100)).toMatch(/A 42 42 0 1 1/);
   });
 });
 
