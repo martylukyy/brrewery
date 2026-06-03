@@ -47,7 +47,7 @@ export function LoginPage() {
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button
           type="submit"
-          className="w-full rounded-md bg-amber-600 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-500"
+          className="w-full rounded-md px-4 py-2 font-medium bg-blue-600 hover:bg-blue-700"
           disabled={login.isPending}
         >
           {login.isPending ? "Signing in…" : "Sign in"}
