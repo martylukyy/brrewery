@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/autobrr/brrewery/internal/packages/extravars"
 )
 
 func TestAll_HasExpectedPackages(t *testing.T) {
@@ -24,10 +26,17 @@ func TestAll_HasExpectedPackages(t *testing.T) {
 		assert.Contains(t, pkg.Playbooks.Install, pkg.ID)
 	}
 
-	autobrr, ok := ByID("autobrr")
-	require.True(t, ok)
-	require.Len(t, autobrr.InstallSecrets, 1)
-	assert.True(t, autobrr.InstallSecrets[0].VerifyBrreweryPassword)
+	// autobrr and qBittorrent share the single account-password prompt: the same
+	// key, type and always verified against the brrewery account.
+	for _, id := range []string{"autobrr", "qbittorrent"} {
+		pkg, ok := ByID(id)
+		require.True(t, ok)
+		require.Len(t, pkg.InstallSecrets, 1, "%s should declare the shared password secret", id)
+		secret := pkg.InstallSecrets[0]
+		assert.Equal(t, extravars.BecomePassword, secret.Key, "%s password secret key", id)
+		assert.Equal(t, "password", secret.Type, "%s password secret type", id)
+		assert.True(t, secret.VerifyBrreweryPassword, "%s password must be verified", id)
+	}
 
 	for _, want := range []string{
 		"qbittorrent", "autobrr", "sonarr", "radarr", "prowlarr",

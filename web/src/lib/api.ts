@@ -160,6 +160,15 @@ export function logout() {
   return apiFetch<{ status: string }>("/auth/logout", { method: "POST" });
 }
 
+// verifyPassword checks a candidate password against the signed-in user's
+// account. It resolves on a match and throws ApiError (401) on a mismatch.
+export function verifyPassword(password: string): Promise<void> {
+  return apiFetch<void>("/auth/verify-password", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}
+
 export async function checkSession(): Promise<VersionInfo | null> {
   const res = await fetch(`${API_BASE}/version`, {
     credentials: "include",

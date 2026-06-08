@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { InstallSecret, PackageStatus } from "@/lib/api";
+import { ApiError, verifyPassword, type InstallSecret, type PackageStatus } from "@/lib/api";
 
 type Props = {
   packageIds: string[];
@@ -33,12 +33,13 @@ export function InstallSecretsModal({ packageIds, packages, onClose, onConfirm }
     Object.fromEntries(secrets.map((secret) => [secret.key, ""])),
   );
   const [error, setError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   const packageNames = packageIds
     .map((id) => packages.find((pkg) => pkg.id === id)?.name ?? id)
     .join(", ");
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
 
@@ -47,6 +48,26 @@ export function InstallSecretsModal({ packageIds, packages, onClose, onConfirm }
         setError(`${secret.label} is required.`);
         return;
       }
+    }
+
+    // Confirm any account password matches the real Linux / brrewery account
+    // before proceeding, so a typo is caught here instead of failing the install.
+    setVerifying(true);
+    try {
+      for (const secret of secrets) {
+        if (secret.verify_brrewery_password) {
+          await verifyPassword(values[secret.key] ?? "");
+        }
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 401
+          ? "Incorrect password."
+          : "Could not verify the password. Please try again.",
+      );
+      return;
+    } finally {
+      setVerifying(false);
     }
 
     onConfirm(
@@ -126,9 +147,10 @@ export function InstallSecretsModal({ packageIds, packages, onClose, onConfirm }
           </button>
           <button
             type="submit"
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700"
+            disabled={verifying}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Continue install
+            {verifying ? "Verifying…" : "Continue install"}
           </button>
         </div>
       </form>

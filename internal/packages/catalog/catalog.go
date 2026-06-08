@@ -36,6 +36,19 @@ func withInstallSecrets(pkg model.Package, specs []model.InstallSecret) model.Pa
 	return pkg
 }
 
+// passwordSecret is the single install-time password prompt shared by every
+// package. It collects the operator's account password — the same value is the
+// Linux user password, the sudo (become) password and the brrewery dashboard
+// password — and is always verified against the brrewery account before install.
+func passwordSecret() model.InstallSecret {
+	return model.InstallSecret{
+		Key:                    extravars.BecomePassword,
+		Label:                  "Password",
+		Type:                   "password",
+		VerifyBrreweryPassword: true,
+	}
+}
+
 func qbittorrentEntry() model.Package {
 	pkg := entry("qbittorrent", "qBittorrent", "BitTorrent client", "download", "/qbittorrent/",
 		nil, &model.DetectionSpec{
@@ -43,11 +56,7 @@ func qbittorrentEntry() model.Package {
 			SystemdUserUnits: []string{"qbittorrent@{user}.service"},
 		})
 	pkg.InstallOptions = qbittorrent.InstallOptions()
-	pkg.InstallSecrets = []model.InstallSecret{{
-		Key:   extravars.BecomePassword,
-		Label: "Password",
-		Type:  "password",
-	}}
+	pkg.InstallSecrets = []model.InstallSecret{passwordSecret()}
 	return pkg
 }
 
@@ -61,12 +70,7 @@ func All() []model.Package {
 					Binaries:         []string{"autobrr"},
 					SystemdUserUnits: []string{"autobrr@{user}.service"},
 				}),
-			[]model.InstallSecret{{
-				Key:                    extravars.BrreweryUserPassword,
-				Label:                  "Brrewery password",
-				Type:                   "password",
-				VerifyBrreweryPassword: true,
-			}},
+			[]model.InstallSecret{passwordSecret()},
 		),
 		entry("sonarr", "Sonarr", "TV series management", "arr", "/sonarr/",
 			nil, &model.DetectionSpec{Binaries: []string{"sonarr"}, SystemdUnits: []string{"sonarr.service"}}),

@@ -90,7 +90,7 @@ func TestInstallPackageEndpoint(t *testing.T) {
 
 	installBody, _ := json.Marshal(map[string]any{
 		"extra_vars": map[string]string{
-			"brrewery_user_password": "password123",
+			"ansible_become_password": "password123",
 		},
 	})
 	installReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/packages/autobrr/install", bytes.NewReader(installBody))
@@ -166,7 +166,7 @@ func TestInstallPackageEndpoint_InvalidPassword(t *testing.T) {
 
 	installBody, _ := json.Marshal(map[string]any{
 		"extra_vars": map[string]string{
-			"brrewery_user_password": "wrong-password",
+			"ansible_become_password": "wrong-password",
 		},
 	})
 	installReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/packages/autobrr/install", bytes.NewReader(installBody))

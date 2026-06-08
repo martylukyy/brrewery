@@ -60,3 +60,41 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		Status string `json:"status"`
 	}{Status: "ok"})
 }
+
+type VerifyPasswordRequest struct {
+	Password string `json:"password"`
+}
+
+// VerifyPassword checks a candidate password against the session user's account
+// without any side effects. It backs the install password prompt's inline check:
+// the Linux user, sudo (become) and brrewery dashboard passwords are all the same
+// value, so verifying against the brrewery account confirms the operator entered
+// the right credential before the install starts.
+func (h *AuthHandler) VerifyPassword(w http.ResponseWriter, r *http.Request) {
+	var req VerifyPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.WriteError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.Password == "" {
+		httputil.WriteError(w, http.StatusBadRequest, "Password is required")
+		return
+	}
+
+	username, ok := h.auth.Username(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	if err := h.auth.VerifyPassword(username, req.Password); err != nil {
+		if errors.Is(err, auth.ErrInvalidPassword) {
+			httputil.WriteError(w, http.StatusUnauthorized, "Invalid credentials")
+			return
+		}
+		httputil.WriteError(w, http.StatusInternalServerError, "Password verification failed")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

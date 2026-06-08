@@ -38,6 +38,13 @@ components:
       properties:
         username:
           type: string
+    VerifyPasswordRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
     VersionInfo:
       type: object
       properties:
@@ -407,6 +414,35 @@ paths:
       responses:
         '200':
           description: Logged out
+  /api/v1/auth/verify-password:
+    post:
+      summary: Verify the session user's account password
+      description: >-
+        Checks a candidate password against the authenticated user's account
+        without side effects. Backs the install password prompt's inline check.
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPasswordRequest'
+      responses:
+        '204':
+          description: Password matches
+        '400':
+          description: Password missing or invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Password does not match
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/version:
     get:
       summary: Version metadata
