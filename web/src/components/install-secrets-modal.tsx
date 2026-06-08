@@ -86,7 +86,7 @@ export function InstallSecretsModal({ packageIds, packages, onClose, onConfirm }
             Install credentials
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            {packageNames} needs your brrewery password to create a matching application account.
+            Enter the credentials required to install {packageNames}.
           </p>
         </div>
 
@@ -98,7 +98,12 @@ export function InstallSecretsModal({ packageIds, packages, onClose, onConfirm }
                 type={secret.type === "password" ? "password" : "text"}
                 className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
                 value={values[secret.key] ?? ""}
-                autoComplete="current-password"
+                name={secret.key}
+                autoComplete={secret.disable_password_manager ? "off" : "current-password"}
+                data-1p-ignore={secret.disable_password_manager || undefined}
+                data-bwignore={secret.disable_password_manager || undefined}
+                data-lpignore={secret.disable_password_manager ? "true" : undefined}
+                data-form-type={secret.disable_password_manager ? "other" : undefined}
                 onChange={(event) => {
                   setValues((current) => ({
                     ...current,

@@ -1,0 +1,13 @@
+---
+- name: Require zlib version resolved by brrewery
+  ansible.builtin.assert:
+    that:
+      - qbittorrent_zlib_version is defined
+      - qbittorrent_zlib_version | length > 0
+    fail_msg: >-
+      qbittorrent_zlib_version must be supplied by brrewery before the playbook runs
+      (resolved from github.com/madler/zlib releases).
+
+- name: Use zlib version from brrewery extra vars
+  ansible.builtin.set_fact:
+    qbt_zlib: "{{ qbittorrent_zlib_version }}"

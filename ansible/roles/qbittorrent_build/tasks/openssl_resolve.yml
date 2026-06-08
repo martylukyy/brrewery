@@ -1,0 +1,13 @@
+---
+- name: Require OpenSSL version resolved by brrewery
+  ansible.builtin.assert:
+    that:
+      - qbittorrent_openssl_version is defined
+      - qbittorrent_openssl_version | length > 0
+    fail_msg: >-
+      qbittorrent_openssl_version must be supplied by brrewery before the playbook runs
+      (latest OpenSSL 3.x release from github.com/openssl/openssl).
+
+- name: Use OpenSSL version from brrewery extra vars
+  ansible.builtin.set_fact:
+    qbt_openssl: "{{ qbittorrent_openssl_version }}"

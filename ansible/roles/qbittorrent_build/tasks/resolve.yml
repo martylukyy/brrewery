@@ -1,0 +1,129 @@
+---
+- name: Require qbittorrent version and resolved release extra vars
+  ansible.builtin.assert:
+    that:
+      - qbittorrent_version is defined
+      - qbittorrent_version | length > 0
+      - qbittorrent_release is defined
+      - qbittorrent_release | length > 0
+    fail_msg: >-
+      qbittorrent_version and qbittorrent_release must be supplied by brrewery
+      (version line from the UI, patch release resolved from GitHub)
+
+- name: Build candidate manifest locations
+  ansible.builtin.set_fact:
+    qbt_vendor_candidates:
+      - "{{ role_path }}/files/qbittorrent"
+      - /usr/share/brrewery/vendor/qbittorrent
+      - /etc/brrewery/ansible/roles/qbittorrent_build/files/qbittorrent
+
+- name: Locate the qBittorrent manifest
+  ansible.builtin.stat:
+    path: "{{ item }}/manifest.yml"
+  loop: "{{ qbt_vendor_candidates }}"
+  register: qbt_manifest_stat
+
+- name: Fail when no vendored manifest is found
+  ansible.builtin.assert:
+    that:
+      - qbt_manifest_stat.results | selectattr('stat.exists') | list | length > 0
+    fail_msg: "qBittorrent manifest.yml not found in any of: {{ qbt_vendor_candidates | join(', ') }}"
+
+- name: Resolve manifest directory to the first candidate that has a manifest
+  ansible.builtin.set_fact:
+    qbt_manifest_dir: "{{ qbt_manifest_stat.results | selectattr('stat.exists') | map(attribute='item') | first }}"
+
+- name: Choose writable vendor root for build sources
+  ansible.builtin.set_fact:
+    qbittorrent_vendor_root: >-
+      {{
+        qbt_manifest_dir
+        if ('qbittorrent_build/files/qbittorrent' not in qbt_manifest_dir)
+        else (qbittorrent_vendor_root_default | default('/usr/share/brrewery/vendor/qbittorrent'))
+      }}
+
+- name: Load qBittorrent build manifest
+  ansible.builtin.include_vars:
+    file: "{{ qbt_manifest_dir }}/manifest.yml"
+    name: qbt_manifest
+
+- name: Select manifest line for the requested version
+  ansible.builtin.set_fact:
+    qbt_line: "{{ qbt_manifest.lines | selectattr('version', 'equalto', qbittorrent_version) | list | first | default({}) }}"
+
+- name: Fail when the version line is not in the manifest
+  ansible.builtin.assert:
+    that:
+      - qbt_line | length > 0
+    fail_msg: "qBittorrent version {{ qbittorrent_version }} is not vendored in the manifest"
+
+- name: Resolve effective libtorrent branch
+  ansible.builtin.set_fact:
+    qbt_branch: "{{ libtorrent_branch if (libtorrent_branch | length > 0) else qbt_line.libtorrent.default }}"
+
+- name: Fail when the libtorrent branch is not allowed for this version
+  ansible.builtin.assert:
+    that:
+      - qbt_branch in qbt_line.libtorrent.branches
+    fail_msg: "libtorrent branch {{ qbt_branch }} is not supported for qBittorrent {{ qbittorrent_version }}"
+
+- name: Set resolved build facts
+  ansible.builtin.set_fact:
+    qbt_libtorrent_tag: "{{ qbt_line.libtorrent.branches[qbt_branch].tag }}"
+    qbt_build_system: "{{ qbt_line.build_system }}"
+    qbt_cxx_std: "{{ qbt_line.cxx_std | regex_replace('^c\\+\\+', '') }}"
+    qbt_qt_min: "{{ qbt_line.qt.min }}"
+    qbt_qt_major: "{{ qbt_line.qt.min.split('.')[0] }}"
+    qbt_compiler_flags: "{{ qbt_manifest.defaults.compiler_flags | default('-O2') }}"
+    qbt_version_line: "{{ qbt_line.version }}"
+
+- name: Resolve latest compatible Qt from download.qt.io
+  ansible.builtin.import_tasks: qt_resolve.yml
+
+- name: Resolve latest zlib from GitHub
+  ansible.builtin.import_tasks: zlib_resolve.yml
+
+- name: Resolve Boost version from brrewery extra vars
+  ansible.builtin.import_tasks: boost_resolve.yml
+
+- name: Resolve OpenSSL version from brrewery extra vars
+  ansible.builtin.import_tasks: openssl_resolve.yml
+
+- name: Announce resolved build profile
+  ansible.builtin.debug:
+    msg: >-
+      Building qBittorrent {{ qbittorrent_release }} (line {{ qbittorrent_version }}, Qt {{ qbt_qt_version }}, min {{ qbt_qt_min }},
+      libtorrent {{ qbt_branch }} {{ qbt_libtorrent_tag }}, Boost {{ qbt_boost }}, zlib {{ qbt_zlib }}, OpenSSL {{ qbt_openssl }},
+      {{ qbt_build_system }}, C++{{ qbt_cxx_std }})
+
+# qBittorrent's WebUI links Qt's SSL classes (QSslKey/QSslCertificate), which
+# only exist when qtbase was configured with SSL (QT_FEATURE_ssl). A Qt built
+# before OpenSSL was available (older task ordering) has SSL disabled, and the
+# `creates:` guards on the Qt steps would keep reusing that stale install,
+# failing the qBittorrent compile with "incomplete type QSslKey". Detect that
+# and clear both the install and the in-source build tree so Qt is re-fetched
+# (by vendor.yml) and reconfigured from a clean slate with SSL enabled. Runs
+# before vendor.yml so the removed source tree is re-extracted this same run.
+- name: Check whether an already-installed vendored Qt has SSL enabled
+  ansible.builtin.command:
+    cmd: grep -q "define QT_FEATURE_ssl 1" "{{ qbittorrent_prefix }}/qt{{ qbt_qt_major }}/include/QtNetwork/qtnetwork-config.h"
+  register: qbt_qt_ssl_ok
+  failed_when: false
+  changed_when: false
+
+- name: Remove a stale vendored Qt that was built without SSL
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ qbittorrent_prefix }}/qt{{ qbt_qt_major }}"
+    - "{{ qbittorrent_vendor_root }}/sources/qt/{{ qbt_qt_version }}"
+  loop_control:
+    label: "{{ item }}"
+  when: qbt_qt_ssl_ok.rc != 0
+
+- name: Ensure clean build root
+  ansible.builtin.file:
+    path: "{{ qbittorrent_build_root }}"
+    state: directory
+    mode: "0750"

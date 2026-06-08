@@ -1,0 +1,110 @@
+# Vendored build manifest for qBittorrent.
+#
+# Each entry under `lines` describes one supported major.minor series and its
+# compatible build profile. qBittorrent patch releases, Qt, zlib, Boost (RC_2_0),
+# and OpenSSL are resolved by brrewery before Ansible runs; libtorrent tags are
+# pinned here per branch.
+#
+# Refresh libtorrent tags and boost_rc_1_2 when upstream ships newer compatible
+# releases. See docs/qbittorrent-build-manifest.md.
+defaults:
+  # RC_1_2 is capped at Boost 1.86 (Boost >= 1.87 drops boost::asio::io_service).
+  boost_rc_1_2: "1_86_0"
+  # Host-tuned but ISA-portable. -mtune=native optimizes scheduling for the build
+  # host without emitting instructions beyond the x86-64 baseline. Do NOT use
+  # -march=native: it bakes the host's newest features (e.g. cmpccxadd, avxifma)
+  # into the binaries, which makes Qt's host tools abort at build time
+  # ("Incompatible processor. This Qt build requires the following features ...")
+  # and qbittorrent-nox SIGILL at runtime on any CPU lacking them — including
+  # hypervisors that advertise but do not enable those instructions.
+  compiler_flags: "-O3 -mtune=native"
+
+lines:
+  - version: "4.3"
+    cxx_std: "c++17"
+    build_system: autotools
+    qt:
+      min: "5.12"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        RC_1_2:
+          tag: "v1.2.20"
+
+  - version: "4.4"
+    cxx_std: "c++17"
+    build_system: cmake
+    qt:
+      min: "6.0"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        RC_1_2:
+          tag: "v1.2.20"
+        RC_2_0:
+          tag: "v2.0.11"
+
+  - version: "4.5"
+    cxx_std: "c++17"
+    build_system: cmake
+    qt:
+      min: "6.2"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        RC_1_2:
+          tag: "v1.2.20"
+        RC_2_0:
+          tag: "v2.0.11"
+
+  - version: "4.6"
+    cxx_std: "c++17"
+    build_system: cmake
+    qt:
+      min: "6.4"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        RC_1_2:
+          tag: "v1.2.20"
+        RC_2_0:
+          tag: "v2.0.11"
+
+  - version: "5.0"
+    cxx_std: "c++20"
+    build_system: cmake
+    qt:
+      min: "6.5"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        RC_1_2:
+          tag: "v1.2.20"
+        RC_2_0:
+          tag: "v2.0.11"
+
+  - version: "5.1"
+    cxx_std: "c++20"
+    build_system: cmake
+    qt:
+      min: "6.5"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        RC_1_2:
+          tag: "v1.2.20"
+        RC_2_0:
+          tag: "v2.0.11"
+
+  - version: "5.2"
+    cxx_std: "c++20"
+    build_system: cmake
+    qt:
+      min: "6.6"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        RC_1_2:
+          tag: "v1.2.20"
+        RC_2_0:
+          tag: "v2.0.11"

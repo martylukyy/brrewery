@@ -2,3 +2,6 @@ brrewery_nginx_packages_dir: /etc/nginx/brrewery/packages
 brrewery_package_id: ""
 brrewery_package_web_path: ""
 brrewery_package_upstream: ""
+# When true, proxy_pass uses a trailing slash so nginx strips the web_path prefix
+# before forwarding (required for apps without a subpath base URL, e.g. qBittorrent).
+brrewery_package_strip_path_prefix: false

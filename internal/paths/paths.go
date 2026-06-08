@@ -14,12 +14,19 @@ const (
 	LogFile              = "/var/log/brrewery/brrewery.log"
 	WebRoot              = "/var/www/brrewery"
 	UserStorePath        = "/var/lib/brrewery/users.json"
+	JobsDir              = "/var/lib/brrewery/jobs"
 	SessionSecretPath    = "/var/lib/brrewery/session.key" //nolint:gosec // filesystem path, not a secret value
 	AnsibleRoot          = "/usr/share/brrewery/ansible"
-	NginxSitesAvailable  = "/etc/nginx/sites-available"
-	NginxSitesEnabled    = "/etc/nginx/sites-enabled"
-	TLSCertPath          = "/etc/ssl/brrewery/fullchain.pem"
-	TLSKeyPath           = "/etc/ssl/brrewery/privkey.pem"
+	VendorRoot           = "/usr/share/brrewery/vendor"
+	// QBittorrentOperatorPatchesDir holds optional operator-supplied libtorrent
+	// patches applied at build time. Web UI uploads are never written here.
+	QBittorrentOperatorPatchesDir = "/var/lib/brrewery/patches/qbittorrent"
+	NginxSitesAvailable           = "/etc/nginx/sites-available"
+	NginxSitesEnabled             = "/etc/nginx/sites-enabled"
+	TLSCertPath                   = "/etc/ssl/brrewery/fullchain.pem"
+	TLSKeyPath                    = "/etc/ssl/brrewery/privkey.pem"
+
+	qbittorrentBuildFilesDir = "roles/qbittorrent_build/files/qbittorrent"
 )
 
 // ListenAddress returns the HTTP listen address for the API server.
@@ -30,9 +37,16 @@ func ListenAddress() string {
 	return BackendListenAddress
 }
 
-// ResolveJobsDir returns a directory for persisted install jobs, or empty for in-memory only.
+// ResolveJobsDir returns the directory for persisted install jobs. Override with
+// BRREWERY_JOBS_DIR; set it to "-" for an in-memory-only store (tests).
 func ResolveJobsDir() string {
-	return strings.TrimSpace(os.Getenv("BRREWERY_JOBS_DIR"))
+	if env := strings.TrimSpace(os.Getenv("BRREWERY_JOBS_DIR")); env != "" {
+		if env == "-" {
+			return ""
+		}
+		return env
+	}
+	return JobsDir
 }
 
 // ResolveAnsibleRoot returns the ansible tree used for package playbooks.
@@ -60,6 +74,43 @@ func ResolveAnsibleRoot() string {
 	}
 
 	return AnsibleRoot
+}
+
+// ResolveVendorQBittorrentRoot returns the qBittorrent build manifest and
+// patches tree. In development this is ansible/roles/qbittorrent_build/files/qbittorrent;
+// in production installs use /usr/share/brrewery/vendor/qbittorrent for the
+// downloaded source cache (manifest/patches are copied from the role at install time).
+func ResolveVendorQBittorrentRoot() string {
+	if env := strings.TrimSpace(os.Getenv("BRREWERY_QBITTORRENT_VENDOR_ROOT")); env != "" {
+		return env
+	}
+
+	for _, candidate := range qbittorrentManifestCandidates() {
+		if isVendorQBittorrentRoot(candidate) {
+			return absPath(candidate)
+		}
+	}
+
+	return filepath.Join(VendorRoot, "qbittorrent")
+}
+
+func qbittorrentManifestCandidates() []string {
+	candidates := make([]string, 0, 4)
+	if root := resolveRepoRoot(); root != "" {
+		candidates = append(candidates, filepath.Join(root, "ansible", qbittorrentBuildFilesDir))
+	}
+	candidates = append(candidates,
+		filepath.Join(ResolveAnsibleRoot(), qbittorrentBuildFilesDir),
+		filepath.Join("ansible", qbittorrentBuildFilesDir),
+		filepath.Join("/etc/brrewery/ansible", qbittorrentBuildFilesDir),
+		filepath.Join(VendorRoot, "qbittorrent"),
+	)
+	return candidates
+}
+
+func isVendorQBittorrentRoot(path string) bool {
+	info, err := os.Stat(filepath.Join(path, "manifest.yml"))
+	return err == nil && !info.IsDir()
 }
 
 func resolveRepoRoot() string {

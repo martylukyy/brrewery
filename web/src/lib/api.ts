@@ -68,6 +68,25 @@ export type InstallSecret = {
   label: string;
   type: "password" | string;
   verify_brrewery_password?: boolean;
+  disable_password_manager?: boolean;
+};
+
+export type InstallOptionChoice = {
+  value: string;
+  label: string;
+};
+
+export type InstallOptionWhen = {
+  key: string;
+  one_of?: string[];
+};
+
+export type InstallOption = {
+  key: string;
+  label: string;
+  type: "select" | string;
+  choices?: InstallOptionChoice[];
+  when?: InstallOptionWhen;
 };
 
 export type PackageStatus = {
@@ -78,6 +97,7 @@ export type PackageStatus = {
   icon?: string;
   web_path?: string;
   install_secrets?: InstallSecret[];
+  install_options?: InstallOption[];
   installed: boolean;
   dependencies_satisfied: boolean;
 };

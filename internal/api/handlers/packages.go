@@ -14,6 +14,7 @@ import (
 	pkgdomain "github.com/autobrr/brrewery/internal/packages"
 	"github.com/autobrr/brrewery/internal/packages/catalog"
 	"github.com/autobrr/brrewery/internal/packages/model"
+	"github.com/autobrr/brrewery/internal/packages/qbittorrent"
 	"github.com/autobrr/brrewery/internal/packages/secrets"
 )
 
@@ -81,6 +82,9 @@ func (h *PackagesHandler) Install(w http.ResponseWriter, r *http.Request) {
 		writePackageJobError(w, err)
 		return
 	}
+	if !writeQbittorrentValidation(w, pkg.ID, body.ExtraVars) {
+		return
+	}
 
 	job, err := h.service.StartInstall(r.Context(), id, username, body.ExtraVars)
 	if err != nil {
@@ -92,16 +96,16 @@ func (h *PackagesHandler) Install(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PackagesHandler) Upgrade(w http.ResponseWriter, r *http.Request) {
-	h.startPackageJob(w, r, h.service.StartUpgrade)
+	h.startPackageJob(w, r, true, h.service.StartUpgrade)
 }
 
 func (h *PackagesHandler) Remove(w http.ResponseWriter, r *http.Request) {
-	h.startPackageJob(w, r, h.service.StartRemove)
+	h.startPackageJob(w, r, false, h.service.StartRemove)
 }
 
 type packageJobStarter func(context.Context, string, string, map[string]string) (model.Job, error)
 
-func (h *PackagesHandler) startPackageJob(w http.ResponseWriter, r *http.Request, start packageJobStarter) {
+func (h *PackagesHandler) startPackageJob(w http.ResponseWriter, r *http.Request, validateOptions bool, start packageJobStarter) {
 	username, ok := h.auth.Username(r.Context())
 	if !ok {
 		httputil.WriteError(w, http.StatusUnauthorized, "Unauthorized")
@@ -118,6 +122,10 @@ func (h *PackagesHandler) startPackageJob(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	if validateOptions && !writeQbittorrentValidation(w, id, body.ExtraVars) {
+		return
+	}
+
 	job, err := start(r.Context(), id, username, body.ExtraVars)
 	if err != nil {
 		writePackageJobError(w, err)
@@ -125,6 +133,21 @@ func (h *PackagesHandler) startPackageJob(w http.ResponseWriter, r *http.Request
 	}
 
 	httputil.WriteJSON(w, http.StatusAccepted, model.InstallResponse{JobID: job.ID})
+}
+
+// writeQbittorrentValidation validates qBittorrent install options and reports
+// whether processing may continue. On failure it writes the HTTP error.
+func writeQbittorrentValidation(w http.ResponseWriter, packageID string, extraVars map[string]string) bool {
+	err := qbittorrent.Validate(packageID, extraVars)
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, qbittorrent.ErrManifestUnavailable):
+		httputil.WriteError(w, http.StatusInternalServerError, "qBittorrent build manifest unavailable")
+	default:
+		httputil.WriteError(w, http.StatusBadRequest, err.Error())
+	}
+	return false
 }
 
 func writePackageJobError(w http.ResponseWriter, err error) {

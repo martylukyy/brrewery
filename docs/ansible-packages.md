@@ -37,4 +37,25 @@ Extra-vars for package secrets are supplied from the API/UI per install and are 
 
 Every install automatically receives `brrewery_user` (the logged-in brrewery admin OS username). Playbooks should include the `brrewery_user` role to resolve the matching primary group as `brrewery_group`. Package data, config, and systemd user services must run as that user for future multi-user support.
 
+### Privilege escalation
+
+Playbooks that change system state run under play-level `become: true`. When brrewery runs unprivileged, the operator's sudo password is collected in the web UI (an install secret with key `ansible_become_password`) and handed to the runner. The runner writes it to a private temp file and invokes `ansible-playbook --become-password-file <file>` (deleted after the run); the password is never placed in the extra-vars JSON, on the process arguments, or in the job log. When brrewery already runs as root the supplied value is simply unused by sudo. The bundled systemd unit (`contrib/systemd/brrewery.service`) therefore must not set `NoNewPrivileges=true` or `ProtectSystem=strict`, which would block sudo and writes to `/usr`, `/etc`, and `/opt`.
+
 After a successful run, install status is re-probed via filesystem detection only (no playbook marker files).
+
+## qBittorrent (source build)
+
+qBittorrent is compiled from vendored sources rather than installed from a release binary. See [plans/qbittorrent-package-install.md](plans/qbittorrent-package-install.md) for the full design and [qbittorrent-handoff.md](qbittorrent-handoff.md) for current status and open items.
+
+- **Vendored build tree:** `ansible/roles/qbittorrent_build/files/qbittorrent/` holds the manifest and default patches in git; production caches downloaded sources under `/usr/share/brrewery/vendor/qbittorrent`. See [qbittorrent-build-manifest.md](qbittorrent-build-manifest.md). `tasks/vendor.yml` downloads and extracts build sources at install time.
+- **Build role:** `ansible/roles/qbittorrent_build` resolves the manifest line for the requested minor and compiles Boost (latest archives.boost.io release for `RC_2_0`, manifest `boost_rc_1_2` cap for `RC_1_2`, via `qbittorrent_boost_version`), Qt (newest patch ≥ line `qt.min`, via `qbittorrent_qt_version`), zlib (latest GitHub release, via `qbittorrent_zlib_version`), OpenSSL (latest 3.x from github.com/openssl/openssl, via `qbittorrent_openssl_version`), libtorrent, and `qbittorrent-nox` from vendored sources. Install/upgrade needs outbound HTTPS to GitHub, qt.io, and archives.boost.io.
+- **Extra vars** passed by the install/upgrade API:
+  - `qbittorrent_version` — major.minor line from the UI (e.g. `5.2`).
+  - `qbittorrent_release` — resolved patch release (e.g. `5.2.1`) from GitHub `release-{minor}.*` tags; set by brrewery before Ansible runs.
+  - `libtorrent_branch` — `RC_1_2` or `RC_2_0`; empty falls back to the line default (`RC_1_2`).
+  - `libtorrent_patch` — optional base64 unified-diff applied to a single build. It is **ephemeral**: decoded to a `0600` temp file, applied, and deleted; never written under `/var/lib/brrewery` and never logged (`no_log`).
+- **libtorrent patch priority** (one wins, before the libtorrent compile):
+  1. Uploaded `libtorrent_patch` (this build only) — must apply cleanly or the job fails.
+  2. Operator file `/var/lib/brrewery/patches/qbittorrent/libtorrent-<branch>.patch` — must apply cleanly.
+  3. Vendored default `patches/libtorrent-<branch>.patch` — applied best effort.
+- **qBittorrent source patches** are brrewery-only: vendored `patches/qbittorrent-<version>-security.patch` is applied when present. There is no Web UI or operator path for qBittorrent source patches.

@@ -30,7 +30,7 @@ type persistedJob struct {
 	Logs []string  `json:"logs"`
 }
 
-// NewStore returns an in-memory job store, or a persisted store when BRREWERY_JOBS_DIR is set.
+// NewStore returns an in-memory job store. Use NewStoreAt with a non-empty dir to persist jobs.
 func NewStore() *Store {
 	return NewStoreAt("")
 }

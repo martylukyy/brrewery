@@ -1,0 +1,26 @@
+---
+# Writable tree for vendored build sources (populated by tasks/vendor.yml).
+qbittorrent_vendor_root_default: /usr/share/brrewery/vendor/qbittorrent
+qbittorrent_vendor_root: "{{ qbittorrent_vendor_root_default }}"
+# Optional operator-supplied libtorrent patches (never written by the Web UI).
+qbittorrent_operator_patches_dir: /var/lib/brrewery/patches/qbittorrent
+
+# Install prefix and scratch build directory.
+qbittorrent_prefix: /usr/local
+qbittorrent_build_root: /tmp/brrewery-qbittorrent-build
+qbittorrent_boost_root: /opt
+
+# WebUI port (8080 is taken by the brrewery backend).
+qbittorrent_webui_port: 8086
+
+# Parallelism for the compile steps.
+qbittorrent_build_jobs: "{{ ansible_processor_vcpus | default(ansible_processor_count) | default(2) }}"
+
+# Supplied by brrewery before Ansible runs. qbittorrent_version is the UI line;
+# qbittorrent_release is the resolved patch from GitHub.
+# libtorrent_branch falls back to the manifest line default (RC_1_2) when empty.
+# libtorrent_patch is an optional, ephemeral base64 patch for a single build.
+qbittorrent_version: ""
+qbittorrent_release: ""
+libtorrent_branch: ""
+libtorrent_patch: ""

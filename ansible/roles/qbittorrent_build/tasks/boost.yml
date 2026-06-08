@@ -1,0 +1,43 @@
+---
+- name: Check for prepared Boost root
+  ansible.builtin.stat:
+    path: "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}/bootstrap.sh"
+  register: qbt_boost_prepared
+
+- name: Stage Boost into the build root
+  ansible.builtin.command:
+    cmd: cp -a "{{ qbittorrent_vendor_root }}/sources/boost/{{ qbt_boost }}" "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}"
+  args:
+    creates: "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}/bootstrap.sh"
+  when: not qbt_boost_prepared.stat.exists
+
+- name: Bootstrap Boost (system library only)
+  ansible.builtin.command:
+    cmd: ./bootstrap.sh --with-libraries=system
+    chdir: "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}"
+    creates: "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}/b2"
+
+# bootstrap.sh only builds the b2 engine; it does not compile the library.
+# qBittorrent's autotools build (AX_BOOST_SYSTEM) requires a linkable
+# libboost_system even though Boost.System is header-only since 1.69. Build it
+# static + PIC into <root>/lib so AX_BOOST_BASE finds it there and qBittorrent
+# links it statically (no runtime loader-path dependency). libtorrent keeps
+# using the full headers in this source tree via BOOST_ROOT, unaffected.
+#
+# Built only for the libtorrent RC_1_2 line, which pins an older Boost that
+# still ships the compiled Boost.System. The RC_2_0 line resolves the latest
+# Boost (>= 1.88), which dropped that library entirely, so `b2 --with-system`
+# would fail with "wrong library name 'system'"; those builds are cmake-only
+# and consume Boost.System header-only, so nothing needs staging.
+- name: Build the Boost.System library (static, PIC)
+  ansible.builtin.command:
+    cmd: >-
+      ./b2 --with-system --stagedir=. link=static threading=multi
+      cxxflags=-fPIC variant=release -j{{ qbittorrent_build_jobs }} stage
+    chdir: "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}"
+    creates: "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}/lib/libboost_system.a"
+  when: qbt_branch == 'RC_1_2'
+
+- name: Set Boost environment facts
+  ansible.builtin.set_fact:
+    qbt_boost_root_path: "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}"

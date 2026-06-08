@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef } from "react";
 
 import {
+  ApiError,
   getJob,
   getJobLogs,
   startPackageJob,
@@ -61,17 +62,20 @@ export function PackageJobModal({
   const queryClient = useQueryClient();
   const logRef = useRef<HTMLPreElement>(null);
   const labels = ACTION_LABELS[action];
+  const runId = useId();
 
   const activePackageId = packageIds[0] ?? null;
 
+  const extraVarsKey = useMemo(
+    () => JSON.stringify(extraVars, Object.keys(extraVars).sort()),
+    [extraVars],
+  );
+
   const jobStart = useQuery({
-    queryKey: ["package-job-start", action, activePackageId, extraVars],
+    queryKey: ["package-job-start", action, activePackageId, runId, extraVarsKey],
     queryFn: () => startPackageJob(activePackageId!, action, { extra_vars: extraVars }),
     enabled: activePackageId != null,
     retry: false,
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: Number.POSITIVE_INFINITY,
-    refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
@@ -82,6 +86,8 @@ export function PackageJobModal({
     queryKey: ["job", jobId],
     enabled: Boolean(jobId),
     queryFn: () => getJob(jobId!),
+    retry: (failureCount, error) =>
+      error instanceof ApiError && error.status === 404 ? failureCount < 5 : false,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (status && TERMINAL.includes(status)) {
@@ -93,8 +99,10 @@ export function PackageJobModal({
 
   const logs = useQuery({
     queryKey: ["job-logs", jobId],
-    enabled: Boolean(jobId),
+    enabled: Boolean(jobId) && !job.isError,
     queryFn: () => getJobLogs(jobId!),
+    retry: (failureCount, error) =>
+      error instanceof ApiError && error.status === 404 ? failureCount < 5 : false,
     refetchInterval: () => {
       const status = job.data?.status;
       if (status && TERMINAL.includes(status)) {
@@ -147,7 +155,9 @@ export function PackageJobModal({
       return labels.failedStart;
     }
     if (job.isError) {
-      return "Job not found";
+      return job.error instanceof ApiError && job.error.status === 404
+        ? "Install job unavailable"
+        : "Job status unavailable";
     }
     switch (status) {
       case "queued":
@@ -163,7 +173,18 @@ export function PackageJobModal({
     }
   })();
 
-  const errorMessage = jobStart.error?.message ?? job.error?.message ?? job.data?.error;
+  const errorMessage = (() => {
+    if (jobStart.error) {
+      return jobStart.error.message;
+    }
+    if (job.error instanceof ApiError && job.error.status === 404) {
+      return "The install job is no longer on the server (it may have been started before a restart). Close this dialog and start the install again.";
+    }
+    if (job.error) {
+      return job.error.message;
+    }
+    return job.data?.error;
+  })();
   const logText = (logs.data?.lines ?? []).join("\n");
 
   return (

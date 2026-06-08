@@ -1,0 +1,13 @@
+---
+- name: Require Boost version resolved by brrewery
+  ansible.builtin.assert:
+    that:
+      - qbittorrent_boost_version is defined
+      - qbittorrent_boost_version | length > 0
+    fail_msg: >-
+      qbittorrent_boost_version must be supplied by brrewery before the playbook runs
+      (latest archives.boost.io release for RC_2_0, or manifest boost_rc_1_2 for RC_1_2).
+
+- name: Use Boost version from brrewery extra vars
+  ansible.builtin.set_fact:
+    qbt_boost: "{{ qbittorrent_boost_version }}"

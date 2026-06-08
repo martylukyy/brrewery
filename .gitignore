@@ -30,3 +30,6 @@ internal/web/dist/
 # Dev artifacts
 .brrewery-dev
 build-errors.log
+
+# Ansible
+.ansible-home/

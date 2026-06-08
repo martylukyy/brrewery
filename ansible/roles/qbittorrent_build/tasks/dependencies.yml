@@ -1,0 +1,26 @@
+---
+# Best effort: a stale or read-only apt cache should not abort the build when
+# the existing cache already satisfies the dependencies below.
+- name: Refresh apt cache (best effort)
+  ansible.builtin.apt:
+    update_cache: true
+  failed_when: false
+
+- name: Install common build toolchain and qBittorrent build dependencies
+  ansible.builtin.apt:
+    name:
+      - build-essential
+      - cmake
+      - ninja-build
+      - pkg-config
+      - git
+      - perl
+      - python3
+      # System CA bundle (/etc/ssl/certs); the vendored OpenSSL's trust store is
+      # symlinked to it so HTTPS verification keeps working host-wide.
+      - ca-certificates
+      # OpenSSL is built from vendored sources (see tasks/openssl.yml).
+      # zlib is built from vendored sources (see tasks/zlib.yml).
+      - libgeoip-dev
+      - libicu-dev
+    state: present

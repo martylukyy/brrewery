@@ -1,0 +1,20 @@
+Add missing QHash/QMap includes to base/http/types.h for newer Qt 6.
+
+qBittorrent 4.6.x's src/base/http/types.h uses QMap (Http::HeaderMap) and
+QHash for its struct fields but relies on those full definitions being pulled
+in transitively. Qt 6.4+ ships only forward declarations via qcontainerfwd.h,
+so the build fails with "field ... has incomplete type 'QMap<QString,QString>'".
+This is the same defect already patched on the 4.4 and 4.5 lines; see
+qbittorrent-4.4-qt6-headers.patch and qbittorrent-4.5-qt6-headers.patch.
+
+--- a/src/base/http/types.h
++++ b/src/base/http/types.h
+@@ -29,7 +29,9 @@
+
+ #pragma once
+
++#include <QHash>
+ #include <QHostAddress>
++#include <QMap>
+ #include <QString>
+ #include <QVector>

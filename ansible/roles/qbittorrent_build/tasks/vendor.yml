@@ -1,0 +1,107 @@
+---
+# Downloads and extracts qBittorrent build sources at install/upgrade time.
+# brrewery resolves qbittorrent_release, qbittorrent_qt_version, qbittorrent_zlib_version,
+# qbittorrent_boost_version, and qbittorrent_openssl_version before Ansible runs; libtorrent tag comes from manifest.yml.
+- name: Ensure vendor root directory exists
+  ansible.builtin.file:
+    path: "{{ qbittorrent_vendor_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Install vendored manifest and patches from the Ansible role
+  when: "'qbittorrent_build/files/qbittorrent' in qbt_manifest_dir"
+  block:
+    - name: Copy vendored manifest into the vendor root
+      ansible.builtin.copy:
+        src: "{{ role_path }}/files/qbittorrent/manifest.yml"
+        dest: "{{ qbittorrent_vendor_root }}/manifest.yml"
+        mode: "0644"
+
+    - name: Copy vendored patches into the vendor root
+      ansible.builtin.copy:
+        src: "{{ role_path }}/files/qbittorrent/patches/"
+        dest: "{{ qbittorrent_vendor_root }}/patches/"
+        mode: preserve
+
+- name: Build the vendored source download plan for this install
+  ansible.builtin.set_fact:
+    qbt_source_downloads:
+      - dest: "sources/qbittorrent/{{ qbt_version_line }}"
+        url: "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-{{ qbittorrent_release }}.tar.gz"
+      - dest: "sources/libtorrent/{{ qbt_branch }}"
+        url: >-
+          https://github.com/arvidn/libtorrent/releases/download/{{ qbt_libtorrent_tag }}/libtorrent-rasterbar-{{ qbt_libtorrent_tag | regex_replace('^v', '') }}.tar.gz
+      - dest: "sources/boost/{{ qbt_boost }}"
+        url: "https://archives.boost.io/release/{{ qbt_boost | replace('_', '.') }}/source/boost_{{ qbt_boost }}.tar.gz"
+      - dest: "sources/zlib/{{ qbt_zlib }}"
+        url: "https://github.com/madler/zlib/releases/download/v{{ qbt_zlib }}/zlib-{{ qbt_zlib }}.tar.gz"
+      - dest: "sources/openssl/{{ qbt_openssl }}"
+        url: "https://github.com/openssl/openssl/releases/download/openssl-{{ qbt_openssl }}/openssl-{{ qbt_openssl }}.tar.gz"
+
+- name: Set Qt archive path prefix
+  ansible.builtin.set_fact:
+    qbt_qt_archive_prefix: "{{ qbt_qt_version.split('.')[0] }}.{{ qbt_qt_version.split('.')[1] }}"
+
+- name: Append vendored Qt module sources to the download plan
+  ansible.builtin.set_fact:
+    qbt_source_downloads: >-
+      {{
+        qbt_source_downloads + [
+          {
+            'dest': 'sources/qt/' ~ qbt_qt_version ~ '/qtbase',
+            'url': 'https://download.qt.io/archive/qt/' ~ qbt_qt_archive_prefix ~ '/' ~ qbt_qt_version ~ '/submodules/qtbase-everywhere-src-' ~ qbt_qt_version ~ '.tar.xz'
+          },
+          {
+            'dest': 'sources/qt/' ~ qbt_qt_version ~ '/qttools',
+            'url': 'https://download.qt.io/archive/qt/' ~ qbt_qt_archive_prefix ~ '/' ~ qbt_qt_version ~ '/submodules/qttools-everywhere-src-' ~ qbt_qt_version ~ '.tar.xz'
+          }
+        ]
+      }}
+
+# A source counts as present only if its directory exists AND is non-empty. A
+# bare stat treats an empty leftover directory (e.g. one created by a prior run
+# whose download/extraction was interrupted) as "present" and skips the
+# re-download forever, so staging later copies an empty tree and the build fails
+# with errors like "./Configure: No such file or directory". `find` reports
+# matched=0 for both a missing and an empty directory, which is exactly the set
+# we must (re)download.
+- name: Check which vendored sources are already present and populated
+  ansible.builtin.find:
+    paths: "{{ qbittorrent_vendor_root }}/{{ item.dest }}"
+    file_type: any
+    hidden: true
+    recurse: false
+  loop: "{{ qbt_source_downloads }}"
+  register: qbt_source_present
+  loop_control:
+    label: "{{ item.dest }}"
+
+- name: Create destination directories for missing or incomplete vendored sources
+  ansible.builtin.file:
+    path: "{{ qbittorrent_vendor_root }}/{{ item.item.dest }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ qbt_source_present.results }}"
+  when: item.matched | int == 0
+  loop_control:
+    label: "{{ item.item.dest }}"
+
+- name: Download and extract missing or incomplete vendored build sources
+  ansible.builtin.unarchive:
+    src: "{{ item.item.url }}"
+    dest: "{{ qbittorrent_vendor_root }}/{{ item.item.dest }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+  loop: "{{ qbt_source_present.results }}"
+  when: item.matched | int == 0
+  loop_control:
+    label: "{{ item.item.dest }}"
+  # Once the vendored OpenSSL is installed it sits on the global loader path and
+  # shadows the system libcrypto for this module's Python too; its default trust
+  # store can be empty, breaking HTTPS verification ("unable to get local issuer
+  # certificate"). Pin the system CA bundle so source downloads always verify,
+  # independent of whichever OpenSSL ends up loaded.
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs

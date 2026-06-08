@@ -19,19 +19,45 @@ type InstallSecret struct {
 	Label                  string `json:"label"`
 	Type                   string `json:"type"`
 	VerifyBrreweryPassword bool   `json:"verify_brrewery_password,omitempty"`
+	// DisablePasswordManager hints browsers and extensions not to autofill or save the value.
+	DisablePasswordManager bool `json:"disable_password_manager,omitempty"`
+}
+
+// InstallOptionChoice is a single selectable value for an InstallOption.
+type InstallOptionChoice struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// InstallOptionWhen gates an option so it is only shown when another option's
+// value is one of the listed values.
+type InstallOptionWhen struct {
+	Key   string   `json:"key"`
+	OneOf []string `json:"one_of,omitempty"`
+}
+
+// InstallOption is a user-selected build/install parameter passed to Ansible as
+// an extra var (e.g. the qBittorrent version or libtorrent branch).
+type InstallOption struct {
+	Key     string                `json:"key"`
+	Label   string                `json:"label"`
+	Type    string                `json:"type"`
+	Choices []InstallOptionChoice `json:"choices,omitempty"`
+	When    *InstallOptionWhen    `json:"when,omitempty"`
 }
 
 type Package struct {
-	ID             string        `json:"id"`
-	Name           string        `json:"name"`
-	Description    string        `json:"description"`
-	Category       string        `json:"category"`
-	Icon           string        `json:"icon,omitempty"`
-	WebPath        string        `json:"web_path,omitempty"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	Description    string          `json:"description"`
+	Category       string          `json:"category"`
+	Icon           string          `json:"icon,omitempty"`
+	WebPath        string          `json:"web_path,omitempty"`
 	InstallSecrets []InstallSecret `json:"install_secrets,omitempty"`
-	Dependencies   []string      `json:"dependencies,omitempty"`
-	Detection      DetectionSpec `json:"detection"`
-	Playbooks      PlaybookPaths `json:"playbooks"`
+	InstallOptions []InstallOption `json:"install_options,omitempty"`
+	Dependencies   []string        `json:"dependencies,omitempty"`
+	Detection      DetectionSpec   `json:"detection"`
+	Playbooks      PlaybookPaths   `json:"playbooks"`
 }
 
 type PackageStatus struct {

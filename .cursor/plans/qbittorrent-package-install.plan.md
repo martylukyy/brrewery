@@ -68,7 +68,7 @@ Validator rejects any semver not exactly equal to a manifest entry (no arbitrary
 - **libtorrent:** For the selected branch (`RC_1_2` or `RC_2_0`), pin the **newest release tag** that remains compatible with that qBittorrent line (e.g. latest `v1.2.*` or `v2.0.*`), refreshed when vendoring.
 - **Boost / Qt / zlib:** Per minor line, pin the **newest vendored bundle** that meets or exceeds that line's build profile minimum (Qt: latest qtbase+qttools bundle ≥ `qt_min`; Boost: current swizzin-style static `system` tree; zlib: latest compatible with the Qt bundle).
 - **User choice is only** qBittorrent minor line + libtorrent branch (1.2 vs 2.0 where allowed); dependency versions are **not** exposed in the UI.
-- **Maintainer refreshes:** When updating `manifest.yml` or running `vendor-qbittorrent-deps.sh`, bump dependency pins to latest compatible versions alongside the latest qBittorrent patch for that line.
+- **Maintainer refreshes:** When updating `manifest.yml`, bump dependency pins to latest compatible versions alongside the latest qBittorrent patch for that line. Sources refresh on the next install via `tasks/vendor.yml`.
 
 ## Version matrix (encode in manifest + Go validator)
 
@@ -106,7 +106,7 @@ vendor/qbittorrent/
     qbittorrent-<minor>-security.patch  # brrewery-only; applied when manifest says still required
 ```
 
-- Add [`scripts/vendor-qbittorrent-deps.sh`](scripts/vendor-qbittorrent-deps.sh) for **maintainers only**: downloads official release tarballs once, verifies SHA256 from `manifest.yml`, extracts into `sources/`. When refreshing a minor line, resolve and vendor the **latest compatible** libtorrent/Boost/Qt/zlib per the dependency pinning rule. CI checks manifest checksums and directory presence (does not download in CI unless a dedicated job).
+- Source fetch is **Ansible-only** (`ansible/roles/qbittorrent_build/tasks/vendor.yml`): downloads official release tarballs at install time using brrewery-resolved versions, extracts into the vendor `sources/` cache. Optional future: SHA256 verification via `checksums.sha256` in the same task file.
 - Update [`scripts/install.sh`](scripts/install.sh) to copy `vendor/qbittorrent/` → `/usr/share/brrewery/vendor/qbittorrent/` alongside ansible, and `install -d -m 0750 /var/lib/brrewery/patches/qbittorrent`.
 - Add `paths.ResolveVendorQBittorrentRoot()` in [`internal/paths/paths.go`](internal/paths/paths.go) (dev: repo `vendor/qbittorrent`, prod: `/usr/share/brrewery/vendor/qbittorrent`).
 

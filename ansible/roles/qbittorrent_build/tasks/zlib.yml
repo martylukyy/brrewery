@@ -1,0 +1,44 @@
+---
+# A previous failed run can leave a partially-configured tree behind (the build
+# root is only cleaned on success). The staging and configure steps below are
+# guarded by `creates:`, so a leftover source tree or `build/CMakeCache.txt`
+# would cause them to be skipped on retry. Reset just the zlib scratch subtree
+# so every run stages, configures, and generates from a clean slate. The sibling
+# qbittorrent/openssl/libtorrent build trees under the same root are untouched.
+- name: Reset the zlib scratch source tree
+  ansible.builtin.file:
+    path: "{{ qbittorrent_build_root }}/zlib"
+    state: absent
+
+- name: Stage zlib source into the build root
+  ansible.builtin.command:
+    cmd: cp -a "{{ qbittorrent_vendor_root }}/sources/zlib/{{ qbt_zlib }}" "{{ qbittorrent_build_root }}/zlib"
+  args:
+    creates: "{{ qbittorrent_build_root }}/zlib"
+
+- name: Configure vendored zlib (static)
+  ansible.builtin.command:
+    cmd: >-
+      cmake -B build -G Ninja
+      -D CMAKE_BUILD_TYPE=Release
+      -D CMAKE_INSTALL_PREFIX={{ qbittorrent_prefix }}
+      -D BUILD_SHARED_LIBS=OFF
+    chdir: "{{ qbittorrent_build_root }}/zlib"
+    # build.ninja only exists after a successful generate step; CMakeCache.txt
+    # is written earlier (during configure) and would survive a failed generate,
+    # falsely marking this step done and skipping the rebuild on retry.
+    creates: "{{ qbittorrent_build_root }}/zlib/build/build.ninja"
+  environment:
+    CFLAGS: "{{ qbt_compiler_flags }}"
+
+- name: Build vendored zlib
+  ansible.builtin.command:
+    cmd: cmake --build build --parallel {{ qbittorrent_build_jobs }}
+    chdir: "{{ qbittorrent_build_root }}/zlib"
+    creates: "{{ qbittorrent_build_root }}/zlib/build/libz.a"
+
+- name: Install vendored zlib
+  ansible.builtin.command:
+    cmd: cmake --install build
+    chdir: "{{ qbittorrent_build_root }}/zlib"
+    creates: "{{ qbittorrent_prefix }}/lib/libz.a"

@@ -1,8 +1,99 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    qbittorrent_webui_port: 8086
+    qbittorrent_bin: /usr/local/bin/qbittorrent-nox
+  roles:
+    - brrewery_user
+    - qbittorrent_build
   tasks:
-    - name: qbittorrent install placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for qbittorrent install"
+    - name: Clean up qBittorrent build artifacts
+      ansible.builtin.include_role:
+        name: qbittorrent_build
+        tasks_from: cleanup.yml
+
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Ensure qBittorrent config directory exists
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/.config/qBittorrent"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0750"
+
+    - name: Write qBittorrent configuration
+      ansible.builtin.copy:
+        dest: "{{ brrewery_home }}/.config/qBittorrent/qBittorrent.conf"
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0640"
+        force: true
+        content: |
+          [LegalNotice]
+          Accepted=true
+
+          [Preferences]
+          WebUI\Address=127.0.0.1
+          WebUI\Port={{ qbittorrent_webui_port }}
+          WebUI\ReverseProxySupportEnabled=true
+          WebUI\TrustedReverseProxiesList=127.0.0.1
+          WebUI\Username={{ brrewery_user }}
+          WebUI\Password_PBKDF2="{{ qbittorrent_webui_password_hash }}"
+
+    - name: Ensure vendored libraries are visible to the dynamic linker
+      ansible.builtin.copy:
+        dest: /etc/ld.so.conf.d/brrewery-vendored.conf
+        mode: "0644"
+        content: |
+          # Managed by brrewery — vendored Qt and package libraries under /usr/local
+          {{ qbittorrent_prefix | default('/usr/local') }}/lib
+          {{ qbittorrent_prefix | default('/usr/local') }}/qt{{ qbt_qt_major | default('6') }}/lib
+
+    - name: Refresh dynamic linker cache
+      ansible.builtin.command:
+        cmd: ldconfig
+      changed_when: true
+
+    - name: Install qBittorrent systemd template unit
+      ansible.builtin.include_role:
+        name: qbittorrent_build
+        tasks_from: service_unit.yml
+
+    - name: Enable and start qBittorrent for brrewery user
+      ansible.builtin.systemd:
+        name: "qbittorrent@{{ brrewery_user }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for qBittorrent WebUI to listen
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ qbittorrent_webui_port }}"
+        timeout: 60
+
+    - name: Configure nginx reverse proxy for qBittorrent
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_package_id: qbittorrent
+        brrewery_package_web_path: /qbittorrent/
+        brrewery_package_upstream: http://127.0.0.1:{{ qbittorrent_webui_port }}
+        brrewery_package_strip_path_prefix: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

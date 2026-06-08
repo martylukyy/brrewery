@@ -1,0 +1,15 @@
+[Unit]
+Description=qBittorrent-nox service for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=%i
+Environment=LD_LIBRARY_PATH={{ qbittorrent_prefix }}/lib:{{ qbittorrent_prefix }}/qt{{ qbt_qt_major }}/lib
+ExecStart={{ qbittorrent_bin }} --webui-port={{ qbittorrent_webui_port }}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -15,7 +15,7 @@ PROD_WEB_ROOT = /var/www/brrewery
 
 .PHONY: all build frontend backend prod dev dev-backend dev-frontend clean test test-openapi lint lint-full lint-json lint-fix fmt gofix-changed gofix-check-changed precommit deps help ansible-syntax-check sync-ansible
 
-all: build
+all: build sync-ansible
 
 build: frontend backend
 
@@ -30,13 +30,13 @@ backend:
 	@echo "Building backend..."
 	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/brrewery
 
-prod: build
+prod: build sync-ansible
 	@echo "Installing $(BINARY_NAME) to $(PROD_BIN)..."
-	install -m 0755 $(BINARY_NAME) $(PROD_BIN)
+	sudo install -m 0755 $(BINARY_NAME) $(PROD_BIN)
 	@echo "Deploying web assets to $(PROD_WEB_ROOT)..."
-	install -d -m 0755 $(PROD_WEB_ROOT)
-	rm -rf $(PROD_WEB_ROOT)/*
-	cp -a $(INTERNAL_WEB_DIR)/dist/. $(PROD_WEB_ROOT)/
+	sudo install -d -m 0755 $(PROD_WEB_ROOT)
+	sudo rm -rf $(PROD_WEB_ROOT)/*
+	sudo cp -a $(INTERNAL_WEB_DIR)/dist/. $(PROD_WEB_ROOT)/
 
 dev:
 	@echo "Starting development mode..."
@@ -69,9 +69,9 @@ ansible-syntax-check:
 
 sync-ansible:
 	@echo "Syncing ansible playbooks to /usr/share/brrewery/ansible..."
-	install -d -m 0755 /usr/share/brrewery/ansible
-	rm -rf /usr/share/brrewery/ansible/*
-	cp -a ansible/. /usr/share/brrewery/ansible/
+	sudo install -d -m 0755 /usr/share/brrewery/ansible
+	sudo rm -rf /usr/share/brrewery/ansible/*
+	sudo cp -a ansible/. /usr/share/brrewery/ansible/
 
 fmt:
 	@echo "Formatting changed Go code..."

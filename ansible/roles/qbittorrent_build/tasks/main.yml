@@ -1,0 +1,32 @@
+---
+- name: Resolve qBittorrent build profile from manifest
+  ansible.builtin.import_tasks: resolve.yml
+
+# Qt version is resolved in resolve.yml (before sources are vendored).
+- name: Install build dependencies
+  ansible.builtin.import_tasks: dependencies.yml
+
+- name: Vendor qBittorrent build sources
+  ansible.builtin.import_tasks: vendor.yml
+
+- name: Prepare Boost
+  ansible.builtin.import_tasks: boost.yml
+
+# OpenSSL must be built before Qt: qtbase's SSL support (QSslKey/QSslCertificate,
+# required by qBittorrent's HTTPS WebUI) is only enabled when configure can find
+# OpenSSL. We do not install system libssl-dev, so without this ordering Qt is
+# built with SSL disabled and qBittorrent fails to compile.
+- name: Build and install vendored OpenSSL 3.x
+  ansible.builtin.import_tasks: openssl.yml
+
+- name: Prepare Qt
+  ansible.builtin.import_tasks: qt.yml
+
+- name: Build and install vendored zlib
+  ansible.builtin.import_tasks: zlib.yml
+
+- name: Build and install libtorrent
+  ansible.builtin.import_tasks: libtorrent.yml
+
+- name: Build and install qbittorrent-nox
+  ansible.builtin.import_tasks: qbittorrent.yml

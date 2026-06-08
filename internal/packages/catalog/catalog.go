@@ -5,6 +5,7 @@ import (
 
 	"github.com/autobrr/brrewery/internal/packages/extravars"
 	"github.com/autobrr/brrewery/internal/packages/model"
+	"github.com/autobrr/brrewery/internal/packages/qbittorrent"
 	"github.com/autobrr/brrewery/internal/paths"
 )
 
@@ -35,11 +36,25 @@ func withInstallSecrets(pkg model.Package, specs []model.InstallSecret) model.Pa
 	return pkg
 }
 
+func qbittorrentEntry() model.Package {
+	pkg := entry("qbittorrent", "qBittorrent", "BitTorrent client", "download", "/qbittorrent/",
+		nil, &model.DetectionSpec{
+			Binaries:         []string{"qbittorrent-nox"},
+			SystemdUserUnits: []string{"qbittorrent@{user}.service"},
+		})
+	pkg.InstallOptions = qbittorrent.InstallOptions()
+	pkg.InstallSecrets = []model.InstallSecret{{
+		Key:   extravars.BecomePassword,
+		Label: "Password",
+		Type:  "password",
+	}}
+	return pkg
+}
+
 // All returns the static package catalog.
 func All() []model.Package {
 	return []model.Package{
-		entry("qbittorrent", "qBittorrent", "BitTorrent client", "download", "/qbittorrent/",
-			nil, &model.DetectionSpec{Binaries: []string{"qbittorrent-nox"}, SystemdUnits: []string{"qbittorrent.service"}}),
+		qbittorrentEntry(),
 		withInstallSecrets(
 			entry("autobrr", "autobrr", "Automation for torrents and *arr", "automation", "/autobrr/",
 				nil, &model.DetectionSpec{

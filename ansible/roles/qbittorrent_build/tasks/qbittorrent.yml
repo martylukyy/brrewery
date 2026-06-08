@@ -1,0 +1,140 @@
+---
+# A previous failed run can leave a partially-configured tree behind (the build
+# root is only cleaned on success). The staging and configure steps below are
+# guarded by `creates:`, so a leftover source tree or `build/CMakeCache.txt`
+# would cause them to be skipped on retry, leaving the patched source un-staged
+# or un-regenerated. Reset just the qBittorrent scratch subtree so every run
+# stages, patches, configures, and generates from a clean slate. The sibling
+# zlib/openssl/libtorrent build trees under the same root are left untouched.
+- name: Reset the qBittorrent scratch source tree
+  ansible.builtin.file:
+    path: "{{ qbittorrent_build_root }}/qbittorrent"
+    state: absent
+
+- name: Stage qBittorrent source into the build root
+  ansible.builtin.command:
+    cmd: cp -a "{{ qbittorrent_vendor_root }}/sources/qbittorrent/{{ qbt_version_line }}" "{{ qbittorrent_build_root }}/qbittorrent"
+  args:
+    creates: "{{ qbittorrent_build_root }}/qbittorrent"
+
+- name: Find brrewery qBittorrent patches for this line
+  ansible.builtin.find:
+    paths: "{{ qbittorrent_vendor_root }}/patches"
+    patterns: "qbittorrent-{{ qbt_version_line }}-*.patch"
+  register: qbt_line_patches
+
+- name: Apply brrewery qBittorrent patches (must apply cleanly)
+  ansible.builtin.command:
+    cmd: patch -p1 -i "{{ item.path }}"
+    chdir: "{{ qbittorrent_build_root }}/qbittorrent"
+  loop: "{{ qbt_line_patches.files | sort(attribute='path') }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+
+- name: Compose extra CMake prefix path for vendored Qt
+  ansible.builtin.set_fact:
+    qbt_cmake_prefix: "{{ ('-D CMAKE_PREFIX_PATH=' ~ qbt_qt_prefix_path) if (qbt_qt_prefix_path | default('') | length > 0) else '' }}"
+
+# --- cmake build (qBittorrent 4.4+) --------------------------------------------
+# qBittorrent links Qt::CorePrivate (src/base uses Qt private APIs). Our
+# vendored qtbase ships the private module fully (headers + Qt6CorePrivate cmake
+# package), but its Qt6CoreConfig bakes __qt_Core_always_load_private_module=OFF,
+# so find_package(Qt6 COMPONENTS Core) does NOT auto-create Qt6::CorePrivate.
+# Without it the generate step fails: 'Target "qbt_base" links to Qt::CorePrivate
+# but the target was not found'. QT_FIND_PRIVATE_MODULES=ON is Qt's documented
+# knob to load the private module counterparts (no-op for the Qt5 autotools line).
+- name: Configure qbittorrent-nox (cmake + Ninja)
+  ansible.builtin.command:
+    cmd: >-
+      cmake -B build -G Ninja
+      -D CMAKE_BUILD_TYPE=Release
+      -D GUI=OFF
+      -D QT6={{ 'ON' if qbt_qt_major == '6' else 'OFF' }}
+      -D QT_FIND_PRIVATE_MODULES=ON
+      -D CMAKE_CXX_STANDARD={{ qbt_cxx_std }}
+      -D CMAKE_INSTALL_PREFIX={{ qbittorrent_prefix }}
+      -D OPENSSL_ROOT_DIR={{ qbittorrent_prefix }}
+      -D BOOST_ROOT={{ qbt_boost_root_path }}
+      {{ qbt_cmake_prefix }}
+    chdir: "{{ qbittorrent_build_root }}/qbittorrent"
+    # build.ninja only exists after a successful generate step; CMakeCache.txt
+    # is written earlier (during configure) and would survive a failed generate,
+    # falsely marking this step done and skipping the rebuild on retry.
+    creates: "{{ qbittorrent_build_root }}/qbittorrent/build/build.ninja"
+  environment:
+    CFLAGS: "{{ qbt_compiler_flags }}"
+    CXXFLAGS: "{{ qbt_compiler_flags }}"
+    PKG_CONFIG_PATH: "{{ qbittorrent_prefix }}/lib/pkgconfig"
+  when: qbt_build_system == 'cmake'
+
+- name: Build qbittorrent-nox (cmake)
+  ansible.builtin.command:
+    cmd: cmake --build build --parallel {{ qbittorrent_build_jobs }}
+    chdir: "{{ qbittorrent_build_root }}/qbittorrent"
+    creates: "{{ qbittorrent_build_root }}/qbittorrent/build/qbittorrent-nox"
+  when: qbt_build_system == 'cmake'
+
+- name: Install qbittorrent-nox (cmake)
+  ansible.builtin.command:
+    cmd: cmake --install build
+    chdir: "{{ qbittorrent_build_root }}/qbittorrent"
+    creates: "{{ qbittorrent_prefix }}/bin/qbittorrent-nox"
+  when: qbt_build_system == 'cmake'
+
+# --- autotools build (qBittorrent 4.3) -----------------------------------------
+- name: Bootstrap qbittorrent autotools
+  ansible.builtin.command:
+    cmd: ./bootstrap.sh
+    chdir: "{{ qbittorrent_build_root }}/qbittorrent"
+    creates: "{{ qbittorrent_build_root }}/qbittorrent/configure"
+  when: qbt_build_system == 'autotools'
+
+- name: Configure qbittorrent-nox (autotools)
+  ansible.builtin.command:
+    cmd: >-
+      ./configure --disable-gui --prefix={{ qbittorrent_prefix }}
+      --with-boost={{ qbt_boost_root_path }}
+    chdir: "{{ qbittorrent_build_root }}/qbittorrent"
+    creates: "{{ qbittorrent_build_root }}/qbittorrent/Makefile"
+  environment:
+    # qBittorrent's FIND_QT5 locates qmake via pkg-config: it reads host_bins
+    # from Qt5Core.pc, so the vendored Qt pkgconfig dir must be on
+    # PKG_CONFIG_PATH. PATH also exposes the Qt 5 tools (e.g. lrelease).
+    PATH: "{{ qbt_qt_prefix_path }}/bin:{{ ansible_env.PATH }}"
+    CFLAGS: "{{ qbt_compiler_flags }}"
+    CXXFLAGS: "{{ qbt_compiler_flags }}"
+    LDFLAGS: "-L{{ qbittorrent_prefix }}/lib"
+    PKG_CONFIG_PATH: "{{ qbt_qt_prefix_path }}/lib/pkgconfig:{{ qbittorrent_prefix }}/lib/pkgconfig"
+  when: qbt_build_system == 'autotools'
+
+- name: Build qbittorrent-nox (autotools)
+  ansible.builtin.command:
+    cmd: make -j{{ qbittorrent_build_jobs }}
+    chdir: "{{ qbittorrent_build_root }}/qbittorrent"
+    creates: "{{ qbittorrent_build_root }}/qbittorrent/src/qbittorrent-nox"
+  environment:
+    PATH: "{{ qbt_qt_prefix_path }}/bin:{{ ansible_env.PATH }}"
+  when: qbt_build_system == 'autotools'
+
+- name: Install qbittorrent-nox (autotools)
+  ansible.builtin.command:
+    cmd: make install
+    chdir: "{{ qbittorrent_build_root }}/qbittorrent"
+    creates: "{{ qbittorrent_prefix }}/bin/qbittorrent-nox"
+  when: qbt_build_system == 'autotools'
+
+- name: Verify qbittorrent-nox is installed
+  ansible.builtin.stat:
+    path: "{{ qbittorrent_prefix }}/bin/qbittorrent-nox"
+  register: qbt_installed_bin
+
+- name: Fail when qbittorrent-nox was not produced
+  ansible.builtin.assert:
+    that:
+      - qbt_installed_bin.stat.exists
+    fail_msg: qbittorrent-nox build did not produce a binary
+
+- name: Clean the build root
+  ansible.builtin.file:
+    path: "{{ qbittorrent_build_root }}"
+    state: absent

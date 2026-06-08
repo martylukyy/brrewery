@@ -1,0 +1,58 @@
+Drop the Qt::CorePrivate dependency from base for the vendored Qt 6 build.
+
+qBittorrent 4.6.4+ reads QT_FEATURE_icu from the private Qt header
+<QtCore/private/qtcore-config_p.h> in src/base/utils/compare.h and links the
+Qt::CorePrivate CMake target solely to decide whether QCollator's ICU-backed
+natural sort is available (otherwise it falls back to a portable comparator).
+
+brrewery's vendored, minimal Qt 6 build (-no-gui -no-widgets) does not expose
+the Qt::CorePrivate CMake target, so the qbittorrent-nox configure step fails
+at generate time with:
+
+  CMake Error at src/base/CMakeLists.txt:195 (target_link_libraries):
+    Target "qbt_base" links to:
+      Qt::CorePrivate
+    but the target was not found.
+
+brrewery always builds Qt with ICU (libicu-dev is a build dependency, see
+tasks/dependencies.yml), so QT_FEATURE_icu would be 1 anyway. Enable QCollator
+unconditionally, drop the private header include, and remove the now-unused
+Qt::CorePrivate link. This preserves the ICU-backed natural sort upstream
+intends on this configuration while removing the private dependency.
+
+--- a/src/base/utils/compare.h
++++ b/src/base/utils/compare.h
+@@ -31,17 +31,14 @@
+ #include <Qt>
+ #include <QtGlobal>
+ 
+-// for QT_FEATURE_xxx, see: https://wiki.qt.io/Qt5_Build_System#How_to
+-#include <QtCore/private/qtcore-config_p.h>
+-
+-// macOS and Windows support 'case sensitivity' and 'numeric mode' natively
+-// https://github.com/qt/qtbase/blob/6.0/src/corelib/CMakeLists.txt#L777-L793
+-// https://github.com/qt/qtbase/blob/6.0/src/corelib/text/qcollator_macx.cpp#L74-L77
+-// https://github.com/qt/qtbase/blob/6.0/src/corelib/text/qcollator_win.cpp#L72-L78
+-#if ((QT_FEATURE_icu == 1) || defined(Q_OS_MACOS) || defined(Q_OS_WIN))
++// brrewery: upstream reads QT_FEATURE_icu from <QtCore/private/qtcore-config_p.h>
++// and links Qt::CorePrivate only to choose QCollator's ICU-backed natural sort.
++// The vendored minimal Qt build does not expose the Qt::CorePrivate CMake target,
++// so configure fails. brrewery always builds Qt with ICU (libicu-dev is a build
++// dependency), so enable QCollator unconditionally and drop the private include.
++// The matching CMakeLists hunk removes the Qt::CorePrivate link.
+ #define QBT_USE_QCOLLATOR
+ #include <QCollator>
+-#endif
+ 
+ class QString;
+ 
+--- a/src/base/CMakeLists.txt
++++ b/src/base/CMakeLists.txt
+@@ -200,7 +200,6 @@
+     PUBLIC
+         LibtorrentRasterbar::torrent-rasterbar
+         Qt::Core
+-        Qt::CorePrivate
+         Qt::Network
+         Qt::Sql
+         Qt::Xml

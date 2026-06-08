@@ -1,0 +1,124 @@
+---
+# A previous failed run can leave a partially-configured tree behind (the build
+# root is only cleaned on success). The staging and configure steps below are
+# guarded by `creates:`, so a leftover source tree or `build/CMakeCache.txt`
+# would cause them to be skipped on retry; a leftover tree would also make the
+# non-forward patch steps fail (re-applying onto already-patched sources). Reset
+# just the libtorrent scratch subtree so every run stages, patches, configures,
+# and generates from a clean slate. The sibling qbittorrent/zlib/openssl build
+# trees under the same root are untouched.
+- name: Reset the libtorrent scratch source tree
+  ansible.builtin.file:
+    path: "{{ qbittorrent_build_root }}/libtorrent"
+    state: absent
+
+- name: Stage libtorrent source into the build root
+  ansible.builtin.command:
+    cmd: cp -a "{{ qbittorrent_vendor_root }}/sources/libtorrent/{{ qbt_branch }}" "{{ qbittorrent_build_root }}/libtorrent"
+  args:
+    creates: "{{ qbittorrent_build_root }}/libtorrent"
+
+# --- Patch resolution: uploaded (ephemeral) > operator file > vendored default -
+- name: Write uploaded libtorrent patch (ephemeral, this build only)
+  ansible.builtin.copy:
+    content: "{{ libtorrent_patch | b64decode }}"
+    dest: "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
+    mode: "0600"
+  no_log: true
+  when: libtorrent_patch | length > 0
+
+- name: Apply uploaded libtorrent patch (must apply cleanly)
+  ansible.builtin.command:
+    cmd: patch -p1 -i "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
+    chdir: "{{ qbittorrent_build_root }}/libtorrent"
+  when: libtorrent_patch | length > 0
+
+- name: Remove ephemeral uploaded patch
+  ansible.builtin.file:
+    path: "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
+    state: absent
+  when: libtorrent_patch | length > 0
+
+- name: Check for an operator libtorrent patch
+  ansible.builtin.stat:
+    path: "{{ qbittorrent_operator_patches_dir }}/libtorrent-{{ qbt_branch }}.patch"
+  register: qbt_operator_patch
+  when: libtorrent_patch | length == 0
+
+- name: Apply operator libtorrent patch (must apply cleanly)
+  ansible.builtin.command:
+    cmd: patch -p1 -i "{{ qbittorrent_operator_patches_dir }}/libtorrent-{{ qbt_branch }}.patch"
+    chdir: "{{ qbittorrent_build_root }}/libtorrent"
+  when:
+    - libtorrent_patch | length == 0
+    - qbt_operator_patch.stat.exists | default(false)
+
+- name: Check for the vendored default libtorrent patch
+  ansible.builtin.stat:
+    path: "{{ qbittorrent_vendor_root }}/patches/libtorrent-{{ qbt_branch }}.patch"
+  register: qbt_default_patch
+  when:
+    - libtorrent_patch | length == 0
+    - not (qbt_operator_patch.stat.exists | default(false))
+
+- name: Apply the vendored default libtorrent patch (best effort)
+  ansible.builtin.command:
+    cmd: patch -p1 --forward -i "{{ qbittorrent_vendor_root }}/patches/libtorrent-{{ qbt_branch }}.patch"
+    chdir: "{{ qbittorrent_build_root }}/libtorrent"
+  register: qbt_default_patch_apply
+  changed_when: qbt_default_patch_apply.rc == 0
+  failed_when: false
+  when:
+    - libtorrent_patch | length == 0
+    - not (qbt_operator_patch.stat.exists | default(false))
+    - qbt_default_patch.stat.exists | default(false)
+
+# --- Build (static) ------------------------------------------------------------
+- name: Configure libtorrent (static, cmake + Ninja)
+  ansible.builtin.command:
+    cmd: >-
+      cmake -B build -G Ninja
+      -D CMAKE_BUILD_TYPE=Release
+      -D BUILD_SHARED_LIBS=OFF
+      -D CMAKE_CXX_STANDARD={{ qbt_cxx_std }}
+      -D CMAKE_INSTALL_PREFIX={{ qbittorrent_prefix }}
+      -D CMAKE_PREFIX_PATH={{ qbittorrent_prefix }}
+      -D OPENSSL_ROOT_DIR={{ qbittorrent_prefix }}
+      -D BOOST_ROOT={{ qbt_boost_root_path }}
+    chdir: "{{ qbittorrent_build_root }}/libtorrent"
+    # build.ninja only exists after a successful generate step; CMakeCache.txt
+    # is written earlier (during configure) and would survive a failed generate,
+    # falsely marking this step done and skipping the rebuild on retry.
+    creates: "{{ qbittorrent_build_root }}/libtorrent/build/build.ninja"
+  environment:
+    CFLAGS: "{{ qbt_compiler_flags }}"
+    CXXFLAGS: "{{ qbt_compiler_flags }}"
+    PKG_CONFIG_PATH: "{{ qbittorrent_prefix }}/lib/pkgconfig"
+
+- name: Build libtorrent
+  ansible.builtin.command:
+    cmd: cmake --build build --parallel {{ qbittorrent_build_jobs }}
+    chdir: "{{ qbittorrent_build_root }}/libtorrent"
+    creates: "{{ qbittorrent_build_root }}/libtorrent/build/libtorrent-rasterbar.a"
+
+- name: Install libtorrent
+  ansible.builtin.command:
+    cmd: cmake --install build
+    chdir: "{{ qbittorrent_build_root }}/libtorrent"
+    creates: "{{ qbittorrent_prefix }}/lib/libtorrent-rasterbar.a"
+
+# libtorrent 1.2.x's CMake leaks the Iconv::Iconv imported-target name into the
+# generated .pc as the literal linker token "-lIconv::Iconv", which breaks any
+# pkg-config consumer (e.g. qBittorrent's autotools/qmake build) with
+# "cannot find -lIconv::Iconv". On glibc iconv lives in libc and needs no link
+# flag, so drop the bogus token. Idempotent: no-op if it is not present.
+- name: Strip bogus Iconv::Iconv token from libtorrent pkg-config
+  ansible.builtin.replace:
+    path: "{{ qbittorrent_prefix }}/lib/pkgconfig/libtorrent-rasterbar.pc"
+    regexp: '\s*-lIconv::Iconv\b'
+    replace: ''
+
+- name: Refresh the dynamic linker cache
+  ansible.builtin.command:
+    cmd: ldconfig
+  changed_when: false

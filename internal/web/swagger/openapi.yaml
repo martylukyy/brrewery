@@ -95,6 +95,48 @@ components:
         verify_brrewery_password:
           type: boolean
           description: When true, the value must match the logged-in brrewery account password.
+        disable_password_manager:
+          type: boolean
+          description: When true, the UI should not offer password-manager autofill or save prompts.
+    InstallOptionChoice:
+      type: object
+      required: [value, label]
+      properties:
+        value:
+          type: string
+          description: Value submitted as the extra-var when this choice is selected.
+        label:
+          type: string
+    InstallOptionWhen:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+          description: Another option key whose selected value gates this option.
+        one_of:
+          type: array
+          description: This option is shown only when the gating option's value is one of these.
+          items:
+            type: string
+    InstallOption:
+      type: object
+      required: [key, label, type]
+      properties:
+        key:
+          type: string
+          description: Extra-var key supplied in the install request.
+        label:
+          type: string
+        type:
+          type: string
+          enum: [select]
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstallOptionChoice'
+        when:
+          $ref: '#/components/schemas/InstallOptionWhen'
     Package:
       type: object
       properties:
@@ -116,6 +158,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/InstallSecret'
+        install_options:
+          type: array
+          description: User-selected build parameters (e.g. qBittorrent version, libtorrent branch).
+          items:
+            $ref: '#/components/schemas/InstallOption'
         dependencies:
           type: array
           items:
@@ -171,6 +218,12 @@ components:
       properties:
         extra_vars:
           type: object
+          description: >-
+            Install/upgrade parameters passed to Ansible. Values for install_secrets
+            and install_options are supplied here. For qBittorrent, the optional
+            libtorrent_patch key may carry a base64-encoded unified-diff libtorrent
+            patch (max 512 KiB decoded) applied to a single build; it is never
+            persisted to disk by brrewery.
           additionalProperties:
             type: string
     InstallResponse:

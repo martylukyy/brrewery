@@ -23,6 +23,35 @@ const packages: PackageStatus[] = [
 ];
 
 describe("InstallSecretsModal", () => {
+  it("renders a single password field for qbittorrent", () => {
+    const onConfirm = vi.fn();
+
+    render(
+      <InstallSecretsModal
+        packageIds={["qbittorrent"]}
+        packages={[{
+          id: "qbittorrent",
+          name: "qBittorrent",
+          description: "",
+          category: "download",
+          install_secrets: [{
+            key: "ansible_become_password",
+            label: "Password",
+            type: "password",
+          }],
+          installed: false,
+          dependencies_satisfied: true,
+        }]}
+        onClose={() => {}}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Brrewery password")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("System (sudo) password")).not.toBeInTheDocument();
+  });
+
   it("submits entered credentials", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();

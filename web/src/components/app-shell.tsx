@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Dashboard } from "@/components/dashboard";
+import { InstallOptionsModal, requiredInstallOptions } from "@/components/install-options-modal";
 import { InstallSecretsModal, requiredSecrets } from "@/components/install-secrets-modal";
 import { ManagePackagesModal, type ManagePackagesConfirm } from "@/components/manage-packages-modal";
 import { PackageJobModal } from "@/components/package-job-modal";
@@ -9,7 +10,7 @@ import { PackageNav } from "@/components/package-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { listPackages, type JobAction } from "@/lib/api";
 
-type ManagePhase = "select" | "secrets" | "job";
+type ManagePhase = "select" | "secrets" | "options" | "job";
 
 export function AppShell() {
   const { session, logout } = useAuth();
@@ -39,7 +40,16 @@ export function AppShell() {
       setPhase("secrets");
       return;
     }
+    if (needsOptions(action, packageIds)) {
+      setPhase("options");
+      return;
+    }
     setPhase("job");
+  }
+
+  function needsOptions(action: JobAction, packageIds: string[]): boolean {
+    return (action === "install" || action === "upgrade") &&
+      requiredInstallOptions(packageList, packageIds).length > 0;
   }
 
   function finishManageFlow() {
@@ -51,6 +61,15 @@ export function AppShell() {
 
   function handleSecretsConfirm(extraVars: Record<string, string>) {
     setJobExtraVars(extraVars);
+    if (needsOptions(pendingAction, pendingPackageIds)) {
+      setPhase("options");
+      return;
+    }
+    setPhase("job");
+  }
+
+  function handleOptionsConfirm(extraVars: Record<string, string>) {
+    setJobExtraVars((current) => ({ ...current, ...extraVars }));
     setPhase("job");
   }
 
@@ -122,6 +141,15 @@ export function AppShell() {
           packages={packageList}
           onClose={finishManageFlow}
           onConfirm={handleSecretsConfirm}
+        />
+      )}
+
+      {phase === "options" && pendingPackageIds.length > 0 && (
+        <InstallOptionsModal
+          packageIds={pendingPackageIds}
+          packages={packageList}
+          onClose={finishManageFlow}
+          onConfirm={handleOptionsConfirm}
         />
       )}
 

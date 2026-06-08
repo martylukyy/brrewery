@@ -1,0 +1,18 @@
+---
+# Remove scratch trees left by qbittorrent_build after a successful compile.
+# Installed artifacts under qbittorrent_prefix and the vendor manifest/patches are kept.
+- name: Remove qBittorrent scratch build directory
+  ansible.builtin.file:
+    path: "{{ qbittorrent_build_root }}"
+    state: absent
+
+- name: Remove staged Boost build tree
+  ansible.builtin.file:
+    path: "{{ qbittorrent_boost_root }}/boost_{{ qbt_boost }}"
+    state: absent
+  when: qbt_boost is defined
+
+- name: Remove vendored source trees used for the compile
+  ansible.builtin.file:
+    path: "{{ qbittorrent_vendor_root }}/sources"
+    state: absent

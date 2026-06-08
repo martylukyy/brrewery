@@ -41,7 +41,7 @@ func TestInstalled(t *testing.T) {
 			name: "unit active",
 			spec: model.DetectionSpec{SystemdUnits: []string{"nginx.service"}},
 			eval: &Evaluator{
-				systemctl: func(context.Context, string) error { return nil },
+				systemctlActive: func(context.Context, string) error { return nil },
 			},
 			want: true,
 		},
@@ -69,11 +69,11 @@ func TestInstalled(t *testing.T) {
 			},
 			eval: &Evaluator{
 				lookPath: func(string) (string, error) { return "/usr/local/bin/autobrr", nil },
-				systemctl: func(_ context.Context, unit string) error {
+				systemctlEnabled: func(_ context.Context, unit string) error {
 					if unit == "autobrr@admin.service" {
 						return nil
 					}
-					return errors.New("inactive")
+					return errors.New("not enabled")
 				},
 			},
 			want: true,
@@ -91,12 +91,28 @@ func TestInstalled(t *testing.T) {
 	}
 }
 
+func TestBinaryPresent_fallsBackToStandardDirs(t *testing.T) {
+	t.Parallel()
+
+	eval := &Evaluator{
+		lookPath: func(string) (string, error) { return "", errors.New("not in path") },
+		stat: func(path string) (os.FileInfo, error) {
+			if path == "/usr/local/bin/qbittorrent-nox" {
+				return fakeFileInfo{}, nil
+			}
+			return nil, os.ErrNotExist
+		},
+	}
+
+	assert.True(t, eval.binaryPresent("qbittorrent-nox"))
+}
+
 func TestInstalledForUserRequiresUsernameForUserUnits(t *testing.T) {
 	t.Parallel()
 
 	eval := &Evaluator{
-		lookPath:  func(string) (string, error) { return "/usr/local/bin/autobrr", nil },
-		systemctl: func(context.Context, string) error { return nil },
+		lookPath:         func(string) (string, error) { return "/usr/local/bin/autobrr", nil },
+		systemctlEnabled: func(context.Context, string) error { return nil },
 	}
 	spec := model.DetectionSpec{
 		Binaries:         []string{"autobrr"},

@@ -1,0 +1,5 @@
+---
+galaxy_info:
+  role_name: qbittorrent_build
+  description: Compile and install qbittorrent-nox from vendored sources (libtorrent, Qt, Boost, zlib)
+dependencies: []

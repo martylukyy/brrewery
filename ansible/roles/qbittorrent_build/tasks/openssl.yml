@@ -1,0 +1,75 @@
+---
+# A previous failed run can leave a partially-configured tree behind (the build
+# root is only cleaned on success). The staging step below is guarded by
+# `creates:`, so a leftover source tree would cause it to be skipped on retry,
+# leaving a half-configured OpenSSL tree in place. Reset just the openssl
+# scratch subtree so every run stages and configures from a clean slate. The
+# sibling qbittorrent/zlib/libtorrent build trees under the same root are
+# untouched.
+- name: Reset the OpenSSL scratch source tree
+  ansible.builtin.file:
+    path: "{{ qbittorrent_build_root }}/openssl"
+    state: absent
+
+- name: Stage OpenSSL source into the build root
+  ansible.builtin.command:
+    cmd: cp -a "{{ qbittorrent_vendor_root }}/sources/openssl/{{ qbt_openssl }}" "{{ qbittorrent_build_root }}/openssl"
+  args:
+    creates: "{{ qbittorrent_build_root }}/openssl"
+
+# --libdir=lib forces the libraries (and pkgconfig) into <prefix>/lib instead of
+# OpenSSL's default <prefix>/lib64 on x86_64. The rest of the role assumes lib:
+# the ld.so.conf.d entry only lists <prefix>/lib, PKG_CONFIG_PATH points at
+# <prefix>/lib/pkgconfig, and the install step's `creates` guard checks
+# <prefix>/lib/libssl.so.3. Without this, libssl/libcrypto land in lib64, off the
+# loader and pkg-config paths, so consumers (and qbittorrent-nox) fail at runtime.
+- name: Configure vendored OpenSSL 3.x (shared)
+  ansible.builtin.command:
+    cmd: >-
+      ./Configure linux-x86_64
+      --prefix={{ qbittorrent_prefix }}
+      --openssldir={{ qbittorrent_prefix }}/ssl
+      --libdir=lib
+      shared
+    chdir: "{{ qbittorrent_build_root }}/openssl"
+    creates: "{{ qbittorrent_build_root }}/openssl/Makefile"
+  environment:
+    CFLAGS: "{{ qbt_compiler_flags }}"
+
+- name: Build vendored OpenSSL
+  ansible.builtin.command:
+    cmd: make -j{{ qbittorrent_build_jobs }}
+    chdir: "{{ qbittorrent_build_root }}/openssl"
+    creates: "{{ qbittorrent_build_root }}/openssl/libssl.so"
+
+- name: Install vendored OpenSSL (libraries and headers)
+  ansible.builtin.command:
+    cmd: make install_sw
+    chdir: "{{ qbittorrent_build_root }}/openssl"
+    creates: "{{ qbittorrent_prefix }}/lib/libssl.so.3"
+
+# The vendored OpenSSL's shared libs go to <prefix>/lib, which is on the global
+# loader path (ld.so.conf), so this OpenSSL SHADOWS the system one for every
+# dynamically-linked TLS consumer on the host (system Python/Ansible included).
+# `make install_sw` does not populate the trust store, so <openssldir>/certs is
+# empty and certificate verification fails host-wide ("unable to get local
+# issuer certificate"). Symlink the trust store to the system CA bundle so TLS
+# keeps working for both qBittorrent and anything else that loads this libcrypto.
+- name: Ensure vendored OpenSSL trust-store directory exists
+  ansible.builtin.file:
+    path: "{{ qbittorrent_prefix }}/ssl"
+    state: directory
+    mode: "0755"
+
+- name: Point vendored OpenSSL at the system CA trust store
+  ansible.builtin.file:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    state: link
+    force: true
+    follow: false
+  loop:
+    - { src: /etc/ssl/certs, dest: "{{ qbittorrent_prefix }}/ssl/certs" }
+    - { src: /etc/ssl/certs/ca-certificates.crt, dest: "{{ qbittorrent_prefix }}/ssl/cert.pem" }
+  loop_control:
+    label: "{{ item.dest }}"

@@ -11,6 +11,8 @@ LIB_DIR="/var/lib/brrewery"
 LOG_DIR="/var/log/brrewery"
 INSTALL_LOG="/var/log/brrewery-install.log"
 ANSIBLE_DEST="/usr/share/brrewery/ansible"
+VENDOR_DEST="/usr/share/brrewery/vendor"
+QBT_PATCHES_DIR="/var/lib/brrewery/patches/qbittorrent"
 SSL_DIR="/etc/ssl/brrewery"
 NGINX_ETC="/etc/nginx"
 REPO_URL="${BRREWERY_REPO_URL:-https://github.com/martylukyy/brrewery.git}"
@@ -160,7 +162,7 @@ bootstrap_pnpm
 bootstrap_source
 
 run_with_spinner "Creating directories" bash -c "
-  install -d -m 0750 \"$LIB_DIR\" \"$LOG_DIR\" \"$WEB_ROOT\" \"$ANSIBLE_DEST\" \"$SSL_DIR\" &&
+  install -d -m 0750 \"$LIB_DIR\" \"$LIB_DIR/jobs\" \"$LOG_DIR\" \"$WEB_ROOT\" \"$ANSIBLE_DEST\" \"$VENDOR_DEST\" \"$QBT_PATCHES_DIR\" \"$SSL_DIR\" &&
     install -d -m 0755 \"$(dirname "$BINARY_DEST")\"
 "
 

@@ -8,10 +8,11 @@ Type=simple
 ExecStart=/usr/local/bin/brrewery serve
 Restart=on-failure
 RestartSec=5
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/var/lib/brrewery /var/log/brrewery /usr/local/bin /etc/systemd/system /var/lib /tmp /home
-PrivateTmp=true
+# brrewery compiles and installs system packages through Ansible. When it runs
+# as a non-root user it escalates per operation with sudo, using a password
+# entered in the web UI. Sandboxing such as NoNewPrivileges= (blocks sudo) or
+# ProtectSystem=strict (makes /usr, /etc, /opt read-only even for the privileged
+# child) would prevent package installation, so they are intentionally not set.
 
 [Install]
 WantedBy=multi-user.target

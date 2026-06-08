@@ -12,6 +12,7 @@ import (
 	"github.com/autobrr/brrewery/internal/packages/extravars"
 	"github.com/autobrr/brrewery/internal/packages/jobs"
 	"github.com/autobrr/brrewery/internal/packages/model"
+	"github.com/autobrr/brrewery/internal/packages/qbittorrent"
 )
 
 var (
@@ -130,6 +131,10 @@ func (s *Service) startJob(
 	job := s.jobs.Create(id, action)
 	jobID := job.ID
 	vars := extravars.ForInstall(username, extraVars)
+	if err := enrichPackageVars(ctx, id, action, vars); err != nil {
+		s.jobs.SetStatus(jobID, model.JobStatusFailed, err.Error())
+		return model.Job{}, err
+	}
 
 	go s.runJob(context.Background(), jobID, action, id, username, playbookPath, vars)
 
@@ -163,7 +168,11 @@ func (s *Service) runJob(
 		return
 	}
 
-	installed := s.statusFor(&pkg, username).Installed
+	detectUser := username
+	if u := strings.TrimSpace(extraVars[extravars.BrreweryUser]); u != "" {
+		detectUser = u
+	}
+	installed := s.statusFor(&pkg, detectUser).Installed
 	switch action {
 	case model.JobActionInstall, model.JobActionUpgrade:
 		if !installed {
@@ -190,6 +199,18 @@ func playbookForAction(pkg *model.Package, action model.JobAction) string {
 		return pkg.Playbooks.Remove
 	default:
 		return ""
+	}
+}
+
+func enrichPackageVars(ctx context.Context, packageID string, action model.JobAction, vars map[string]string) error {
+	if packageID != qbittorrent.PackageID {
+		return nil
+	}
+	switch action {
+	case model.JobActionInstall, model.JobActionUpgrade:
+		return qbittorrent.EnrichAnsibleVars(ctx, vars, nil, nil, nil, nil, nil)
+	default:
+		return nil
 	}
 }
 
