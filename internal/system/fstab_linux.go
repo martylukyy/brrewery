@@ -46,6 +46,59 @@ func monitoredMountsFromFstab(content string) ([]string, error) {
 	return mounts, nil
 }
 
+// mountedDeviceByMount maps each active mount point to its backing device ID
+// (major:minor) from /proc/self/mountinfo. When a point is mounted more than
+// once the last (topmost, statfs-visible) entry wins.
+func mountedDeviceByMount() (map[string]string, error) {
+	file, err := os.Open("/proc/self/mountinfo")
+	if err != nil {
+		return nil, fmt.Errorf("read mountinfo: %w", err)
+	}
+	defer file.Close()
+
+	result := make(map[string]string)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 5 {
+			continue
+		}
+		mountPoint := unescapeFstabField(fields[4])
+		result[mountPoint] = fields[2]
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan mountinfo: %w", err)
+	}
+	return result, nil
+}
+
+// activeMonitoredMounts filters candidate mount points down to those that are
+// actually mounted, keeping a single mount per backing device.
+//
+// /etc/fstab lists intended mounts, not active ones: statfs() on an unmounted
+// path silently reports the parent filesystem (usually root), so an unmounted
+// data drive would duplicate root's usage. Several mounts can also share one
+// device (btrfs subvolumes, bind mounts), where statfs reports the whole
+// filesystem for each — counting that device once avoids inflating the totals.
+func activeMonitoredMounts(candidates []string, deviceByMount map[string]string) []string {
+	seenDevice := make(map[string]struct{}, len(candidates))
+	active := make([]string, 0, len(candidates))
+	for _, mount := range candidates {
+		device, mounted := deviceByMount[mount]
+		if !mounted {
+			continue
+		}
+		if device != "" {
+			if _, dup := seenDevice[device]; dup {
+				continue
+			}
+			seenDevice[device] = struct{}{}
+		}
+		active = append(active, mount)
+	}
+	return active
+}
+
 func parseFstabEntries(content string) []fstabEntry {
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	var entries []fstabEntry

@@ -32,22 +32,54 @@ func TestMonitoredFstabMounts_readsHostFstab(t *testing.T) {
 	require.Contains(t, mounts, "/")
 	assert.NotContains(t, mounts, "/boot/efi")
 
+	deviceByMount, err := mountedDeviceByMount()
+	require.NoError(t, err)
+
 	info, err := NewCollector().Collect()
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(info.Disks), 2)
+	require.NotEmpty(t, info.Disks)
 
 	mountSet := make(map[string]struct{}, len(info.Disks))
+	seenDevice := make(map[string]struct{}, len(info.Disks))
 	for _, disk := range info.Disks {
+		// Every reported disk must be an actually-mounted filesystem.
+		device, mounted := deviceByMount[disk.Mount]
+		assert.Truef(t, mounted, "reported disk %q is not actually mounted", disk.Mount)
+		// And each backing device is reported at most once.
+		if device != "" {
+			_, dup := seenDevice[device]
+			assert.Falsef(t, dup, "device %s reported more than once", device)
+			seenDevice[device] = struct{}{}
+		}
 		mountSet[disk.Mount] = struct{}{}
 	}
 
+	// Every monitored fstab mount that is actually mounted is reported.
 	for _, mount := range mounts {
-		_, err := readDiskUsage(mount)
-		if err != nil {
+		if _, mounted := deviceByMount[mount]; !mounted {
 			continue
 		}
 		assert.Contains(t, mountSet, mount)
 	}
+}
+
+func TestActiveMonitoredMounts(t *testing.T) {
+	t.Parallel()
+
+	candidates := []string{"/", "/mnt/storage", "/mnt/unmounted", "/home", "/srv"}
+	deviceByMount := map[string]string{
+		"/":            "254:0",
+		"/mnt/storage": "8:16",
+		"/home":        "254:0", // btrfs subvolume / bind mount sharing root's device
+		"/srv":         "",      // mounted but device id unknown
+		// "/mnt/unmounted" intentionally absent: listed in fstab, not mounted.
+	}
+
+	active := activeMonitoredMounts(candidates, deviceByMount)
+
+	// Unmounted entry dropped; root's device counted once (/home deduped); the
+	// distinct data device and the unknown-device mount are kept.
+	assert.Equal(t, []string{"/", "/mnt/storage", "/srv"}, active)
 }
 
 func TestShouldMonitorFstabEntry(t *testing.T) {

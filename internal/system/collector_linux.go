@@ -96,6 +96,14 @@ func (c *Collector) readMonitoredDisks(uptime float64) ([]DiskUsage, error) {
 		mounts = []string{"/"}
 	}
 
+	// fstab lists intended mounts; only report filesystems that are actually
+	// mounted (and each backing device once) so statfs fall-through to root and
+	// shared devices don't inflate the reported usage. If mountinfo is somehow
+	// unreadable, fall back to the unfiltered fstab list.
+	if deviceByMount, err := mountedDeviceByMount(); err == nil {
+		mounts = activeMonitoredMounts(mounts, deviceByMount)
+	}
+
 	disks := make([]DiskUsage, 0, len(mounts))
 	for _, mount := range mounts {
 		usage, err := readDiskUsage(mount)
@@ -222,20 +230,32 @@ func readDiskUsage(mount string) (DiskUsage, error) {
 		return DiskUsage{}, fmt.Errorf("statfs %s: %w", mount, err)
 	}
 
-	total := stat.Blocks * uint64(stat.Bsize)
-	available := stat.Bavail * uint64(stat.Bsize)
-	used := total - available
-	if used > total {
-		used = total
+	usage := diskUsageFromStatfs(stat.Blocks, stat.Bfree, stat.Bavail, uint64(stat.Bsize))
+	usage.Mount = mount
+	return usage, nil
+}
+
+// diskUsageFromStatfs derives df(1)-compatible figures from raw statfs block
+// counts. Used space is total minus *all* free blocks (Bfree), not just the
+// blocks available to unprivileged users (Bavail): the difference is the
+// root-reserved blocks (~5% on ext4), which are free, not used. The percentage
+// basis likewise excludes reserved blocks (used / (used + available)), matching
+// `df` Use% and tools like gdu instead of reporting reserved space as used.
+func diskUsageFromStatfs(blocks, bfree, bavail, bsize uint64) DiskUsage {
+	total := blocks * bsize
+	available := bavail * bsize
+
+	var used uint64
+	if blocks > bfree {
+		used = (blocks - bfree) * bsize
 	}
 
 	return DiskUsage{
-		Mount:          mount,
 		TotalBytes:     total,
 		UsedBytes:      used,
 		AvailableBytes: available,
-		UsedPercent:    percent(used, total),
-	}, nil
+		UsedPercent:    percent(used, used+available),
+	}
 }
 
 func percent(used, total uint64) float64 {
