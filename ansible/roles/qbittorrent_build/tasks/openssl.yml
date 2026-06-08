@@ -48,6 +48,22 @@
     chdir: "{{ qbittorrent_build_root }}/openssl"
     creates: "{{ qbittorrent_prefix }}/lib/libssl.so.3"
 
+# `make install_sw` also drops the openssl(1) CLI and c_rehash into <prefix>/bin.
+# Only the libraries and headers are needed to link qbittorrent-nox, and
+# <prefix>/bin (/usr/local/bin) precedes /usr/bin on PATH, so the leaked CLI
+# shadows the distro openssl host-wide. It is dynamically linked against the
+# vendored libcrypto, so it breaks ("version `OPENSSL_3.x' not found") for every
+# openssl invocation on the host the moment the vendored libs are absent or a
+# different version than the binary was built against. Remove it and let the
+# distro's openssl stay authoritative on PATH.
+- name: Remove leaked vendored OpenSSL CLI tools from the global bin dir
+  ansible.builtin.file:
+    path: "{{ qbittorrent_prefix }}/bin/{{ item }}"
+    state: absent
+  loop:
+    - openssl
+    - c_rehash
+
 # The vendored OpenSSL's shared libs go to <prefix>/lib, which is on the global
 # loader path (ld.so.conf), so this OpenSSL SHADOWS the system one for every
 # dynamically-linked TLS consumer on the host (system Python/Ansible included).
