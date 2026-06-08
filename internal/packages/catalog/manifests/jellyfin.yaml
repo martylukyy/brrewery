@@ -1,0 +1,10 @@
+id: jellyfin
+name: Jellyfin
+description: Media server
+category: media
+web_path: /jellyfin/
+detection:
+  binaries:
+    - jellyfin
+  systemd_units:
+    - jellyfin.service

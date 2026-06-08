@@ -1,0 +1,11 @@
+id: autobrr
+name: autobrr
+description: Automation for torrents and *arr
+category: automation
+web_path: /autobrr/
+requires_account_password: true
+detection:
+  binaries:
+    - autobrr
+  systemd_user_units:
+    - "autobrr@{user}.service"

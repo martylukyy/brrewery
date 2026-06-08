@@ -1,0 +1,10 @@
+id: sabnzbd
+name: SABnzbd
+description: Usenet downloader
+category: download
+web_path: /sabnzbd/
+detection:
+  binaries:
+    - sabnzbdplus
+  systemd_units:
+    - sabnzbdplus.service

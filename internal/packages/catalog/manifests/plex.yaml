@@ -1,0 +1,8 @@
+id: plex
+name: Plex
+description: Media server
+category: media
+web_path: /plex/
+detection:
+  systemd_units:
+    - plexmediaserver.service

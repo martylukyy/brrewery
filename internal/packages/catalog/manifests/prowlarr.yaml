@@ -1,0 +1,10 @@
+id: prowlarr
+name: Prowlarr
+description: Indexer manager
+category: arr
+web_path: /prowlarr/
+detection:
+  binaries:
+    - prowlarr
+  systemd_units:
+    - prowlarr.service

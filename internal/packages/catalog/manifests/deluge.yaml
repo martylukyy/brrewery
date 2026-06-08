@@ -1,0 +1,10 @@
+id: deluge
+name: Deluge
+description: BitTorrent client
+category: download
+web_path: /deluge/
+detection:
+  binaries:
+    - deluged
+  systemd_units:
+    - deluged.service

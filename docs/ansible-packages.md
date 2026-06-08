@@ -2,6 +2,10 @@
 
 Package lifecycle is driven by Ansible playbooks under `ansible/playbooks/packages/<id>/`.
 
+> Adding a whole package (catalog metadata + playbooks + icon) is documented in
+> [adding-a-package.md](adding-a-package.md). The catalog itself is data-driven:
+> packages are declared as embedded YAML manifests, not Go code.
+
 ## Layout
 
 ```text

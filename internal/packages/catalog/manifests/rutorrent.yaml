@@ -1,0 +1,10 @@
+id: rutorrent
+name: ruTorrent
+description: Web UI for rTorrent
+category: download
+web_path: /rutorrent/
+dependencies:
+  - rtorrent
+detection:
+  paths:
+    - /srv/rutorrent

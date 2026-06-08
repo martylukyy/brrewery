@@ -1,0 +1,10 @@
+id: filebrowser
+name: File Browser
+description: Web file manager
+category: tools
+web_path: /filebrowser/
+detection:
+  binaries:
+    - filebrowser
+  systemd_units:
+    - filebrowser.service

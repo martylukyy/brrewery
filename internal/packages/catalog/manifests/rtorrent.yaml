@@ -1,0 +1,12 @@
+# rTorrent has no web UI of its own (ruTorrent provides one) and reuses the
+# ruTorrent icon.
+id: rtorrent
+name: rTorrent
+description: BitTorrent client
+category: download
+icon: rutorrent.png
+detection:
+  binaries:
+    - rtorrent
+  systemd_units:
+    - rtorrent.service

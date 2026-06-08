@@ -1,0 +1,14 @@
+# qBittorrent is compiled from source; its install options (version + libtorrent
+# branch) are computed at runtime from the vendored build manifest, so they are
+# registered as a provider in the qbittorrent package rather than declared here.
+id: qbittorrent
+name: qBittorrent
+description: BitTorrent client
+category: download
+web_path: /qbittorrent/
+requires_account_password: true
+detection:
+  binaries:
+    - qbittorrent-nox
+  systemd_user_units:
+    - "qbittorrent@{user}.service"

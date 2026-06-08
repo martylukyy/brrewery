@@ -1,0 +1,8 @@
+id: emby
+name: Emby
+description: Media server
+category: media
+web_path: /emby/
+detection:
+  systemd_units:
+    - emby-server.service

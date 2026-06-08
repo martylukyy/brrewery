@@ -1,0 +1,11 @@
+id: qui
+name: qui
+description: Web UI for qBittorrent
+category: download
+web_path: /qui/
+requires_account_password: true
+detection:
+  binaries:
+    - qui
+  systemd_user_units:
+    - "qui@{user}.service"

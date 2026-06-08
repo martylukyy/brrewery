@@ -1,0 +1,10 @@
+id: lidarr
+name: Lidarr
+description: Music management
+category: arr
+web_path: /lidarr/
+detection:
+  binaries:
+    - lidarr
+  systemd_units:
+    - lidarr.service

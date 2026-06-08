@@ -160,6 +160,7 @@ cmd/brrewery/main.go         CLI entrypoint (serve, version, create-admin)
 internal/api/                HTTP handlers + middleware (chi router, scs sessions)
 internal/auth/               File-backed users + bcrypt
 internal/packages/           Catalog, filesystem detect, ansible runner (M2)
+internal/packages/catalog/manifests/  Per-package YAML manifests (the catalog is data, not code)
 internal/paths/              Fixed production paths
 internal/web/                Embedded SPA dist + OpenAPI
 ansible/                     Package playbooks (install/upgrade/remove per package id)

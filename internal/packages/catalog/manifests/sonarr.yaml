@@ -1,0 +1,10 @@
+id: sonarr
+name: Sonarr
+description: TV series management
+category: arr
+web_path: /sonarr/
+detection:
+  binaries:
+    - sonarr
+  systemd_units:
+    - sonarr.service

@@ -1,0 +1,10 @@
+id: radarr
+name: Radarr
+description: Movie management
+category: arr
+web_path: /radarr/
+detection:
+  binaries:
+    - radarr
+  systemd_units:
+    - radarr.service
