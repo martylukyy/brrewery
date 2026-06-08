@@ -9,7 +9,6 @@ type Info struct {
 	Load          LoadAvg         `json:"load"`
 	Memory        Memory          `json:"memory"`
 	Disks         []DiskUsage     `json:"disks"`
-	Disk          *DiskUsage      `json:"disk,omitempty"` // deprecated: first disks entry for older UIs
 	Network       NetworkCounters `json:"network"`
 	DiskIO        DiskIOCounters  `json:"disk_io"`
 }

@@ -81,9 +81,6 @@ func (c *Collector) Collect() (Info, error) {
 		Network:       network,
 		DiskIO:        diskIO,
 	}
-	if len(disks) > 0 {
-		info.Disk = &disks[0]
-	}
 	return info, nil
 }
 

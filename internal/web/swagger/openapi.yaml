@@ -371,10 +371,6 @@ components:
           items:
             $ref: '#/components/schemas/SystemDisk'
           description: Disk usage for fstab mount points (swap and EFI excluded).
-        disk:
-          $ref: '#/components/schemas/SystemDisk'
-          deprecated: true
-          description: Deprecated. First entry of disks, kept for older clients.
         network:
           $ref: '#/components/schemas/NetworkCounters'
         disk_io:

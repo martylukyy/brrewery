@@ -151,28 +151,9 @@ export type SystemInfo = {
   load: LoadAvg;
   memory: SystemMemory;
   disks: SystemDisk[];
-  /** @deprecated Use disks. Present on older API responses. */
-  disk?: SystemDisk;
   network: NetworkCounters;
   disk_io: DiskIOCounters;
 };
-
-/** @deprecated Use disks. Present on older API responses. */
-export type SystemInfoRaw = SystemInfo & {
-  disk_io_busy_percent?: number;
-};
-
-export function normalizeSystemInfo(info: SystemInfoRaw): SystemInfo {
-  const disks = info.disks?.length ? info.disks : info.disk ? [info.disk] : [];
-  const peakIO = info.disk_io_busy_percent;
-  const normalized = disks.map((disk, index) => {
-    if (disk.io_busy_percent != null || peakIO == null || index !== 0) {
-      return disk;
-    }
-    return { ...disk, io_busy_percent: peakIO };
-  });
-  return { ...info, disks: normalized };
-}
 
 export function login(body: LoginRequest) {
   return apiFetch<LoginResponse>("/auth/login", {
@@ -262,7 +243,7 @@ export function getJobLogs(id: string) {
 }
 
 export function getSystemInfo() {
-  return apiFetch<SystemInfoRaw>("/system").then(normalizeSystemInfo);
+  return apiFetch<SystemInfo>("/system");
 }
 
 export type TrafficPeriod = {
