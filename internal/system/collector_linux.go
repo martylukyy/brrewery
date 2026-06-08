@@ -54,11 +54,6 @@ func (c *Collector) Collect() (Info, error) {
 		return Info{}, err
 	}
 
-	diskIO, err := readDiskIOCounters()
-	if err != nil {
-		return Info{}, err
-	}
-
 	cpuPercent, err := c.readCPUPercent()
 	if err != nil {
 		return Info{}, err
@@ -79,7 +74,6 @@ func (c *Collector) Collect() (Info, error) {
 		Memory:        memory,
 		Disks:         disks,
 		Network:       network,
-		DiskIO:        diskIO,
 	}
 	return info, nil
 }
@@ -116,8 +110,10 @@ func (c *Collector) readMonitoredDisks(uptime float64) ([]DiskUsage, error) {
 
 		ioCounters, err := readMountIOCounters(mount)
 		if err == nil {
-			usage.IOReadBytes = ioCounters.ReadBytes
-			usage.IOWriteBytes = ioCounters.WriteBytes
+			usage.ReadBytes = ioCounters.ReadBytes
+			usage.WriteBytes = ioCounters.WriteBytes
+			usage.ReadOps = ioCounters.ReadOps
+			usage.WriteOps = ioCounters.WriteOps
 		}
 		disks = append(disks, usage)
 	}

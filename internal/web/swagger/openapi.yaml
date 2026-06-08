@@ -287,14 +287,22 @@ components:
           type: number
           format: double
           description: Block-device I/O busy percent for this mount (iostat %util from sysfs stat).
-        io_read_bytes:
+        read_bytes:
           type: integer
           format: int64
-          description: Cumulative read bytes for disk backing this mount.
-        io_write_bytes:
+          description: Cumulative read bytes for the block device backing this mount.
+        write_bytes:
           type: integer
           format: int64
-          description: Cumulative write bytes for disk backing this mount.
+          description: Cumulative write bytes for the block device backing this mount.
+        read_ops:
+          type: integer
+          format: int64
+          description: Cumulative read I/O operations for the block device backing this mount.
+        write_ops:
+          type: integer
+          format: int64
+          description: Cumulative write I/O operations for the block device backing this mount.
     NetworkCounters:
       type: object
       properties:
@@ -302,21 +310,6 @@ components:
           type: integer
           format: int64
         tx_bytes:
-          type: integer
-          format: int64
-    DiskIOCounters:
-      type: object
-      properties:
-        read_bytes:
-          type: integer
-          format: int64
-        write_bytes:
-          type: integer
-          format: int64
-        read_ops:
-          type: integer
-          format: int64
-        write_ops:
           type: integer
           format: int64
     TrafficPeriod:
@@ -373,8 +366,6 @@ components:
           description: Disk usage for fstab mount points (swap and EFI excluded).
         network:
           $ref: '#/components/schemas/NetworkCounters'
-        disk_io:
-          $ref: '#/components/schemas/DiskIOCounters'
 paths:
   /health:
     get:

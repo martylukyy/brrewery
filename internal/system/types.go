@@ -10,7 +10,6 @@ type Info struct {
 	Memory        Memory          `json:"memory"`
 	Disks         []DiskUsage     `json:"disks"`
 	Network       NetworkCounters `json:"network"`
-	DiskIO        DiskIOCounters  `json:"disk_io"`
 }
 
 // NetworkCounters are cumulative totals from /proc/net/dev (non-loopback interfaces).
@@ -19,7 +18,8 @@ type NetworkCounters struct {
 	TxBytes uint64 `json:"tx_bytes"`
 }
 
-// DiskIOCounters are cumulative totals from /proc/diskstats (whole disks).
+// DiskIOCounters are cumulative I/O totals for a mount's backing block device,
+// read from /sys/block/<dev>/stat.
 type DiskIOCounters struct {
 	ReadBytes  uint64 `json:"read_bytes"`
 	WriteBytes uint64 `json:"write_bytes"`
@@ -47,6 +47,8 @@ type DiskUsage struct {
 	AvailableBytes uint64  `json:"available_bytes"`
 	UsedPercent    float64 `json:"used_percent"`
 	IOBusyPercent  float64 `json:"io_busy_percent,omitempty"`
-	IOReadBytes    uint64  `json:"io_read_bytes,omitempty"`
-	IOWriteBytes   uint64  `json:"io_write_bytes,omitempty"`
+	ReadBytes      uint64  `json:"read_bytes"`
+	WriteBytes     uint64  `json:"write_bytes"`
+	ReadOps        uint64  `json:"read_ops"`
+	WriteOps       uint64  `json:"write_ops"`
 }

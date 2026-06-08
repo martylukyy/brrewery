@@ -24,12 +24,13 @@ const base: SystemInfo = {
       used_bytes: 0,
       available_bytes: 1,
       used_percent: 0,
-      io_read_bytes: 2000,
-      io_write_bytes: 1000,
+      read_bytes: 2000,
+      write_bytes: 1000,
+      read_ops: 10,
+      write_ops: 5,
     },
   ],
   network: { rx_bytes: 1000, tx_bytes: 500 },
-  disk_io: { read_bytes: 2000, write_bytes: 1000, read_ops: 10, write_ops: 5 },
 };
 
 describe("useIOHistory", () => {
@@ -59,8 +60,8 @@ describe("useIOHistory", () => {
           disks: [
             {
               ...base.disks[0],
-              io_read_bytes: 12_000,
-              io_write_bytes: 6000,
+              read_bytes: 12_000,
+              write_bytes: 6000,
             },
           ],
         },

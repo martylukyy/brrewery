@@ -126,20 +126,15 @@ export type SystemDisk = {
   available_bytes: number;
   used_percent: number;
   io_busy_percent?: number;
-  io_read_bytes?: number;
-  io_write_bytes?: number;
+  read_bytes: number;
+  write_bytes: number;
+  read_ops: number;
+  write_ops: number;
 };
 
 export type NetworkCounters = {
   rx_bytes: number;
   tx_bytes: number;
-};
-
-export type DiskIOCounters = {
-  read_bytes: number;
-  write_bytes: number;
-  read_ops: number;
-  write_ops: number;
 };
 
 export type SystemInfo = {
@@ -152,7 +147,6 @@ export type SystemInfo = {
   memory: SystemMemory;
   disks: SystemDisk[];
   network: NetworkCounters;
-  disk_io: DiskIOCounters;
 };
 
 export function login(body: LoginRequest) {

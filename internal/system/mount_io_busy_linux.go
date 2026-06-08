@@ -146,29 +146,49 @@ func readBlockStatBusyMs(path string) (uint64, error) {
 	return ioTime, nil
 }
 
-func readBlockStatSectors(path string) (readSectors uint64, writeSectors uint64, err error) {
+type blockStatIO struct {
+	readSectors  uint64
+	writeSectors uint64
+	readOps      uint64
+	writeOps     uint64
+}
+
+func readBlockStatIO(path string) (blockStatIO, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return 0, 0, fmt.Errorf("read block stat: %w", err)
+		return blockStatIO{}, fmt.Errorf("read block stat: %w", err)
 	}
 
 	fields := strings.Fields(string(data))
-	// Linux block stat exposes read sectors at index 2 and write sectors at index 6.
+	// Linux block stat layout: read I/Os (0), read sectors (2),
+	// write I/Os (4), write sectors (6).
 	if len(fields) < 7 {
-		return 0, 0, fmt.Errorf("parse block stat: only %d fields", len(fields))
+		return blockStatIO{}, fmt.Errorf("parse block stat: only %d fields", len(fields))
 	}
 
-	readSectors, err = strconv.ParseUint(fields[2], 10, 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("parse block stat read sectors: %w", err)
+	parse := func(idx int, what string) (uint64, error) {
+		v, perr := strconv.ParseUint(fields[idx], 10, 64)
+		if perr != nil {
+			return 0, fmt.Errorf("parse block stat %s: %w", what, perr)
+		}
+		return v, nil
 	}
 
-	writeSectors, err = strconv.ParseUint(fields[6], 10, 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("parse block stat write sectors: %w", err)
+	var io blockStatIO
+	if io.readOps, err = parse(0, "read ops"); err != nil {
+		return blockStatIO{}, err
+	}
+	if io.readSectors, err = parse(2, "read sectors"); err != nil {
+		return blockStatIO{}, err
+	}
+	if io.writeOps, err = parse(4, "write ops"); err != nil {
+		return blockStatIO{}, err
+	}
+	if io.writeSectors, err = parse(6, "write sectors"); err != nil {
+		return blockStatIO{}, err
 	}
 
-	return readSectors, writeSectors, nil
+	return io, nil
 }
 
 func readMountIOCounters(mount string) (DiskIOCounters, error) {
@@ -177,14 +197,16 @@ func readMountIOCounters(mount string) (DiskIOCounters, error) {
 		return DiskIOCounters{}, err
 	}
 
-	readSectors, writeSectors, err := readBlockStatSectors(statPath)
+	io, err := readBlockStatIO(statPath)
 	if err != nil {
 		return DiskIOCounters{}, err
 	}
 
 	return DiskIOCounters{
-		ReadBytes:  readSectors * diskSectorSize,
-		WriteBytes: writeSectors * diskSectorSize,
+		ReadBytes:  io.readSectors * diskSectorSize,
+		WriteBytes: io.writeSectors * diskSectorSize,
+		ReadOps:    io.readOps,
+		WriteOps:   io.writeOps,
 	}, nil
 }
 

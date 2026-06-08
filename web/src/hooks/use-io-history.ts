@@ -43,8 +43,8 @@ export function useIOHistory(info: SystemInfo | undefined): {
     const prev = previous.current;
     const diskByMount = Object.fromEntries(
       (info.disks ?? []).map((disk) => [disk.mount, {
-        readBytes: disk.io_read_bytes ?? 0,
-        writeBytes: disk.io_write_bytes ?? 0,
+        readBytes: disk.read_bytes,
+        writeBytes: disk.write_bytes,
       }]),
     );
 

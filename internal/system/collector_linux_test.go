@@ -63,11 +63,3 @@ func TestReadNetworkCounters(t *testing.T) {
 	// Cumulative counters; zero is valid on an idle fresh VM.
 	_ = counters
 }
-
-func TestReadDiskIOCounters(t *testing.T) {
-	t.Parallel()
-
-	counters, err := readDiskIOCounters()
-	require.NoError(t, err)
-	_ = counters
-}
