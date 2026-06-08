@@ -14,7 +14,7 @@ func TestAll_HasExpectedPackages(t *testing.T) {
 	t.Parallel()
 
 	pkgs := All()
-	require.Len(t, pkgs, 14)
+	require.Len(t, pkgs, 15)
 
 	ids := make(map[string]struct{}, len(pkgs))
 	for _, pkg := range pkgs {
@@ -26,9 +26,9 @@ func TestAll_HasExpectedPackages(t *testing.T) {
 		assert.Contains(t, pkg.Playbooks.Install, pkg.ID)
 	}
 
-	// autobrr and qBittorrent share the single account-password prompt: the same
-	// key, type and always verified against the brrewery account.
-	for _, id := range []string{"autobrr", "qbittorrent"} {
+	// autobrr, qui and qBittorrent share the single account-password prompt: the
+	// same key, type and always verified against the brrewery account.
+	for _, id := range []string{"autobrr", "qui", "qbittorrent"} {
 		pkg, ok := ByID(id)
 		require.True(t, ok)
 		require.Len(t, pkg.InstallSecrets, 1, "%s should declare the shared password secret", id)
@@ -39,7 +39,7 @@ func TestAll_HasExpectedPackages(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"qbittorrent", "autobrr", "sonarr", "radarr", "prowlarr",
+		"qbittorrent", "qui", "autobrr", "sonarr", "radarr", "prowlarr",
 		"lidarr", "sabnzbd", "deluge", "rtorrent", "rutorrent",
 		"jellyfin", "plex", "filebrowser", "emby",
 	} {

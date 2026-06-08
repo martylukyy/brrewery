@@ -13,6 +13,7 @@ const FALLBACK_COLORS: Record<string, string> = {
   prowlarr: "#f59e0b",
   lidarr: "#34d399",
   qbittorrent: "#2563eb",
+  qui: "#3b82f6",
   sabnzbd: "#f97316",
   deluge: "#0891b2",
   rtorrent: "#64748b",

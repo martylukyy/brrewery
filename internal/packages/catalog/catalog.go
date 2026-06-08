@@ -72,6 +72,14 @@ func All() []model.Package {
 				}),
 			[]model.InstallSecret{passwordSecret()},
 		),
+		withInstallSecrets(
+			entry("qui", "qui", "Web UI for qBittorrent", "download", "/qui/",
+				nil, &model.DetectionSpec{
+					Binaries:         []string{"qui"},
+					SystemdUserUnits: []string{"qui@{user}.service"},
+				}),
+			[]model.InstallSecret{passwordSecret()},
+		),
 		entry("sonarr", "Sonarr", "TV series management", "arr", "/sonarr/",
 			nil, &model.DetectionSpec{Binaries: []string{"sonarr"}, SystemdUnits: []string{"sonarr.service"}}),
 		entry("radarr", "Radarr", "Movie management", "arr", "/radarr/",

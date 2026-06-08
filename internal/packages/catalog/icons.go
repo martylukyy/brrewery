@@ -3,6 +3,7 @@ package catalog
 // Icons are vendored under web/public/packages/ (official project branding).
 var iconFiles = map[string]string{
 	"qbittorrent": "qbittorrent.png",
+	"qui":         "qui.png",
 	"autobrr":     "autobrr.png",
 	"sonarr":      "sonarr.png",
 	"radarr":      "radarr.png",
