@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useId, useMemo, useRef } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -187,6 +187,28 @@ export function PackageJobModal({
   })();
   const logText = (logs.data?.lines ?? []).join("\n");
 
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    if (!logText) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(logText);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }, [logText]);
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
@@ -201,7 +223,7 @@ export function PackageJobModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="package-job-title"
-        className="relative z-10 flex h-full max-h-[90%] w-full max-w-[90%] flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl md:h-auto md:max-h-[90%] md:max-w-[90%]"
+        className="relative z-10 flex h-full max-h-[90%] w-full max-w-[90%] flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl md:h-full md:max-h-[90%] md:max-w-[90%]"
       >
         <div className="border-b border-zinc-800 px-5 py-4">
           <h2 id="package-job-title" className="text-lg font-semibold text-zinc-100">
@@ -236,7 +258,15 @@ export function PackageJobModal({
           {logText || (canClose ? "No job output was captured." : "Waiting for job output…")}
         </pre>
 
-        <div className="flex justify-end gap-2 border-t border-zinc-800 px-5 py-4">
+        <div className="flex justify-between gap-2 border-t border-zinc-800 px-5 py-4">
+          <button
+            type="button"
+            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={handleCopy}
+            disabled={!logText}
+          >
+            {copied ? "Copied!" : "Copy log"}
+          </button>
           <button
             type="button"
             className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
