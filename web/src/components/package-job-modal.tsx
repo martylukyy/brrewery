@@ -201,7 +201,7 @@ export function PackageJobModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="package-job-title"
-        className="relative z-10 flex max-h-[min(32rem,85vh)] w-full max-w-2xl flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
+        className="relative z-10 flex max-h-[90%] w-full max-w-[90%] flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
       >
         <div className="border-b border-zinc-800 px-5 py-4">
           <h2 id="package-job-title" className="text-lg font-semibold text-zinc-100">

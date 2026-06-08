@@ -83,7 +83,7 @@ export function ManagePackagesModal({ packages, onClose, onConfirm }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="manage-packages-title"
-        className="relative z-10 flex max-h-[min(32rem,85vh)] w-full max-w-2xl flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
+        className="relative z-10 flex h-full max-h-[90%] w-full max-w-[90%] flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
       >
         <div className="border-b border-zinc-800 px-5 py-4">
           <h2 id="manage-packages-title" className="text-lg font-semibold text-zinc-100">
