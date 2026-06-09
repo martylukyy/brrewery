@@ -3,8 +3,9 @@ name: Sonarr
 description: TV series management
 category: arr
 web_path: /sonarr/
+requires_account_password: true
 detection:
-  binaries:
-    - sonarr
-  systemd_units:
-    - sonarr.service
+  paths:
+    - /opt/Sonarr/Sonarr
+  systemd_user_units:
+    - "sonarr@{user}.service"

@@ -3,8 +3,9 @@ name: Radarr
 description: Movie management
 category: arr
 web_path: /radarr/
+requires_account_password: true
 detection:
-  binaries:
-    - radarr
-  systemd_units:
-    - radarr.service
+  paths:
+    - /opt/Radarr/Radarr
+  systemd_user_units:
+    - "radarr@{user}.service"

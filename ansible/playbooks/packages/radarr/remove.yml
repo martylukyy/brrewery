@@ -1,8 +1,63 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    radarr_install_dir: /opt/Radarr
+  roles:
+    - brrewery_user
   tasks:
-    - name: radarr remove placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for radarr remove"
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Stop and disable Radarr for brrewery user
+      ansible.builtin.systemd:
+        name: "radarr@{{ brrewery_user }}.service"
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Remove nginx reverse proxy for radarr
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+        tasks_from: remove
+      vars:
+        brrewery_package_id: radarr
+
+    - name: Remove Radarr user config and data
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/.config/radarr"
+        state: absent
+
+    - name: Remove Radarr installation
+      ansible.builtin.file:
+        path: "{{ radarr_install_dir }}"
+        state: absent
+
+    - name: List remaining radarr user service unit files
+      ansible.builtin.shell: |
+        set -o pipefail
+        systemctl list-unit-files 'radarr@*.service' --no-legend --no-pager 2>/dev/null || true
+      register: radarr_unit_files
+      changed_when: false
+
+    - name: Remove radarr systemd template when no instances remain
+      ansible.builtin.file:
+        path: /etc/systemd/system/radarr@.service
+        state: absent
+      when: radarr_unit_files.stdout_lines | length == 0
+      notify: Reload systemd
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
