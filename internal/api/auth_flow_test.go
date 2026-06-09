@@ -83,8 +83,19 @@ func TestLoginThenVersionWithSessionCookie(t *testing.T) {
 		t.Fatalf("login status = %d", loginRes.StatusCode)
 	}
 
-	if cookies := jar.Cookies(baseURL); len(cookies) == 0 {
+	cookies := jar.Cookies(baseURL)
+	if len(cookies) == 0 {
 		t.Fatalf("no cookies in jar after login, set-cookie: %v", loginRes.Header["Set-Cookie"])
+	}
+	var found bool
+	for _, c := range cookies {
+		if c.Name == "brrewery_session" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("session cookie %q not set after login, cookies: %v", "brrewery_session", cookies)
 	}
 
 	versionReq, err := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/version", nil)
