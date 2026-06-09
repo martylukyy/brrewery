@@ -4,6 +4,7 @@ package paths
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -113,7 +114,20 @@ func isVendorQBittorrentRoot(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+// resolveRepoRoot locates the repository root at runtime so development and CI
+// test runs can read the ansible tree and vendored manifests straight from the
+// checkout. It first checks the running binary's location (the dev server builds
+// to <repo>/tmp/brrewery) and falls back to this source file's compile-time path
+// (present for `go test`/`go build` from a checkout). On deployed hosts neither
+// resolves and callers fall through to the fixed install locations.
 func resolveRepoRoot() string {
+	if root := repoRootFromExecutable(); root != "" {
+		return root
+	}
+	return repoRootFromSource()
+}
+
+func repoRootFromExecutable() string {
 	exe, err := os.Executable()
 	if err != nil {
 		return ""
@@ -128,6 +142,22 @@ func resolveRepoRoot() string {
 		return filepath.Dir(dir)
 	}
 
+	return ""
+}
+
+// repoRootFromSource derives the repo root from this file's compile-time path
+// (<repo>/internal/paths/paths.go). It only resolves when the checkout is still
+// present, e.g. when running tests; the existence guard keeps it from returning a
+// stale path on deployed hosts where the build tree is gone.
+func repoRootFromSource() string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return ""
+	}
+	root := filepath.Dir(filepath.Dir(filepath.Dir(file)))
+	if isAnsibleRoot(filepath.Join(root, "ansible")) {
+		return root
+	}
 	return ""
 }
 

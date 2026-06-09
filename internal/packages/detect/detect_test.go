@@ -34,6 +34,7 @@ func TestInstalled(t *testing.T) {
 			spec: model.DetectionSpec{Binaries: []string{"missing"}},
 			eval: &Evaluator{
 				lookPath: func(string) (string, error) { return "", errors.New("not found") },
+				stat:     func(string) (os.FileInfo, error) { return nil, os.ErrNotExist },
 			},
 			want: false,
 		},

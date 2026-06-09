@@ -75,7 +75,7 @@ func (r *QtResolver) ResolveLatest(ctx context.Context, min, override string) (s
 		if patchErr != nil || !versionAtLeast(patch, min) {
 			continue
 		}
-		if r.archiveAvailable(ctx, qtbaseArchiveURL(patch)) {
+		if r.archiveAvailable(ctx, r.qtbaseArchiveURL(patch)) {
 			candidates = append(candidates, patch)
 		}
 	}
@@ -290,12 +290,12 @@ func (r *QtResolver) indexURL() string {
 	return r.BaseURL
 }
 
-func qtbaseArchiveURL(version string) string {
+func (r *QtResolver) qtbaseArchiveURL(version string) string {
 	parts := strings.Split(version, ".")
 	majmin := strings.Join(parts[:2], ".")
 	return fmt.Sprintf(
 		"%s%s/%s/submodules/qtbase-everywhere-src-%s.tar.xz",
-		qtArchiveIndex, majmin, version, version,
+		r.indexURL(), majmin, version, version,
 	)
 }
 

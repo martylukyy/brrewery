@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/autobrr/brrewery/internal/packages/catalog"
 )
 
 func TestService_List(t *testing.T) {
@@ -12,8 +14,13 @@ func TestService_List(t *testing.T) {
 
 	svc := NewService()
 	list := svc.List("")
-	require.Len(t, list, 16)
-	assert.Equal(t, "qbittorrent", list[0].ID)
+
+	all := catalog.All()
+	require.NotEmpty(t, list)
+	require.Len(t, list, len(all))
+	for i := range all {
+		assert.Equal(t, all[i].ID, list[i].ID)
+	}
 }
 
 func TestService_Get(t *testing.T) {
