@@ -29,6 +29,9 @@ export function Dashboard() {
     queryKey: ["system"],
     queryFn: getSystemInfo,
     refetchInterval: SYSTEM_POLL_MS,
+    // Keep sampling while the browser tab is backgrounded so the throughput
+    // history keeps filling instead of leaving a gap until the tab is reopened.
+    refetchIntervalInBackground: true,
   });
   const { networkHistory, diskHistoryByMount } = useIOHistory(system.data);
 
