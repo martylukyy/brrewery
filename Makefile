@@ -65,7 +65,7 @@ test-openapi:
 
 ansible-syntax-check:
 	@echo "Checking Ansible playbooks..."
-	@find ansible/playbooks -name '*.yml' -print0 | xargs -0 -n1 ansible-playbook --syntax-check
+	@cd ansible && find playbooks -name '*.yml' -print0 | xargs -0 -n1 ansible-playbook --syntax-check
 
 sync-ansible:
 	@echo "Syncing ansible playbooks to /usr/share/brrewery/ansible..."
