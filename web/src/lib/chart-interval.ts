@@ -25,6 +25,10 @@ export function getChartInterval(id: ChartIntervalId) {
   return option ?? CHART_INTERVAL_OPTIONS[1];
 }
 
+export function isChartIntervalId(value: unknown): value is ChartIntervalId {
+  return CHART_INTERVAL_OPTIONS.some((entry) => entry.id === value);
+}
+
 export function sliceHistoryForInterval<T>(history: T[], intervalId: ChartIntervalId): T[] {
   return history.slice(-getChartInterval(intervalId).maxPoints);
 }

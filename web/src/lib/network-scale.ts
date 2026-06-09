@@ -13,3 +13,7 @@ export function networkScaleMaxBytes(id: NetworkScaleId): number {
   const option = NETWORK_SCALE_OPTIONS.find((o) => o.id === id);
   return option?.maxBytesPerSec ?? NETWORK_SCALE_OPTIONS[1].maxBytesPerSec;
 }
+
+export function isNetworkScaleId(value: unknown): value is NetworkScaleId {
+  return NETWORK_SCALE_OPTIONS.some((o) => o.id === value);
+}

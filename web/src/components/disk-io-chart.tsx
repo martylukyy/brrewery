@@ -1,14 +1,14 @@
-import { useState } from "react";
-
 import { ChartIntervalSelect } from "@/components/chart-interval-select";
 import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import type { DiskIOSample } from "@/hooks/use-io-history";
 import {
   DEFAULT_CHART_INTERVAL,
   type ChartIntervalId,
   getChartInterval,
+  isChartIntervalId,
   padSeriesRight,
   sliceHistoryForInterval,
 } from "@/lib/chart-interval";
@@ -21,7 +21,11 @@ type Props = {
 };
 
 export function DiskIOChart({ history, chartIdSuffix, mountPoint }: Props) {
-  const [intervalId, setIntervalId] = useState<ChartIntervalId>(DEFAULT_CHART_INTERVAL);
+  const [intervalId, setIntervalId] = useLocalStorageState<ChartIntervalId>(
+    `brrewery:disk-chart-interval:${chartIdSuffix}`,
+    DEFAULT_CHART_INTERVAL,
+    isChartIntervalId,
+  );
 
   const interval = getChartInterval(intervalId);
   const sliced = sliceHistoryForInterval(history, intervalId);

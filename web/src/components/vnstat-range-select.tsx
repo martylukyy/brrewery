@@ -1,10 +1,4 @@
-export type VnstatRangeId = "days" | "months" | "top10";
-
-const VNSTAT_RANGE_OPTIONS = [
-  { id: "months" as const, label: "Last 12 months" },
-  { id: "days" as const, label: "Last 30 days" },
-  { id: "top10" as const, label: "Top 10 days overall" },
-];
+import { VNSTAT_RANGE_OPTIONS, type VnstatRangeId } from "@/lib/vnstat-range";
 
 type Props = {
   value: VnstatRangeId;

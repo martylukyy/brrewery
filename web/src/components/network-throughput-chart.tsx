@@ -1,15 +1,15 @@
-import { useState } from "react";
-
 import { ChartIntervalSelect } from "@/components/chart-interval-select";
 import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { ChartScaleSelect } from "@/components/chart-scale-select";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import type { NetworkSample } from "@/hooks/use-io-history";
 import {
   DEFAULT_CHART_INTERVAL,
   type ChartIntervalId,
   getChartInterval,
+  isChartIntervalId,
   padSeriesRight,
   sliceHistoryForInterval,
 } from "@/lib/chart-interval";
@@ -18,6 +18,7 @@ import {
   DEFAULT_NETWORK_SCALE,
   NETWORK_SCALE_OPTIONS,
   type NetworkScaleId,
+  isNetworkScaleId,
   networkScaleMaxBytes,
 } from "@/lib/network-scale";
 
@@ -26,8 +27,16 @@ type Props = {
 };
 
 export function NetworkThroughputChart({ history }: Props) {
-  const [networkScale, setNetworkScale] = useState<NetworkScaleId>(DEFAULT_NETWORK_SCALE);
-  const [intervalId, setIntervalId] = useState<ChartIntervalId>(DEFAULT_CHART_INTERVAL);
+  const [networkScale, setNetworkScale] = useLocalStorageState<NetworkScaleId>(
+    "brrewery:network-chart-scale",
+    DEFAULT_NETWORK_SCALE,
+    isNetworkScaleId,
+  );
+  const [intervalId, setIntervalId] = useLocalStorageState<ChartIntervalId>(
+    "brrewery:network-chart-interval",
+    DEFAULT_CHART_INTERVAL,
+    isChartIntervalId,
+  );
 
   const interval = getChartInterval(intervalId);
   const sliced = sliceHistoryForInterval(history, intervalId);

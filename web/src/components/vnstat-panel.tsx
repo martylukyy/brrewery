@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { ChartPanelControls } from "@/components/chart-panel-controls";
-import { VnstatRangeSelect, type VnstatRangeId } from "@/components/vnstat-range-select";
+import { VnstatRangeSelect } from "@/components/vnstat-range-select";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { getVnstatReport, type TrafficPeriod } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
+import { DEFAULT_VNSTAT_RANGE, isVnstatRangeId, type VnstatRangeId } from "@/lib/vnstat-range";
 
 export function VnstatPanel() {
   const vnstat = useQuery({
@@ -13,7 +15,11 @@ export function VnstatPanel() {
     queryFn: getVnstatReport,
     refetchInterval: 60_000,
   });
-  const [range, setRange] = useState<VnstatRangeId>("days");
+  const [range, setRange] = useLocalStorageState<VnstatRangeId>(
+    "brrewery:vnstat-range",
+    DEFAULT_VNSTAT_RANGE,
+    isVnstatRangeId,
+  );
   const report = vnstat.data;
   const tableConfig = useMemo(() => {
     switch (range) {
