@@ -27,7 +27,7 @@ export function PackageNav({ packages, onManageClick }: Props) {
             return (
               <li key={pkg.id}>
                 <div className="flex w-full items-center gap-2 px-3 py-2 text-sm text-zinc-500">
-                  <PackageIcon icon={pkg.icon} />
+                  <PackageIcon icon={pkg.icon} className="size-5" />
                   <span>{pkg.name}</span>
                 </div>
               </li>
@@ -42,7 +42,7 @@ export function PackageNav({ packages, onManageClick }: Props) {
                 rel="noopener noreferrer"
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800/50"
               >
-                <PackageIcon icon={pkg.icon} />
+                <PackageIcon icon={pkg.icon} className="size-5" />
                 <span className="truncate">{pkg.name}</span>
               </a>
             </li>

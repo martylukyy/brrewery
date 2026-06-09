@@ -1,10 +1,11 @@
 type Props = {
   icon?: string;
+  className?: string;
 };
 
 // Renders a package's icon, or nothing when none is provided. Icons are always
 // supplied by the catalog; there is no text or color fallback.
-export function PackageIcon({ icon }: Props) {
+export function PackageIcon({ icon, className }: Props) {
   if (!icon) {
     return null;
   }
@@ -13,7 +14,7 @@ export function PackageIcon({ icon }: Props) {
     <img
       src={icon}
       alt=""
-      className="h-5 w-5 shrink-0 rounded-md object-cover"
+      className={`shrink-0 rounded-md object-cover${className ? ` ${className}` : ""}`}
     />
   );
 }

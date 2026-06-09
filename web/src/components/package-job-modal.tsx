@@ -211,13 +211,7 @@ export function PackageJobModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60"
-        aria-label="Close package job dialog"
-        onClick={canClose ? handleClose : undefined}
-        disabled={!canClose}
-      />
+      <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
 
       <div
         role="dialog"
@@ -225,13 +219,32 @@ export function PackageJobModal({
         aria-labelledby="package-job-title"
         className="relative z-10 flex h-full max-h-[90%] w-full max-w-[90%] flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl md:h-full md:max-h-[90%] md:max-w-[90%]"
       >
-        <div className="border-b border-zinc-800 px-5 py-4">
-          <h2 id="package-job-title" className="text-lg font-semibold text-zinc-100">
-            {title}
-          </h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            {queueTotal > 1 ? `Package ${queuePosition} of ${queueTotal}` : labels.output}
-          </p>
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4">
+          <div>
+            <h2 id="package-job-title" className="text-lg font-semibold text-zinc-100">
+              {title}
+            </h2>
+            <p className="mt-1 text-sm text-zinc-400">
+              {queueTotal > 1 ? `Package ${queuePosition} of ${queueTotal}` : labels.output}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="-mr-1 -mt-1 shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+            aria-label={canClose ? "Close package job dialog" : "Abort and close package job dialog"}
+            onClick={handleClose}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </div>
 
         <div className="flex items-center gap-3 border-b border-zinc-800 px-5 py-3">

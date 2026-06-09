@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
+import { PackageIcon } from "@/components/package-icon";
 import type { JobAction, PackageStatus } from "@/lib/api";
 
 export type ManagePackagesConfirm = {
@@ -17,46 +18,19 @@ function sortedPackages(packages: PackageStatus[]): PackageStatus[] {
   return [...packages].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function canInstall(packages: PackageStatus[], ids: string[]): boolean {
-  if (ids.length === 0) {
-    return false;
-  }
-  return ids.every((id) => {
-    const pkg = packages.find((entry) => entry.id === id);
-    return pkg != null && !pkg.installed && pkg.dependencies_satisfied;
-  });
+function canInstall(pkg: PackageStatus): boolean {
+  return !pkg.installed && pkg.dependencies_satisfied;
 }
 
-function canUpgradeOrRemove(packages: PackageStatus[], ids: string[]): boolean {
-  if (ids.length === 0) {
-    return false;
-  }
-  return ids.every((id) => packages.find((entry) => entry.id === id)?.installed);
+function canUpgradeOrRemove(pkg: PackageStatus): boolean {
+  return pkg.installed;
 }
 
 export function ManagePackagesModal({ packages, onClose, onConfirm }: Props) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const catalog = useMemo(() => sortedPackages(packages), [packages]);
 
-  const selected = [...selectedIds];
-  const installEnabled = canInstall(packages, selected);
-  const upgradeEnabled = canUpgradeOrRemove(packages, selected);
-  const removeEnabled = canUpgradeOrRemove(packages, selected);
-
-  function togglePackage(id: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }
-
-  function handleAction(action: JobAction) {
-    onConfirm({ action, packageIds: selected });
+  function handleAction(action: JobAction, id: string) {
+    onConfirm({ action, packageIds: [id] });
   }
 
   useEffect(() => {
@@ -72,12 +46,7 @@ export function ManagePackagesModal({ packages, onClose, onConfirm }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60"
-        aria-label="Close manage packages dialog"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
 
       <div
         role="dialog"
@@ -85,13 +54,32 @@ export function ManagePackagesModal({ packages, onClose, onConfirm }: Props) {
         aria-labelledby="manage-packages-title"
         className="relative z-10 flex h-full max-h-[90%] w-full max-w-[90%] flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
       >
-        <div className="border-b border-zinc-800 px-5 py-4">
-          <h2 id="manage-packages-title" className="text-lg font-semibold text-zinc-100">
-            Manage packages
-          </h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            Select packages to install, upgrade, or remove on this host.
-          </p>
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4">
+          <div>
+            <h2 id="manage-packages-title" className="text-lg font-semibold text-zinc-100">
+              Manage packages
+            </h2>
+            <p className="mt-1 text-sm text-zinc-400">
+              Install, upgrade, or remove a package on this host.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="-mr-1 -mt-1 shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+            aria-label="Close manage packages dialog"
+            onClick={onClose}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="size-8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </div>
 
         <div className="scrollbar-zinc min-h-0 flex-1 overflow-y-auto px-5 py-3">
@@ -100,50 +88,67 @@ export function ManagePackagesModal({ packages, onClose, onConfirm }: Props) {
           ) : (
             <ul className="space-y-1">
               {catalog.map((pkg) => {
-                const checked = selectedIds.has(pkg.id);
                 const installBlocked = !pkg.installed && !pkg.dependencies_satisfied;
+                const installEnabled = canInstall(pkg);
+                const modifyEnabled = canUpgradeOrRemove(pkg);
 
                 return (
-                  <li key={pkg.id}>
-                    <label
-                      className={
-                        installBlocked
-                          ? "flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-zinc-800/50"
-                          : "flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-zinc-800/50"
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 rounded border-zinc-600 bg-zinc-950 text-amber-600 focus:ring-amber-500/50"
-                        checked={checked}
-                        onChange={() => togglePackage(pkg.id)}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-zinc-100">{pkg.name}</span>
-                          <span
-                            className={
-                              pkg.installed
-                                ? "rounded-full bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-300"
-                                : "rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400"
-                            }
-                          >
-                            {pkg.installed ? "Installed" : "Not installed"}
-                          </span>
+                  <li
+                    key={pkg.id}
+                    className="flex items-start gap-3 rounded-md px-2 py-2.5 hover:bg-zinc-800/50"
+                  >
+                    <PackageIcon icon={pkg.icon} className="size-9 self-center" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-zinc-100">{pkg.name}</span>
+                        <span
+                          className={
+                            pkg.installed
+                              ? "rounded-full bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-300"
+                              : "rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400"
+                          }
+                        >
+                          {pkg.installed ? "Installed" : "Not installed"}
                         </span>
-                        {pkg.description && (
-                          <span className="mt-0.5 block text-xs text-zinc-500">{pkg.description}</span>
-                        )}
-                        {installBlocked && (
-                          <span className="mt-1 block text-xs text-amber-400/90">
-                            Install required dependencies first.
-                          </span>
-                        )}
-                      </span>
-                      <span className="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
-                        {pkg.category}
-                      </span>
-                    </label>
+                      </div>
+                      {pkg.description && (
+                        <p className="mt-0.5 text-xs text-zinc-500">{pkg.description}</p>
+                      )}
+                      {installBlocked && (
+                        <p className="mt-1 text-xs text-amber-400/90">
+                          Install required dependencies first.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2 self-center">
+                      <button
+                        type="button"
+                        className="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={`Install ${pkg.name}`}
+                        disabled={!installEnabled}
+                        onClick={() => handleAction("install", pkg.id)}
+                      >
+                        Install
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={`Upgrade ${pkg.name}`}
+                        disabled={!modifyEnabled}
+                        onClick={() => handleAction("upgrade", pkg.id)}
+                      >
+                        Upgrade
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-red-900/60 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={`Remove ${pkg.name}`}
+                        disabled={!modifyEnabled}
+                        onClick={() => handleAction("remove", pkg.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </li>
                 );
               })}
@@ -151,44 +156,16 @@ export function ManagePackagesModal({ packages, onClose, onConfirm }: Props) {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-800 px-5 py-4">
+        <div className="flex justify-end border-t border-zinc-800 px-5 py-4">
           <button
             type="button"
             className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
             onClick={onClose}
           >
-            Cancel
+            Close
           </button>
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!installEnabled}
-              onClick={() => handleAction("install")}
-            >
-              Install
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!upgradeEnabled}
-              onClick={() => handleAction("upgrade")}
-            >
-              Upgrade
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-red-900/60 px-4 py-2 text-sm text-red-300 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!removeEnabled}
-              onClick={() => handleAction("remove")}
-            >
-              Remove
-            </button>
-          </div>
         </div>
       </div>
     </div>
   );
 }
-
-export { canInstall, canUpgradeOrRemove };

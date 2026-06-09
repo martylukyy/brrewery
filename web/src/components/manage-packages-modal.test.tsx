@@ -48,7 +48,7 @@ describe("ManagePackagesModal", () => {
     expect(screen.getByText("ruTorrent")).toBeInTheDocument();
   });
 
-  it("starts install for selected available packages", async () => {
+  it("starts install for a single available package", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
@@ -60,8 +60,7 @@ describe("ManagePackagesModal", () => {
       />,
     );
 
-    await user.click(screen.getByRole("checkbox", { name: /Radarr/i }));
-    await user.click(screen.getByRole("button", { name: "Install" }));
+    await user.click(screen.getByRole("button", { name: "Install Radarr" }));
 
     expect(onConfirm).toHaveBeenCalledWith({
       action: "install",
@@ -69,7 +68,7 @@ describe("ManagePackagesModal", () => {
     });
   });
 
-  it("starts upgrade for selected installed packages", async () => {
+  it("starts upgrade for a single installed package", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
@@ -81,8 +80,7 @@ describe("ManagePackagesModal", () => {
       />,
     );
 
-    await user.click(screen.getByRole("checkbox", { name: /Sonarr/i }));
-    await user.click(screen.getByRole("button", { name: "Upgrade" }));
+    await user.click(screen.getByRole("button", { name: "Upgrade Sonarr" }));
 
     expect(onConfirm).toHaveBeenCalledWith({
       action: "upgrade",
@@ -90,7 +88,7 @@ describe("ManagePackagesModal", () => {
     });
   });
 
-  it("starts remove for selected installed packages", async () => {
+  it("starts remove for a single installed package", async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
@@ -102,8 +100,7 @@ describe("ManagePackagesModal", () => {
       />,
     );
 
-    await user.click(screen.getByRole("checkbox", { name: /Sonarr/i }));
-    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Remove Sonarr" }));
 
     expect(onConfirm).toHaveBeenCalledWith({
       action: "remove",
@@ -111,9 +108,7 @@ describe("ManagePackagesModal", () => {
     });
   });
 
-  it("disables install when dependencies are not satisfied", async () => {
-    const user = userEvent.setup();
-
+  it("disables actions based on package state", () => {
     render(
       <ManagePackagesModal
         packages={packages}
@@ -122,7 +117,18 @@ describe("ManagePackagesModal", () => {
       />,
     );
 
-    await user.click(screen.getByRole("checkbox", { name: /ruTorrent/i }));
-    expect(screen.getByRole("button", { name: "Install" })).toBeDisabled();
+    // Not installed, dependencies missing -> nothing actionable.
+    expect(screen.getByRole("button", { name: "Install ruTorrent" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Upgrade ruTorrent" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove ruTorrent" })).toBeDisabled();
+
+    // Not installed, dependencies satisfied -> only install.
+    expect(screen.getByRole("button", { name: "Install Radarr" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Upgrade Radarr" })).toBeDisabled();
+
+    // Installed -> upgrade and remove, but not install.
+    expect(screen.getByRole("button", { name: "Install Sonarr" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Upgrade Sonarr" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Remove Sonarr" })).toBeEnabled();
   });
 });
