@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { VnstatRangeSelect } from "@/components/vnstat-range-select";
-import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { useSetting } from "@/hooks/use-setting";
 import { getVnstatReport, type TrafficPeriod } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { DEFAULT_VNSTAT_RANGE, isVnstatRangeId, type VnstatRangeId } from "@/lib/vnstat-range";
@@ -15,8 +15,8 @@ export function VnstatPanel() {
     queryFn: getVnstatReport,
     refetchInterval: 60_000,
   });
-  const [range, setRange] = useLocalStorageState<VnstatRangeId>(
-    "brrewery:vnstat-range",
+  const [range, setRange] = useSetting<VnstatRangeId>(
+    "vnstat-range",
     DEFAULT_VNSTAT_RANGE,
     isVnstatRangeId,
   );

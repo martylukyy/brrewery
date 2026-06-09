@@ -2,7 +2,7 @@ import { ChartIntervalSelect } from "@/components/chart-interval-select";
 import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
-import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { useSetting } from "@/hooks/use-setting";
 import type { DiskIOSample } from "@/hooks/use-io-history";
 import {
   DEFAULT_CHART_INTERVAL,
@@ -21,8 +21,8 @@ type Props = {
 };
 
 export function DiskIOChart({ history, chartIdSuffix, mountPoint }: Props) {
-  const [intervalId, setIntervalId] = useLocalStorageState<ChartIntervalId>(
-    `brrewery:disk-chart-interval:${chartIdSuffix}`,
+  const [intervalId, setIntervalId] = useSetting<ChartIntervalId>(
+    `disk-chart-interval:${chartIdSuffix}`,
     DEFAULT_CHART_INTERVAL,
     isChartIntervalId,
   );

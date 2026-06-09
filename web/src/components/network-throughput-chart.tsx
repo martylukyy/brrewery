@@ -3,7 +3,7 @@ import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { ChartScaleSelect } from "@/components/chart-scale-select";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
-import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { useSetting } from "@/hooks/use-setting";
 import type { NetworkSample } from "@/hooks/use-io-history";
 import {
   DEFAULT_CHART_INTERVAL,
@@ -27,13 +27,13 @@ type Props = {
 };
 
 export function NetworkThroughputChart({ history }: Props) {
-  const [networkScale, setNetworkScale] = useLocalStorageState<NetworkScaleId>(
-    "brrewery:network-chart-scale",
+  const [networkScale, setNetworkScale] = useSetting<NetworkScaleId>(
+    "network-chart-scale",
     DEFAULT_NETWORK_SCALE,
     isNetworkScaleId,
   );
-  const [intervalId, setIntervalId] = useLocalStorageState<ChartIntervalId>(
-    "brrewery:network-chart-interval",
+  const [intervalId, setIntervalId] = useSetting<ChartIntervalId>(
+    "network-chart-interval",
     DEFAULT_CHART_INTERVAL,
     isChartIntervalId,
   );
