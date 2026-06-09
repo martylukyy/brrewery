@@ -3,8 +3,9 @@ name: Prowlarr
 description: Indexer manager
 category: arr
 web_path: /prowlarr/
+requires_account_password: true
 detection:
-  binaries:
-    - prowlarr
-  systemd_units:
-    - prowlarr.service
+  paths:
+    - /opt/Prowlarr/Prowlarr
+  systemd_user_units:
+    - "prowlarr@{user}.service"
