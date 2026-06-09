@@ -1,8 +1,63 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    lidarr_install_dir: /opt/Lidarr
+  roles:
+    - brrewery_user
   tasks:
-    - name: lidarr remove placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for lidarr remove"
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Stop and disable Lidarr for brrewery user
+      ansible.builtin.systemd:
+        name: "lidarr@{{ brrewery_user }}.service"
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Remove nginx reverse proxy for lidarr
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+        tasks_from: remove
+      vars:
+        brrewery_package_id: lidarr
+
+    - name: Remove Lidarr user config and data
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/.config/lidarr"
+        state: absent
+
+    - name: Remove Lidarr installation
+      ansible.builtin.file:
+        path: "{{ lidarr_install_dir }}"
+        state: absent
+
+    - name: List remaining lidarr user service unit files
+      ansible.builtin.shell: |
+        set -o pipefail
+        systemctl list-unit-files 'lidarr@*.service' --no-legend --no-pager 2>/dev/null || true
+      register: lidarr_unit_files
+      changed_when: false
+
+    - name: Remove lidarr systemd template when no instances remain
+      ansible.builtin.file:
+        path: /etc/systemd/system/lidarr@.service
+        state: absent
+      when: lidarr_unit_files.stdout_lines | length == 0
+      notify: Reload systemd
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

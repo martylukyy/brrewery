@@ -3,8 +3,9 @@ name: Lidarr
 description: Music management
 category: arr
 web_path: /lidarr/
+requires_account_password: true
 detection:
-  binaries:
-    - lidarr
-  systemd_units:
-    - lidarr.service
+  paths:
+    - /opt/Lidarr/Lidarr
+  systemd_user_units:
+    - "lidarr@{user}.service"
