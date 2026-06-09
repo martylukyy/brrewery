@@ -6,12 +6,30 @@ export type ErrorBody = {
 
 export class ApiError extends Error {
   status: number;
+  path: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, path = "") {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.path = path;
   }
+}
+
+// Endpoints where a 401 means "wrong credentials" rather than an expired
+// session. A failure here must not sign the user out: a mistyped login or a
+// password-confirmation prompt should keep the user where they are.
+const CREDENTIAL_PATHS = ["/auth/login", "/auth/verify-password"];
+
+// isSessionExpired reports whether an error indicates the session cookie is no
+// longer valid (invalid or too old), as opposed to a deliberately rejected
+// credential check. Used to route the user back to the login page.
+export function isSessionExpired(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 401 &&
+    !CREDENTIAL_PATHS.includes(error.path)
+  );
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -38,7 +56,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
 
   if (!res.ok) {
-    throw new ApiError(await readErrorMessage(res), res.status);
+    throw new ApiError(await readErrorMessage(res), res.status, path);
   }
 
   if (res.status === 204) {
@@ -182,7 +200,7 @@ export async function checkSession(): Promise<VersionInfo | null> {
   }
 
   if (!res.ok) {
-    throw new ApiError(await readErrorMessage(res), res.status);
+    throw new ApiError(await readErrorMessage(res), res.status, "/version");
   }
 
   return (await res.json()) as VersionInfo;

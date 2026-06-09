@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { checkSession, login, logout, type LoginRequest } from "@/lib/api";
 
+export const SESSION_QUERY_KEY = ["session"] as const;
+
 export function useAuth() {
   const queryClient = useQueryClient();
 
   const session = useQuery({
-    queryKey: ["session"],
+    queryKey: SESSION_QUERY_KEY,
     queryFn: checkSession,
     retry: false,
   });
@@ -14,14 +16,14 @@ export function useAuth() {
   const loginMutation = useMutation({
     mutationFn: (body: LoginRequest) => login(body),
     onSuccess: async () => {
-      await queryClient.fetchQuery({ queryKey: ["session"] });
+      await queryClient.fetchQuery({ queryKey: SESSION_QUERY_KEY });
     },
   });
 
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
-      queryClient.setQueryData(["session"], null);
+      queryClient.setQueryData(SESSION_QUERY_KEY, null);
     },
   });
 
