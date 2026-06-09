@@ -5,6 +5,7 @@ import { GaugePanel } from "@/components/gauge-panel";
 import { NetworkThroughputChart } from "@/components/network-throughput-chart";
 import { VnstatPanel } from "@/components/vnstat-panel";
 import { useIOHistory } from "@/hooks/use-io-history";
+import { useKeepaliveInterval } from "@/hooks/use-keepalive-interval";
 import { getSystemInfo, type LoadAvg } from "@/lib/api";
 import { formatBytes, formatUptime } from "@/lib/format";
 
@@ -28,11 +29,13 @@ export function Dashboard() {
   const system = useQuery({
     queryKey: ["system"],
     queryFn: getSystemInfo,
-    refetchInterval: SYSTEM_POLL_MS,
-    // Keep sampling while the browser tab is backgrounded so the throughput
-    // history keeps filling instead of leaving a gap until the tab is reopened.
-    refetchIntervalInBackground: true,
   });
+  // Drive polling from a worker-backed interval rather than React Query's
+  // refetchInterval, which the browser throttles to ~2s once the tab is
+  // backgrounded — leaving gaps in the throughput history.
+  useKeepaliveInterval(() => {
+    void system.refetch();
+  }, SYSTEM_POLL_MS);
   const { networkHistory, diskHistoryByMount } = useIOHistory(system.data);
 
   if (system.isLoading) {
