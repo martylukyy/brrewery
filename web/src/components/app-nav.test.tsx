@@ -73,7 +73,7 @@ describe("AppNav", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Manage apps" }));
+    await user.click(screen.getByRole("button", { name: "Manage server" }));
     expect(onManageClick).toHaveBeenCalled();
   });
 });

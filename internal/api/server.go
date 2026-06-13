@@ -27,6 +27,7 @@ type Server struct {
 	apps           *appsdomain.Service
 	system         *system.Collector
 	vnstat         *vnstat.Collector
+	sysctlRunner   handlers.PlaybookRunner
 	embedFS        fs.FS
 }
 
@@ -37,6 +38,7 @@ func NewServer(
 	appsService *appsdomain.Service,
 	systemCollector *system.Collector,
 	vnstatCollector *vnstat.Collector,
+	sysctlRunner handlers.PlaybookRunner,
 	embedFS fs.FS,
 ) *Server {
 	return &Server{
@@ -46,6 +48,7 @@ func NewServer(
 		apps:           appsService,
 		system:         systemCollector,
 		vnstat:         vnstatCollector,
+		sysctlRunner:   sysctlRunner,
 		embedFS:        embedFS,
 	}
 }
@@ -86,6 +89,10 @@ func (s *Server) Handler() http.Handler {
 
 			sys := handlers.NewSystemHandler(s.system)
 			r.Get("/system", sys.Get)
+
+			sysctl := handlers.NewSysctlHandler(s.sysctlRunner, s.authService)
+			r.Get("/system/sysctl", sysctl.Get)
+			r.Post("/system/sysctl", sysctl.Apply)
 
 			vn := handlers.NewVnstatHandler(s.vnstat)
 			r.Get("/traffic/vnstat", vn.Get)

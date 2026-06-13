@@ -12,6 +12,7 @@ type Props = {
   apps: AppStatus[];
   onClose: () => void;
   onConfirm: (request: ManageAppsConfirm) => void;
+  onTuneSysctl: () => void;
 };
 
 function sortedApps(apps: AppStatus[]): AppStatus[] {
@@ -26,7 +27,7 @@ function canUpgradeOrRemove(app: AppStatus): boolean {
   return app.installed;
 }
 
-export function ManageAppsModal({ apps, onClose, onConfirm }: Props) {
+export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Props) {
   const catalog = useMemo(() => sortedApps(apps), [apps]);
 
   function handleAction(action: JobAction, id: string) {
@@ -156,13 +157,13 @@ export function ManageAppsModal({ apps, onClose, onConfirm }: Props) {
           )}
         </div>
 
-        <div className="flex justify-end border-t border-zinc-800 px-5 py-4">
+        <div className="flex justify-between border-t border-zinc-800 px-5 py-4">
           <button
             type="button"
-            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
-            onClick={onClose}
+            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+            onClick={onTuneSysctl}
           >
-            Close
+            Tune sysctl parameters
           </button>
         </div>
       </div>

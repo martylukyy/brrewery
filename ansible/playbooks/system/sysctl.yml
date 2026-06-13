@@ -1,0 +1,36 @@
+---
+# Applies brrewery-managed kernel tuning. The web UI validates every key/value
+# against a curated catalog and renders the file body in Go, passing it as
+# sysctl_conf_content; this playbook only writes that body to a drop-in and
+# reloads it. Privilege is escalated with the operator's sudo password, supplied
+# by the runner via --become-password-file.
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: false
+  vars:
+    sysctl_conf_path: /etc/sysctl.d/99-brrewery.conf
+  tasks:
+    - name: Require rendered sysctl configuration
+      ansible.builtin.assert:
+        that:
+          - sysctl_conf_content is defined
+          - sysctl_conf_content | length > 0
+        fail_msg: sysctl_conf_content must be supplied
+
+    - name: Ensure the sysctl drop-in directory exists
+      ansible.builtin.file:
+        path: "{{ sysctl_conf_path | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write the brrewery-managed sysctl configuration
+      ansible.builtin.copy:
+        dest: "{{ sysctl_conf_path }}"
+        mode: "0644"
+        content: "{{ sysctl_conf_content }}"
+
+    - name: Load the brrewery sysctl configuration at runtime
+      ansible.builtin.command:
+        cmd: "sysctl -p {{ sysctl_conf_path }}"
+      changed_when: true

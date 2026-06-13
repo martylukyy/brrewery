@@ -5,12 +5,13 @@ import { Dashboard } from "@/components/dashboard";
 import { InstallOptionsModal, requiredInstallOptions } from "@/components/install-options-modal";
 import { InstallSecretsModal, requiredSecrets } from "@/components/install-secrets-modal";
 import { ManageAppsModal, type ManageAppsConfirm } from "@/components/manage-apps-modal";
+import { SysctlModal } from "@/components/sysctl-modal";
 import { AppJobModal } from "@/components/app-job-modal";
 import { AppNav } from "@/components/app-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { listApps, type JobAction } from "@/lib/api";
 
-type ManagePhase = "select" | "secrets" | "options" | "job";
+type ManagePhase = "select" | "secrets" | "options" | "job" | "sysctl";
 
 export function AppShell() {
   const { session, logout } = useAuth();
@@ -132,8 +133,11 @@ export function AppShell() {
           apps={appList}
           onClose={() => setPhase(null)}
           onConfirm={beginAppJobs}
+          onTuneSysctl={() => setPhase("sysctl")}
         />
       )}
+
+      {phase === "sysctl" && <SysctlModal onClose={() => setPhase(null)} />}
 
       {phase === "secrets" && pendingAppIds.length > 0 && (
         <InstallSecretsModal

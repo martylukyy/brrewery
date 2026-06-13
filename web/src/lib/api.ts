@@ -284,3 +284,47 @@ export type VnstatReport = {
 export function getVnstatReport() {
   return apiFetch<VnstatReport>("/traffic/vnstat");
 }
+
+export type SysctlKind = "integer" | "integer_list" | "enum";
+
+export type SysctlParam = {
+  key: string;
+  label: string;
+  description: string;
+  group: string;
+  kind: SysctlKind | string;
+  recommended: string;
+  unit?: string;
+  min?: number;
+  max?: number;
+  fields?: number;
+  choices?: string[];
+};
+
+export type SysctlSetting = SysctlParam & {
+  value: string;
+  available: boolean;
+};
+
+export type SysctlReport = {
+  settings: SysctlSetting[];
+  writable: boolean;
+};
+
+export function getSysctl() {
+  return apiFetch<SysctlReport>("/system/sysctl");
+}
+
+export type ApplySysctlRequest = {
+  values: Record<string, string>;
+  password: string;
+};
+
+// applySysctl persists the given kernel parameters and returns the refreshed
+// report with the new live values.
+export function applySysctl(body: ApplySysctlRequest) {
+  return apiFetch<SysctlReport>("/system/sysctl", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

@@ -48,6 +48,7 @@ func TestLoginThenVersionWithSessionCookie(t *testing.T) {
 		system.NewCollector(),
 		vnstat.NewCollector(),
 		nil,
+		nil,
 	)
 
 	ts := httptest.NewServer(srv.Handler())

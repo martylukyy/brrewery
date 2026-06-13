@@ -66,9 +66,12 @@ func runServe() *cobra.Command {
 			session := auth.NewSessionManager(secret)
 			store := auth.NewFileStore(paths.UserStorePath)
 			authService := auth.NewService(store, session)
+			// One runner escalates privileges for both app playbooks and the
+			// system sysctl playbook, using the password entered in the web UI.
+			runner := ansible.NewRunner(paths.ResolveAnsibleRoot())
 			appsService := appsdomain.NewServiceWithDeps(
 				detect.NewEvaluator(),
-				ansible.NewRunner(paths.ResolveAnsibleRoot()),
+				runner,
 				jobs.NewStoreAt(paths.ResolveJobsDir()),
 			)
 
@@ -84,6 +87,7 @@ func runServe() *cobra.Command {
 				appsService,
 				system.NewCollector(),
 				vnstat.NewCollector(),
+				runner,
 				embedFS,
 			)
 			httpServer := &http.Server{

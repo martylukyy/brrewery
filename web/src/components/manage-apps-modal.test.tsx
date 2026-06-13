@@ -39,10 +39,11 @@ describe("ManageAppsModal", () => {
         apps={apps}
         onClose={() => {}}
         onConfirm={() => {}}
+        onTuneSysctl={() => {}}
       />,
     );
 
-    expect(screen.getByRole("dialog", { name: "Manage apps" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Manage server" })).toBeInTheDocument();
     expect(screen.getByText("Sonarr")).toBeInTheDocument();
     expect(screen.getByText("Radarr")).toBeInTheDocument();
     expect(screen.getByText("ruTorrent")).toBeInTheDocument();
@@ -57,6 +58,7 @@ describe("ManageAppsModal", () => {
         apps={apps}
         onClose={() => {}}
         onConfirm={onConfirm}
+        onTuneSysctl={() => {}}
       />,
     );
 
@@ -77,6 +79,7 @@ describe("ManageAppsModal", () => {
         apps={apps}
         onClose={() => {}}
         onConfirm={onConfirm}
+        onTuneSysctl={() => {}}
       />,
     );
 
@@ -97,6 +100,7 @@ describe("ManageAppsModal", () => {
         apps={apps}
         onClose={() => {}}
         onConfirm={onConfirm}
+        onTuneSysctl={() => {}}
       />,
     );
 
@@ -108,12 +112,31 @@ describe("ManageAppsModal", () => {
     });
   });
 
+  it("opens the sysctl tuner from the footer button", async () => {
+    const user = userEvent.setup();
+    const onTuneSysctl = vi.fn();
+
+    render(
+      <ManageAppsModal
+        apps={apps}
+        onClose={() => {}}
+        onConfirm={() => {}}
+        onTuneSysctl={onTuneSysctl}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Tune sysctl parameters" }));
+
+    expect(onTuneSysctl).toHaveBeenCalledTimes(1);
+  });
+
   it("disables actions based on app state", () => {
     render(
       <ManageAppsModal
         apps={apps}
         onClose={() => {}}
         onConfirm={() => {}}
+        onTuneSysctl={() => {}}
       />,
     );
 
