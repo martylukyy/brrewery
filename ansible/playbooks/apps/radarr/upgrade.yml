@@ -1,0 +1,74 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    radarr_install_dir: /opt/Radarr
+    radarr_port: 7878
+    radarr_download_url: "https://radarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore&arch=x64"
+  roles:
+    - brrewery_user
+  tasks:
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Ensure Radarr runtime dependencies are present
+      ansible.builtin.apt:
+        name: libicu-dev
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"
+
+    - name: Download Radarr release archive
+      ansible.builtin.get_url:
+        url: "{{ radarr_download_url }}"
+        dest: /tmp/radarr.tar.gz
+        mode: "0644"
+
+    - name: Stop Radarr before upgrade
+      ansible.builtin.systemd:
+        name: "radarr@{{ brrewery_user }}.service"
+        state: stopped
+      failed_when: false
+
+    - name: Remove previous Radarr installation
+      ansible.builtin.file:
+        path: "{{ radarr_install_dir }}"
+        state: absent
+
+    - name: Extract Radarr into /opt
+      ansible.builtin.unarchive:
+        src: /tmp/radarr.tar.gz
+        dest: /opt
+        remote_src: true
+
+    - name: Set ownership of Radarr installation
+      ansible.builtin.file:
+        path: "{{ radarr_install_dir }}"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        recurse: true
+
+    - name: Ensure Radarr is enabled and running after upgrade
+      ansible.builtin.systemd:
+        name: "radarr@{{ brrewery_user }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Configure nginx reverse proxy for radarr
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: radarr
+        brrewery_app_web_path: /radarr/
+        brrewery_app_upstream: http://127.0.0.1:{{ radarr_port }}

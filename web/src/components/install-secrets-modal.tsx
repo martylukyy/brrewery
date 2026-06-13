@@ -1,21 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { ApiError, verifyPassword, type InstallSecret, type PackageStatus } from "@/lib/api";
+import { ApiError, verifyPassword, type InstallSecret, type AppStatus } from "@/lib/api";
 
 type Props = {
-  packageIds: string[];
-  packages: PackageStatus[];
+  appIds: string[];
+  apps: AppStatus[];
   onClose: () => void;
   onConfirm: (extraVars: Record<string, string>) => void;
 };
 
-function requiredSecrets(packages: PackageStatus[], packageIds: string[]): InstallSecret[] {
+function requiredSecrets(apps: AppStatus[], appIds: string[]): InstallSecret[] {
   const seen = new Set<string>();
   const out: InstallSecret[] = [];
 
-  for (const id of packageIds) {
-    const pkg = packages.find((entry) => entry.id === id);
-    for (const secret of pkg?.install_secrets ?? []) {
+  for (const id of appIds) {
+    const app = apps.find((entry) => entry.id === id);
+    for (const secret of app?.install_secrets ?? []) {
       if (seen.has(secret.key)) {
         continue;
       }
@@ -27,16 +27,16 @@ function requiredSecrets(packages: PackageStatus[], packageIds: string[]): Insta
   return out;
 }
 
-export function InstallSecretsModal({ packageIds, packages, onClose, onConfirm }: Props) {
-  const secrets = useMemo(() => requiredSecrets(packages, packageIds), [packageIds, packages]);
+export function InstallSecretsModal({ appIds, apps, onClose, onConfirm }: Props) {
+  const secrets = useMemo(() => requiredSecrets(apps, appIds), [appIds, apps]);
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(secrets.map((secret) => [secret.key, ""])),
   );
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
 
-  const packageNames = packageIds
-    .map((id) => packages.find((pkg) => pkg.id === id)?.name ?? id)
+  const appNames = appIds
+    .map((id) => apps.find((app) => app.id === id)?.name ?? id)
     .join(", ");
 
   async function handleSubmit(event: React.FormEvent) {
@@ -107,7 +107,7 @@ export function InstallSecretsModal({ packageIds, packages, onClose, onConfirm }
             Install credentials
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Enter the credentials required to install {packageNames}.
+            Enter the credentials required to install {appNames}.
           </p>
         </div>
 

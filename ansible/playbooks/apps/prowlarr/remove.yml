@@ -1,0 +1,63 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    prowlarr_install_dir: /opt/Prowlarr
+  roles:
+    - brrewery_user
+  tasks:
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Stop and disable Prowlarr for brrewery user
+      ansible.builtin.systemd:
+        name: "prowlarr@{{ brrewery_user }}.service"
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Remove nginx reverse proxy for prowlarr
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+        tasks_from: remove
+      vars:
+        brrewery_app_id: prowlarr
+
+    - name: Remove Prowlarr user config and data
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/.config/prowlarr"
+        state: absent
+
+    - name: Remove Prowlarr installation
+      ansible.builtin.file:
+        path: "{{ prowlarr_install_dir }}"
+        state: absent
+
+    - name: List remaining prowlarr user service unit files
+      ansible.builtin.shell: |
+        set -o pipefail
+        systemctl list-unit-files 'prowlarr@*.service' --no-legend --no-pager 2>/dev/null || true
+      register: prowlarr_unit_files
+      changed_when: false
+
+    - name: Remove prowlarr systemd template when no instances remain
+      ansible.builtin.file:
+        path: /etc/systemd/system/prowlarr@.service
+        state: absent
+      when: prowlarr_unit_files.stdout_lines | length == 0
+      notify: Reload systemd
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

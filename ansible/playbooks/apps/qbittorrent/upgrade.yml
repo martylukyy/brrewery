@@ -1,0 +1,25 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    qbittorrent_webui_port: 8086
+  roles:
+    - brrewery_user
+    - qbittorrent_build
+  tasks:
+    - name: Restart qBittorrent for brrewery user after rebuild
+      ansible.builtin.systemd:
+        name: "qbittorrent@{{ brrewery_user }}.service"
+        state: restarted
+        daemon_reload: true
+
+    - name: Ensure nginx reverse proxy for qBittorrent is configured
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: qbittorrent
+        brrewery_app_web_path: /qbittorrent/
+        brrewery_app_upstream: http://127.0.0.1:{{ qbittorrent_webui_port }}
+        brrewery_app_strip_path_prefix: true

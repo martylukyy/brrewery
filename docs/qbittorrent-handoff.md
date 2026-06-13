@@ -1,11 +1,11 @@
-# qBittorrent package — implementation handoff
+# qBittorrent app — implementation handoff
 
 Status as of 2026-06-03. This is the working context for the qBittorrent
 source-build feature so the next agent can continue coding and troubleshooting.
 
-- Design spec (source of truth): [plans/qbittorrent-package-install.md](plans/qbittorrent-package-install.md)
-- Engineering notes: [ansible-packages.md](ansible-packages.md)
-- User docs: [../documentation/docs/packages/qbittorrent.md](../documentation/docs/packages/qbittorrent.md)
+- Design spec (source of truth): [plans/qbittorrent-app-install.md](plans/qbittorrent-app-install.md)
+- Engineering notes: [ansible-apps.md](ansible-apps.md)
+- User docs: [../documentation/docs/apps/qbittorrent.md](../documentation/docs/apps/qbittorrent.md)
 
 ## TL;DR
 
@@ -34,17 +34,17 @@ they are not already cached under the vendor root.
 ## Key files
 
 Backend
-- `internal/packages/qbittorrent/` — manifest loader, `InstallOptions()`,
+- `internal/apps/qbittorrent/` — manifest loader, `InstallOptions()`,
   `Validate()`, `ValidateInstallOptions()`, `ValidateLibtorrentPatch()` (+ tests).
-- `internal/packages/model/types.go` — `InstallOption[Choice|When]`, `Package.InstallOptions`.
-- `internal/packages/extravars/extravars.go` — `QbittorrentVersion`, `QbittorrentRelease`,
+- `internal/apps/model/types.go` — `InstallOption[Choice|When]`, `App.InstallOptions`.
+- `internal/apps/extravars/extravars.go` — `QbittorrentVersion`, `QbittorrentRelease`,
   `QbittorrentQtVersion`, `LibtorrentBranch`,
   `LibtorrentPatch`, `BecomePassword` (`ansible_become_password`).
-- `internal/packages/catalog/catalog.go` — `qbittorrentEntry()`: detection
+- `internal/apps/catalog/catalog.go` — `qbittorrentEntry()`: detection
   `qbittorrent@{user}.service`, install options from manifest, required sudo secret.
-- `internal/packages/ansible/runner.go` — extracts `ansible_become_password`,
+- `internal/apps/ansible/runner.go` — extracts `ansible_become_password`,
   passes it via `--become-password-file` (temp file, 0600, deleted; stripped from `-e` JSON).
-- `internal/api/handlers/packages.go` — validates options on install + upgrade.
+- `internal/api/handlers/apps.go` — validates options on install + upgrade.
 - `internal/paths/paths.go` — `ResolveVendorQBittorrentRoot()`, `QBittorrentOperatorPatchesDir`, `VendorRoot`.
 - `internal/web/swagger/openapi.yaml` — `InstallOption*` schemas + `install_options` + `libtorrent_patch` note.
 
@@ -58,7 +58,7 @@ Frontend
 Ansible
 - `ansible/roles/qbittorrent_build/` — `tasks/{main,resolve,dependencies,boost,qt,libtorrent,qbittorrent}.yml`,
   `defaults/main.yml`, `meta/main.yml`.
-- `ansible/playbooks/packages/qbittorrent/{install,upgrade,remove}.yml`.
+- `ansible/playbooks/apps/qbittorrent/{install,upgrade,remove}.yml`.
 
 Vendoring
 - `ansible/roles/qbittorrent_build/files/qbittorrent/manifest.yml` — version matrix + pinned deps.
@@ -107,7 +107,7 @@ brrewery-vendored security patches only.
       libtorrent cmake (static), qBittorrent cmake (`GUI=OFF`, `QT6=ON`), install to
       `/usr/local/bin`. The cmake/autotools flags in `tasks/{libtorrent,qbittorrent}.yml`
       are reasoned but unverified end-to-end.
-- [ ] **Vendored Qt build path** (`internal/packages/qbittorrent/qtresolve.go` + `tasks/qt.yml`)
+- [ ] **Vendored Qt build path** (`internal/apps/qbittorrent/qtresolve.go` + `tasks/qt.yml`)
       resolves the newest Qt patch ≥ `qt.min` from download.qt.io before Ansible runs.
 - [ ] **Default performance patches** (`ansible/roles/qbittorrent_build/files/qbittorrent/patches/*.patch`) have
       placeholder context lines; they apply best-effort and will likely no-op. Regenerate
@@ -116,7 +116,7 @@ brrewery-vendored security patches only.
       `upgrade`/`remove` under a non-root daemon won't prompt for the sudo password.
       Extend `requiredSecrets`/app-shell to also prompt on upgrade/remove (the runner
       already handles `ansible_become_password` generically).
-- [ ] **Other become packages**: autobrr (and future packages) also need the sudo
+- [ ] **Other become apps**: autobrr (and future apps) also need the sudo
       password under a non-root daemon; only qBittorrent declares it today. Consider a
       generic per-action become-password prompt.
 - [ ] **qBittorrent WebUI auth**: install sets `WebUI\Port`, reverse-proxy support, and
@@ -132,11 +132,11 @@ brrewery-vendored security patches only.
 ## Gotchas
 
 - **Pre-existing failing tests** (NOT from this work; fail on clean HEAD too):
-  - `internal/packages` `TestService_List` expects 16 packages; catalog has 14
+  - `internal/apps` `TestService_List` expects 16 apps; catalog has 14
     (`catalog_test.go` authoritatively expects 14 and passes).
   - `internal/system` `TestMonitoredFstabMounts_readsHostFstab` expects ≥2 fstab
     mounts (environment-dependent).
-- **gofmt**: `internal/packages/extravars/extravars.go` and `internal/packages/service.go`
+- **gofmt**: `internal/apps/extravars/extravars.go` and `internal/apps/service.go`
   are gofmt-dirty at HEAD (pre-existing). The qBittorrent additions deliberately keep the
   existing extravars block byte-identical to avoid a "new" gosec G101 finding on the
   password key under `--new-from-rev`.
@@ -150,8 +150,8 @@ brrewery-vendored security patches only.
 
 ```bash
 go build ./...
-go test -race -count=1 ./internal/packages/qbittorrent/... ./internal/api/handlers/...
+go test -race -count=1 ./internal/apps/qbittorrent/... ./internal/api/handlers/...
 make test-openapi
 ( cd web && pnpm tsc -b && pnpm test )
-( cd ansible && for f in playbooks/packages/qbittorrent/*.yml; do ansible-playbook "$f" --syntax-check; done )
+( cd ansible && for f in playbooks/apps/qbittorrent/*.yml; do ansible-playbook "$f" --syntax-check; done )
 ```

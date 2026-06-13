@@ -107,7 +107,7 @@ export type InstallOption = {
   when?: InstallOptionWhen;
 };
 
-export type PackageStatus = {
+export type AppStatus = {
   id: string;
   name: string;
   description: string;
@@ -120,8 +120,8 @@ export type PackageStatus = {
   dependencies_satisfied: boolean;
 };
 
-export type PackageListResponse = {
-  packages: PackageStatus[];
+export type AppListResponse = {
+  apps: AppStatus[];
 };
 
 export type LoadAvg = {
@@ -206,17 +206,17 @@ export async function checkSession(): Promise<VersionInfo | null> {
   return (await res.json()) as VersionInfo;
 }
 
-export function listPackages() {
-  return apiFetch<PackageListResponse>("/packages");
+export function listApps() {
+  return apiFetch<AppListResponse>("/apps");
 }
 
 export type JobAction = "install" | "upgrade" | "remove";
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
-export type PackageJob = {
+export type AppJob = {
   id: string;
-  package_id: string;
+  app_id: string;
   action: JobAction;
   status: JobStatus;
   error?: string;
@@ -224,11 +224,11 @@ export type PackageJob = {
   finished_at?: string;
 };
 
-export type PackageJobRequest = {
+export type AppJobRequest = {
   extra_vars?: Record<string, string>;
 };
 
-export type PackageJobResponse = {
+export type AppJobResponse = {
   job_id: string;
 };
 
@@ -236,27 +236,27 @@ export type JobLogsResponse = {
   lines: string[];
 };
 
-export function startPackageJob(id: string, action: JobAction, body: PackageJobRequest = {}) {
-  return apiFetch<PackageJobResponse>(`/packages/${encodeURIComponent(id)}/${action}`, {
+export function startAppJob(id: string, action: JobAction, body: AppJobRequest = {}) {
+  return apiFetch<AppJobResponse>(`/apps/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function installPackage(id: string, body: PackageJobRequest = {}) {
-  return startPackageJob(id, "install", body);
+export function installApp(id: string, body: AppJobRequest = {}) {
+  return startAppJob(id, "install", body);
 }
 
-export function upgradePackage(id: string, body: PackageJobRequest = {}) {
-  return startPackageJob(id, "upgrade", body);
+export function upgradeApp(id: string, body: AppJobRequest = {}) {
+  return startAppJob(id, "upgrade", body);
 }
 
-export function removePackage(id: string, body: PackageJobRequest = {}) {
-  return startPackageJob(id, "remove", body);
+export function removeApp(id: string, body: AppJobRequest = {}) {
+  return startAppJob(id, "remove", body);
 }
 
 export function getJob(id: string) {
-  return apiFetch<PackageJob>(`/jobs/${encodeURIComponent(id)}`);
+  return apiFetch<AppJob>(`/jobs/${encodeURIComponent(id)}`);
 }
 
 export function getJobLogs(id: string) {

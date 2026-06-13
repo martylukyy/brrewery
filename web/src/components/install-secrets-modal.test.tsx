@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InstallSecretsModal } from "@/components/install-secrets-modal";
-import { ApiError, verifyPassword, type PackageStatus } from "@/lib/api";
+import { ApiError, verifyPassword, type AppStatus } from "@/lib/api";
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
@@ -12,7 +12,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 
 const mockVerify = vi.mocked(verifyPassword);
 
-const packages: PackageStatus[] = [
+const apps: AppStatus[] = [
   {
     id: "autobrr",
     name: "autobrr",
@@ -38,8 +38,8 @@ describe("InstallSecretsModal", () => {
   it("renders a single account password field", () => {
     render(
       <InstallSecretsModal
-        packageIds={["autobrr"]}
-        packages={packages}
+        appIds={["autobrr"]}
+        apps={apps}
         onClose={() => {}}
         onConfirm={vi.fn()}
       />,
@@ -54,8 +54,8 @@ describe("InstallSecretsModal", () => {
 
     render(
       <InstallSecretsModal
-        packageIds={["autobrr"]}
-        packages={packages}
+        appIds={["autobrr"]}
+        apps={apps}
         onClose={() => {}}
         onConfirm={onConfirm}
       />,
@@ -77,8 +77,8 @@ describe("InstallSecretsModal", () => {
 
     render(
       <InstallSecretsModal
-        packageIds={["autobrr"]}
-        packages={packages}
+        appIds={["autobrr"]}
+        apps={apps}
         onClose={() => {}}
         onConfirm={onConfirm}
       />,

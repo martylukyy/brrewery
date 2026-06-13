@@ -12,9 +12,9 @@ import (
 
 	"github.com/autobrr/brrewery/internal/api/handlers"
 	"github.com/autobrr/brrewery/internal/api/middleware"
+	appsdomain "github.com/autobrr/brrewery/internal/apps"
 	"github.com/autobrr/brrewery/internal/auth"
 	"github.com/autobrr/brrewery/internal/httputil"
-	pkgdomain "github.com/autobrr/brrewery/internal/packages"
 	"github.com/autobrr/brrewery/internal/system"
 	"github.com/autobrr/brrewery/internal/vnstat"
 	webapp "github.com/autobrr/brrewery/internal/web"
@@ -24,7 +24,7 @@ type Server struct {
 	logger         zerolog.Logger
 	authService    *auth.Service
 	sessionManager *scs.SessionManager
-	packages       *pkgdomain.Service
+	apps           *appsdomain.Service
 	system         *system.Collector
 	vnstat         *vnstat.Collector
 	embedFS        fs.FS
@@ -34,7 +34,7 @@ func NewServer(
 	logger *zerolog.Logger,
 	authService *auth.Service,
 	sessionManager *scs.SessionManager,
-	packagesService *pkgdomain.Service,
+	appsService *appsdomain.Service,
 	systemCollector *system.Collector,
 	vnstatCollector *vnstat.Collector,
 	embedFS fs.FS,
@@ -43,7 +43,7 @@ func NewServer(
 		logger:         *logger,
 		authService:    authService,
 		sessionManager: sessionManager,
-		packages:       packagesService,
+		apps:           appsService,
 		system:         systemCollector,
 		vnstat:         vnstatCollector,
 		embedFS:        embedFS,
@@ -73,14 +73,14 @@ func (s *Server) Handler() http.Handler {
 			version := handlers.NewVersionHandler()
 			r.Get("/version", version.Version)
 
-			pkgs := handlers.NewPackagesHandler(s.packages, s.authService)
-			r.Get("/packages", pkgs.List)
-			r.Get("/packages/{id}", pkgs.Get)
-			r.Post("/packages/{id}/install", pkgs.Install)
-			r.Post("/packages/{id}/upgrade", pkgs.Upgrade)
-			r.Post("/packages/{id}/remove", pkgs.Remove)
+			apps := handlers.NewAppsHandler(s.apps, s.authService)
+			r.Get("/apps", apps.List)
+			r.Get("/apps/{id}", apps.Get)
+			r.Post("/apps/{id}/install", apps.Install)
+			r.Post("/apps/{id}/upgrade", apps.Upgrade)
+			r.Post("/apps/{id}/remove", apps.Remove)
 
-			jobsHandler := handlers.NewJobsHandler(s.packages)
+			jobsHandler := handlers.NewJobsHandler(s.apps)
 			r.Get("/jobs/{id}", jobsHandler.Get)
 			r.Get("/jobs/{id}/logs", jobsHandler.Logs)
 

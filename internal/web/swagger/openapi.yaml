@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: brrewery API
   version: 0.1.0
-  description: Package catalog and session-authenticated management API.
+  description: App catalog and session-authenticated management API.
 servers:
   - url: /
     description: Current host
@@ -144,7 +144,7 @@ components:
             $ref: '#/components/schemas/InstallOptionChoice'
         when:
           $ref: '#/components/schemas/InstallOptionWhen'
-    Package:
+    App:
       type: object
       properties:
         id:
@@ -157,7 +157,7 @@ components:
           type: string
         icon:
           type: string
-          description: URL path to the package icon bundled with the brrewery frontend.
+          description: URL path to the app icon bundled with the brrewery frontend.
         web_path:
           type: string
           description: Reverse-proxy path used to open the installed application.
@@ -178,22 +178,22 @@ components:
           $ref: '#/components/schemas/DetectionSpec'
         playbooks:
           $ref: '#/components/schemas/PlaybookPaths'
-    PackageStatus:
+    AppStatus:
       allOf:
-        - $ref: '#/components/schemas/Package'
+        - $ref: '#/components/schemas/App'
         - type: object
           properties:
             installed:
               type: boolean
             dependencies_satisfied:
               type: boolean
-    PackageListResponse:
+    AppListResponse:
       type: object
       properties:
-        packages:
+        apps:
           type: array
           items:
-            $ref: '#/components/schemas/PackageStatus'
+            $ref: '#/components/schemas/AppStatus'
     JobAction:
       type: string
       enum: [install, upgrade, remove]
@@ -202,11 +202,11 @@ components:
       enum: [queued, running, succeeded, failed]
     Job:
       type: object
-      required: [id, package_id, action, status, started_at]
+      required: [id, app_id, action, status, started_at]
       properties:
         id:
           type: string
-        package_id:
+        app_id:
           type: string
         action:
           $ref: '#/components/schemas/JobAction'
@@ -461,27 +461,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/packages:
+  /api/v1/apps:
     get:
-      summary: List packages
+      summary: List apps
       security:
         - SessionAuth: []
       responses:
         '200':
-          description: Package list
+          description: App list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PackageListResponse'
+                $ref: '#/components/schemas/AppListResponse'
         '401':
           description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/packages/{id}:
+  /api/v1/apps/{id}:
     get:
-      summary: Get package by ID
+      summary: Get app by ID
       security:
         - SessionAuth: []
       parameters:
@@ -492,18 +492,18 @@ paths:
             type: string
       responses:
         '200':
-          description: Package detail
+          description: App detail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PackageStatus'
+                $ref: '#/components/schemas/AppStatus'
         '401':
           description: Unauthorized
         '404':
           description: Not found
-  /api/v1/packages/{id}/install:
+  /api/v1/apps/{id}/install:
     post:
-      summary: Start package install job
+      summary: Start app install job
       security:
         - SessionAuth: []
       parameters:
@@ -532,20 +532,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Package not found
+          description: App not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Package already installed or dependencies not satisfied
+          description: App already installed or dependencies not satisfied
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/packages/{id}/upgrade:
+  /api/v1/apps/{id}/upgrade:
     post:
-      summary: Start package upgrade job
+      summary: Start app upgrade job
       security:
         - SessionAuth: []
       parameters:
@@ -574,20 +574,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Package not found
+          description: App not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Package not installed
+          description: App not installed
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/packages/{id}/remove:
+  /api/v1/apps/{id}/remove:
     post:
-      summary: Start package remove job
+      summary: Start app remove job
       security:
         - SessionAuth: []
       parameters:
@@ -616,13 +616,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Package not found
+          description: App not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Package not installed
+          description: App not installed
           content:
             application/json:
               schema:

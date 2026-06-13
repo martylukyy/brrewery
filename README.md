@@ -1,6 +1,6 @@
 # brrewery
 
-Web interface for installing, managing, and monitoring packages on amd64 Linux hosts.
+Web interface for installing, managing, and monitoring apps on amd64 Linux hosts.
 
 brrewery is a successor-style project to [swizzin](https://github.com/swizzin/swizzin), built with a Go backend and React frontend in the [autobrr](https://github.com/autobrr) project style.
 

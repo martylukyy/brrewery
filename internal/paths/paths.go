@@ -50,7 +50,7 @@ func ResolveJobsDir() string {
 	return JobsDir
 }
 
-// ResolveAnsibleRoot returns the ansible tree used for package playbooks.
+// ResolveAnsibleRoot returns the ansible tree used for app playbooks.
 func ResolveAnsibleRoot() string {
 	if env := strings.TrimSpace(os.Getenv("BRREWERY_ANSIBLE_ROOT")); env != "" {
 		return env
@@ -162,7 +162,7 @@ func repoRootFromSource() string {
 }
 
 func isAnsibleRoot(path string) bool {
-	info, err := os.Stat(filepath.Join(path, "playbooks", "packages"))
+	info, err := os.Stat(filepath.Join(path, "playbooks", "apps"))
 	return err == nil && info.IsDir()
 }
 

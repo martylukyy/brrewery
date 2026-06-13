@@ -2,11 +2,11 @@
 - name: Validate nginx site role variables
   ansible.builtin.assert:
     that:
-      - brrewery_package_id | length > 0
-    fail_msg: brrewery_nginx_site remove requires brrewery_package_id
+      - brrewery_app_id | length > 0
+    fail_msg: brrewery_nginx_site remove requires brrewery_app_id
 
-- name: Remove package nginx location
+- name: Remove app nginx location
   ansible.builtin.file:
-    path: "{{ brrewery_nginx_packages_dir }}/{{ brrewery_package_id }}.conf"
+    path: "{{ brrewery_nginx_apps_dir }}/{{ brrewery_app_id }}.conf"
     state: absent
   notify: Reload nginx

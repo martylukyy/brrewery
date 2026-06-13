@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Dashboard } from "@/components/dashboard";
 import { InstallOptionsModal, requiredInstallOptions } from "@/components/install-options-modal";
 import { InstallSecretsModal, requiredSecrets } from "@/components/install-secrets-modal";
-import { ManagePackagesModal, type ManagePackagesConfirm } from "@/components/manage-packages-modal";
-import { PackageJobModal } from "@/components/package-job-modal";
-import { PackageNav } from "@/components/package-nav";
+import { ManageAppsModal, type ManageAppsConfirm } from "@/components/manage-apps-modal";
+import { AppJobModal } from "@/components/app-job-modal";
+import { AppNav } from "@/components/app-nav";
 import { useAuth } from "@/hooks/use-auth";
-import { listPackages, type JobAction } from "@/lib/api";
+import { listApps, type JobAction } from "@/lib/api";
 
 type ManagePhase = "select" | "secrets" | "options" | "job";
 
@@ -17,51 +17,51 @@ export function AppShell() {
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<ManagePhase | null>(null);
   const [pendingAction, setPendingAction] = useState<JobAction>("install");
-  const [pendingPackageIds, setPendingPackageIds] = useState<string[]>([]);
+  const [pendingAppIds, setPendingAppIds] = useState<string[]>([]);
   const [jobQueueTotal, setJobQueueTotal] = useState(0);
   const [jobExtraVars, setJobExtraVars] = useState<Record<string, string>>({});
 
-  const packages = useQuery({
-    queryKey: ["packages"],
-    queryFn: listPackages,
+  const apps = useQuery({
+    queryKey: ["apps"],
+    queryFn: listApps,
   });
 
-  const packageList = packages.data?.packages ?? [];
+  const appList = apps.data?.apps ?? [];
 
-  function beginPackageJobs({ action, packageIds }: ManagePackagesConfirm) {
-    if (packageIds.length === 0) {
+  function beginAppJobs({ action, appIds }: ManageAppsConfirm) {
+    if (appIds.length === 0) {
       return;
     }
     setPendingAction(action);
-    setJobQueueTotal(packageIds.length);
-    setPendingPackageIds(packageIds);
+    setJobQueueTotal(appIds.length);
+    setPendingAppIds(appIds);
     setJobExtraVars({});
-    if (action === "install" && requiredSecrets(packageList, packageIds).length > 0) {
+    if (action === "install" && requiredSecrets(appList, appIds).length > 0) {
       setPhase("secrets");
       return;
     }
-    if (needsOptions(action, packageIds)) {
+    if (needsOptions(action, appIds)) {
       setPhase("options");
       return;
     }
     setPhase("job");
   }
 
-  function needsOptions(action: JobAction, packageIds: string[]): boolean {
+  function needsOptions(action: JobAction, appIds: string[]): boolean {
     return (action === "install" || action === "upgrade") &&
-      requiredInstallOptions(packageList, packageIds).length > 0;
+      requiredInstallOptions(appList, appIds).length > 0;
   }
 
   function finishManageFlow() {
     setPhase(null);
-    setPendingPackageIds([]);
+    setPendingAppIds([]);
     setJobQueueTotal(0);
     setJobExtraVars({});
   }
 
   function handleSecretsConfirm(extraVars: Record<string, string>) {
     setJobExtraVars(extraVars);
-    if (needsOptions(pendingAction, pendingPackageIds)) {
+    if (needsOptions(pendingAction, pendingAppIds)) {
       setPhase("options");
       return;
     }
@@ -73,35 +73,35 @@ export function AppShell() {
     setPhase("job");
   }
 
-  function handleJobFinished(packageId: string) {
-    setPendingPackageIds((current) => {
-      const remaining = current.filter((id) => id !== packageId);
+  function handleJobFinished(appId: string) {
+    setPendingAppIds((current) => {
+      const remaining = current.filter((id) => id !== appId);
       if (remaining.length === 0) {
         setPhase(null);
         setJobQueueTotal(0);
         setJobExtraVars({});
-        void queryClient.invalidateQueries({ queryKey: ["packages"] });
+        void queryClient.invalidateQueries({ queryKey: ["apps"] });
       }
       return remaining;
     });
   }
 
-  const activePackageId = pendingPackageIds[0];
-  const queuePosition = jobQueueTotal - pendingPackageIds.length + 1;
+  const activeAppId = pendingAppIds[0];
+  const queuePosition = jobQueueTotal - pendingAppIds.length + 1;
 
   return (
     <div className="flex h-screen overflow-hidden">
       <aside className="flex h-full min-h-0 w-56 shrink-0 flex-col border-r border-zinc-800 lg:w-64">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {packages.isLoading && (
-            <p className="p-3 text-sm text-zinc-500">Loading packages…</p>
+          {apps.isLoading && (
+            <p className="p-3 text-sm text-zinc-500">Loading apps…</p>
           )}
-          {packages.isError && (
-            <p className="p-3 text-sm text-red-400">{packages.error.message}</p>
+          {apps.isError && (
+            <p className="p-3 text-sm text-red-400">{apps.error.message}</p>
           )}
-          {packages.data && (
-            <PackageNav
-              packages={packageList}
+          {apps.data && (
+            <AppNav
+              apps={appList}
               onManageClick={() => setPhase("select")}
             />
           )}
@@ -128,37 +128,37 @@ export function AppShell() {
       </main>
 
       {phase === "select" && (
-        <ManagePackagesModal
-          packages={packageList}
+        <ManageAppsModal
+          apps={appList}
           onClose={() => setPhase(null)}
-          onConfirm={beginPackageJobs}
+          onConfirm={beginAppJobs}
         />
       )}
 
-      {phase === "secrets" && pendingPackageIds.length > 0 && (
+      {phase === "secrets" && pendingAppIds.length > 0 && (
         <InstallSecretsModal
-          packageIds={pendingPackageIds}
-          packages={packageList}
+          appIds={pendingAppIds}
+          apps={appList}
           onClose={finishManageFlow}
           onConfirm={handleSecretsConfirm}
         />
       )}
 
-      {phase === "options" && pendingPackageIds.length > 0 && (
+      {phase === "options" && pendingAppIds.length > 0 && (
         <InstallOptionsModal
-          packageIds={pendingPackageIds}
-          packages={packageList}
+          appIds={pendingAppIds}
+          apps={appList}
           onClose={finishManageFlow}
           onConfirm={handleOptionsConfirm}
         />
       )}
 
-      {phase === "job" && activePackageId && (
-        <PackageJobModal
-          key={`${pendingAction}-${activePackageId}`}
+      {phase === "job" && activeAppId && (
+        <AppJobModal
+          key={`${pendingAction}-${activeAppId}`}
           action={pendingAction}
-          packageIds={[activePackageId]}
-          packages={packageList}
+          appIds={[activeAppId]}
+          apps={appList}
           extraVars={jobExtraVars}
           queuePosition={queuePosition}
           queueTotal={jobQueueTotal}

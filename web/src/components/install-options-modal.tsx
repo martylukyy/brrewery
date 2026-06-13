@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { InstallOption, PackageStatus } from "@/lib/api";
+import type { InstallOption, AppStatus } from "@/lib/api";
 
 const VERSION_KEY = "qbittorrent_version";
 const BRANCH_KEY = "libtorrent_branch";
@@ -8,21 +8,21 @@ const PATCH_KEY = "libtorrent_patch";
 const MAX_PATCH_BYTES = 512 * 1024;
 
 type Props = {
-  packageIds: string[];
-  packages: PackageStatus[];
+  appIds: string[];
+  apps: AppStatus[];
   onClose: () => void;
   onConfirm: (extraVars: Record<string, string>) => void;
 };
 
 /**
  * requiredInstallOptions returns the install options of the first selected
- * package that declares any. Only qBittorrent does today.
+ * app that declares any. Only qBittorrent does today.
  */
-export function requiredInstallOptions(packages: PackageStatus[], packageIds: string[]): InstallOption[] {
-  for (const id of packageIds) {
-    const pkg = packages.find((entry) => entry.id === id);
-    if (pkg?.install_options?.length) {
-      return pkg.install_options;
+export function requiredInstallOptions(apps: AppStatus[], appIds: string[]): InstallOption[] {
+  for (const id of appIds) {
+    const app = apps.find((entry) => entry.id === id);
+    if (app?.install_options?.length) {
+      return app.install_options;
     }
   }
   return [];
@@ -45,13 +45,13 @@ function readFileAsBase64(file: File): Promise<string> {
   });
 }
 
-export function InstallOptionsModal({ packageIds, packages, onClose, onConfirm }: Props) {
-  const options = useMemo(() => requiredInstallOptions(packages, packageIds), [packages, packageIds]);
+export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props) {
+  const options = useMemo(() => requiredInstallOptions(apps, appIds), [apps, appIds]);
   const versionOption = optionByKey(options, VERSION_KEY);
   const branchOption = optionByKey(options, BRANCH_KEY);
 
-  const packageNames = packageIds
-    .map((id) => packages.find((pkg) => pkg.id === id)?.name ?? id)
+  const appNames = appIds
+    .map((id) => apps.find((app) => app.id === id)?.name ?? id)
     .join(", ");
 
   const [step, setStep] = useState<"version" | "libtorrent">("version");
@@ -146,7 +146,7 @@ export function InstallOptionsModal({ packageIds, packages, onClose, onConfirm }
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
             {step === "version"
-              ? `Select the qBittorrent release to build for ${packageNames}.`
+              ? `Select the qBittorrent release to build for ${appNames}.`
               : "Pick the libtorrent line and optionally supply a custom patch."}
           </p>
         </div>

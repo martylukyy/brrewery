@@ -1,0 +1,225 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    sonarr_install_dir: /opt/Sonarr
+    sonarr_port: 8989
+    # Sonarr is distributed as a self-contained .NET tarball from its own download
+    # service (not GitHub releases). v4, linux, amd64.
+    sonarr_download_url: "https://services.sonarr.tv/v1/download/main/latest?version=4&os=linux&arch=x64"
+  roles:
+    - brrewery_user
+  tasks:
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Ensure brrewery user home directory exists
+      ansible.builtin.stat:
+        path: "{{ brrewery_home }}"
+      register: brrewery_home_dir
+
+    - name: Fail when brrewery user home is missing
+      ansible.builtin.fail:
+        msg: "Home directory {{ brrewery_home }} for user {{ brrewery_user }} does not exist"
+      when: not brrewery_home_dir.stat.exists
+
+    - name: Require brrewery user password for Sonarr authentication
+      ansible.builtin.assert:
+        that:
+          - brrewery_user_password is defined
+          - brrewery_user_password | length > 0
+        fail_msg: brrewery_user_password must be supplied for sonarr install
+
+    - name: Install Sonarr runtime dependencies
+      ansible.builtin.apt:
+        # libicu-dev pulls in the matching ICU runtime, which Sonarr's bundled
+        # .NET requires for globalization (it does not run in invariant mode).
+        name: libicu-dev
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"
+
+    - name: Stop Sonarr before replacing files
+      ansible.builtin.systemd:
+        name: "sonarr@{{ brrewery_user }}.service"
+        state: stopped
+      failed_when: false
+
+    - name: Download Sonarr release archive
+      ansible.builtin.get_url:
+        url: "{{ sonarr_download_url }}"
+        dest: /tmp/sonarr.tar.gz
+        mode: "0644"
+
+    - name: Remove previous Sonarr installation
+      ansible.builtin.file:
+        path: "{{ sonarr_install_dir }}"
+        state: absent
+
+    - name: Ensure /opt exists
+      ansible.builtin.file:
+        path: /opt
+        state: directory
+        mode: "0755"
+
+    - name: Extract Sonarr into /opt
+      ansible.builtin.unarchive:
+        src: /tmp/sonarr.tar.gz
+        dest: /opt
+        remote_src: true
+
+    - name: Set ownership of Sonarr installation
+      ansible.builtin.file:
+        path: "{{ sonarr_install_dir }}"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        recurse: true
+
+    - name: Ensure Sonarr data directory exists
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/.config/sonarr"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0750"
+
+    - name: Generate Sonarr API key
+      ansible.builtin.command: openssl rand -hex 16
+      register: sonarr_api_key_gen
+      changed_when: false
+
+    - name: Write Sonarr config
+      ansible.builtin.copy:
+        dest: "{{ brrewery_home }}/.config/sonarr/config.xml"
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0640"
+        # Never clobber an existing config: the seeded ApiKey and the login user
+        # Sonarr stores must survive re-runs. Forms auth is enforced for every
+        # request (Enabled, not DisabledForLocalAddresses) so the proxied login
+        # actually applies; the user itself is provisioned via the API below.
+        force: false
+        content: |
+          <Config>
+            <BindAddress>127.0.0.1</BindAddress>
+            <Port>{{ sonarr_port }}</Port>
+            <UrlBase>sonarr</UrlBase>
+            <ApiKey>{{ sonarr_api_key_gen.stdout }}</ApiKey>
+            <LaunchBrowser>False</LaunchBrowser>
+            <AuthenticationMethod>Forms</AuthenticationMethod>
+            <AuthenticationRequired>Enabled</AuthenticationRequired>
+            <Branch>main</Branch>
+            <LogLevel>info</LogLevel>
+            <AnalyticsEnabled>False</AnalyticsEnabled>
+          </Config>
+
+    - name: Install Sonarr systemd template unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/sonarr@.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Sonarr service for %i
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=%i
+          ExecStart={{ sonarr_install_dir }}/Sonarr -nobrowser -data=/home/%i/.config/sonarr
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Reload systemd
+
+    - name: Enable and start Sonarr for brrewery user
+      ansible.builtin.systemd:
+        name: "sonarr@{{ brrewery_user }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Read Sonarr config to resolve the API key
+      ansible.builtin.slurp:
+        src: "{{ brrewery_home }}/.config/sonarr/config.xml"
+      register: sonarr_config_raw
+
+    - name: Set Sonarr API key fact
+      ansible.builtin.set_fact:
+        sonarr_api_key: "{{ (sonarr_config_raw.content | b64decode | regex_findall('<ApiKey>([^<]+)</ApiKey>')) | first }}"
+      no_log: true
+
+    - name: Wait for the Sonarr API to be ready
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ sonarr_port }}/sonarr/api/v3/config/host"
+        method: GET
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        status_code: 200
+      register: sonarr_host_config
+      until: sonarr_host_config.status == 200
+      retries: 30
+      delay: 5
+
+    - name: Build Sonarr authentication overrides
+      ansible.builtin.set_fact:
+        sonarr_auth_overrides:
+          authenticationMethod: forms
+          authenticationRequired: enabled
+          username: "{{ brrewery_user }}"
+          password: "{{ brrewery_user_password }}"
+          passwordConfirmation: "{{ brrewery_user_password }}"
+      no_log: true
+
+    - name: Configure Sonarr forms authentication with brrewery credentials
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ sonarr_port }}/sonarr/api/v3/config/host/{{ sonarr_host_config.json.id }}"
+        method: PUT
+        headers:
+          X-Api-Key: "{{ sonarr_api_key }}"
+        body_format: json
+        body: "{{ sonarr_host_config.json | combine(sonarr_auth_overrides) }}"
+        status_code: [200, 202]
+      register: sonarr_auth_set
+      no_log: true
+      when: >-
+        sonarr_host_config.json.authenticationMethod | lower != 'forms'
+        or (sonarr_host_config.json.username | default('')) != brrewery_user
+
+    - name: Restart Sonarr to apply authentication
+      ansible.builtin.systemd:
+        name: "sonarr@{{ brrewery_user }}.service"
+        state: restarted
+      when: sonarr_auth_set is changed
+
+    - name: Wait for Sonarr to come back up after restart
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ sonarr_port }}"
+        timeout: 120
+      when: sonarr_auth_set is changed
+
+    - name: Configure nginx reverse proxy for sonarr
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: sonarr
+        brrewery_app_web_path: /sonarr/
+        brrewery_app_upstream: http://127.0.0.1:{{ sonarr_port }}
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

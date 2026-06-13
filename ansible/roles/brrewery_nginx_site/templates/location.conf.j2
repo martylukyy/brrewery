@@ -1,16 +1,16 @@
-# Managed by brrewery — {{ brrewery_package_id }}
-{% if brrewery_package_web_path.endswith('/') and brrewery_package_web_path != '/' %}
-location = {{ brrewery_package_web_path[:-1] }} {
-    return 301 {{ brrewery_package_web_path }};
+# Managed by brrewery — {{ brrewery_app_id }}
+{% if brrewery_app_web_path.endswith('/') and brrewery_app_web_path != '/' %}
+location = {{ brrewery_app_web_path[:-1] }} {
+    return 301 {{ brrewery_app_web_path }};
 }
 {% endif %}
-location ^~ {{ brrewery_package_web_path }} {
+location ^~ {{ brrewery_app_web_path }} {
     include /etc/nginx/nginxconfig.io/proxy.conf;
     proxy_set_header X-Forwarded-Host $http_host;
-{% if brrewery_package_strip_path_prefix | bool %}
+{% if brrewery_app_strip_path_prefix | bool %}
     proxy_set_header Host $proxy_host;
-    proxy_pass {{ brrewery_package_upstream | regex_replace('/$', '') }}/;
+    proxy_pass {{ brrewery_app_upstream | regex_replace('/$', '') }}/;
 {% else %}
-    proxy_pass {{ brrewery_package_upstream }};
+    proxy_pass {{ brrewery_app_upstream }};
 {% endif %}
 }

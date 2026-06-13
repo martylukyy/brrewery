@@ -3,11 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { InstallOptionsModal } from "@/components/install-options-modal";
-import type { PackageStatus } from "@/lib/api";
+import type { AppStatus } from "@/lib/api";
 
 const branchVersions = ["4.4", "4.5", "4.6", "5.0", "5.1", "5.2"];
 
-const packages: PackageStatus[] = [
+const apps: AppStatus[] = [
   {
     id: "qbittorrent",
     name: "qBittorrent",
@@ -43,8 +43,8 @@ const packages: PackageStatus[] = [
 function renderModal(onConfirm = vi.fn()) {
   render(
     <InstallOptionsModal
-      packageIds={["qbittorrent"]}
-      packages={packages}
+      appIds={["qbittorrent"]}
+      apps={apps}
       onClose={() => {}}
       onConfirm={onConfirm}
     />,

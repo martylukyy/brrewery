@@ -22,12 +22,12 @@ import (
 	"golang.org/x/term"
 
 	"github.com/autobrr/brrewery/internal/api"
+	appsdomain "github.com/autobrr/brrewery/internal/apps"
+	"github.com/autobrr/brrewery/internal/apps/ansible"
+	"github.com/autobrr/brrewery/internal/apps/detect"
+	"github.com/autobrr/brrewery/internal/apps/jobs"
 	"github.com/autobrr/brrewery/internal/auth"
 	"github.com/autobrr/brrewery/internal/buildinfo"
-	pkgdomain "github.com/autobrr/brrewery/internal/packages"
-	"github.com/autobrr/brrewery/internal/packages/ansible"
-	"github.com/autobrr/brrewery/internal/packages/detect"
-	"github.com/autobrr/brrewery/internal/packages/jobs"
 	"github.com/autobrr/brrewery/internal/paths"
 	"github.com/autobrr/brrewery/internal/system"
 	"github.com/autobrr/brrewery/internal/vnstat"
@@ -39,7 +39,7 @@ var errOSPasswordVerificationFailed = errors.New("OS password verification faile
 func main() {
 	root := &cobra.Command{
 		Use:   "brrewery",
-		Short: "Package management web interface",
+		Short: "App management web interface",
 	}
 	root.AddCommand(runServe())
 	root.AddCommand(runVersion())
@@ -66,7 +66,7 @@ func runServe() *cobra.Command {
 			session := auth.NewSessionManager(secret)
 			store := auth.NewFileStore(paths.UserStorePath)
 			authService := auth.NewService(store, session)
-			packagesService := pkgdomain.NewServiceWithDeps(
+			appsService := appsdomain.NewServiceWithDeps(
 				detect.NewEvaluator(),
 				ansible.NewRunner(paths.ResolveAnsibleRoot()),
 				jobs.NewStoreAt(paths.ResolveJobsDir()),
@@ -81,7 +81,7 @@ func runServe() *cobra.Command {
 				&logger,
 				authService,
 				session,
-				packagesService,
+				appsService,
 				system.NewCollector(),
 				vnstat.NewCollector(),
 				embedFS,

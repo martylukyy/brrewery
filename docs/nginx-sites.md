@@ -23,20 +23,20 @@ nginx -t && systemctl reload nginx
 | `/` | Static SPA at `/var/www/brrewery` |
 | `/api/` | Go backend `127.0.0.1:8080` |
 | `/health` | Go backend health endpoint |
-| `/autobrr/` (and other installed apps) | Reverse-proxied via snippets in `/etc/nginx/brrewery/packages/` |
+| `/autobrr/` (and other installed apps) | Reverse-proxied via snippets in `/etc/nginx/brrewery/apps/` |
 
 HTTP (port 80) redirects to HTTPS (port 443). TLS material defaults to `/etc/ssl/brrewery/fullchain.pem` and `privkey.pem` (self-signed on first install).
 
-## Package reverse proxies
+## App reverse proxies
 
-Installed packages add nginx location snippets under `/etc/nginx/brrewery/packages/` via the Ansible `brrewery_nginx_site` role. The dashboard vhost includes them before the SPA catch-all:
+Installed apps add nginx location snippets under `/etc/nginx/brrewery/apps/` via the Ansible `brrewery_nginx_site` role. The dashboard vhost includes them before the SPA catch-all:
 
 ```nginx
-include /etc/nginx/brrewery/packages/*.conf;
+include /etc/nginx/brrewery/apps/*.conf;
 ```
 
 ## nginxconfig.io snippets
 
 Shared snippets are under `nginxconfig.io/` (`general.conf`, `security.conf`, `proxy.conf`, `ssl.conf`), following the [nginxconfig.io](https://github.com/digitalocean/nginxconfig.io) layout.
 
-Per-package reverse-proxy snippets are installed by Ansible playbooks using the `brrewery_nginx_site` role.
+Per-app reverse-proxy snippets are installed by Ansible playbooks using the `brrewery_nginx_site` role.

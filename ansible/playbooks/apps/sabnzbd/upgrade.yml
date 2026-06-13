@@ -1,0 +1,77 @@
+---
+# Upgrades the source install: pull the latest master, refresh the venv
+# requirements, recompile translations, and restart the service.
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    sabnzbd_install_dir: /opt/sabnzbd
+    sabnzbd_venv_dir: /opt/sabnzbd/venv
+    sabnzbd_repo: https://github.com/sabnzbd/sabnzbd.git
+    sabnzbd_port: 8085
+  roles:
+    - brrewery_user
+  tasks:
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Pull latest SABnzbd master
+      ansible.builtin.git:
+        repo: "{{ sabnzbd_repo }}"
+        dest: "{{ sabnzbd_install_dir }}"
+        version: master
+        depth: 1
+        force: true
+      notify: Restart SABnzbd
+
+    - name: Upgrade pip and wheel in the virtualenv
+      ansible.builtin.pip:
+        name:
+          - pip
+          - wheel
+        state: latest
+        virtualenv: "{{ sabnzbd_venv_dir }}"
+
+    - name: Update SABnzbd Python requirements in the virtualenv
+      ansible.builtin.pip:
+        requirements: "{{ sabnzbd_install_dir }}/requirements.txt"
+        virtualenv: "{{ sabnzbd_venv_dir }}"
+        extra_args: --upgrade
+      notify: Restart SABnzbd
+
+    - name: Compile SABnzbd translations
+      ansible.builtin.command:
+        cmd: "{{ sabnzbd_venv_dir }}/bin/python tools/make_mo.py"
+        chdir: "{{ sabnzbd_install_dir }}"
+      changed_when: true
+      failed_when: false
+
+    - name: Ensure SABnzbd url_base is configured
+      ansible.builtin.lineinfile:
+        path: "{{ brrewery_home }}/.config/sabnzbd/sabnzbd.ini"
+        regexp: '^url_base\s*='
+        line: "url_base = /sabnzbd"
+        insertafter: '^\[misc\]'
+      notify: Restart SABnzbd
+
+    - name: Configure nginx reverse proxy for SABnzbd
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: sabnzbd
+        brrewery_app_web_path: /sabnzbd/
+        brrewery_app_upstream: http://127.0.0.1:{{ sabnzbd_port }}
+
+  handlers:
+    - name: Restart SABnzbd
+      ansible.builtin.systemd:
+        name: "sabnzbd@{{ brrewery_user }}.service"
+        state: restarted

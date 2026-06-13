@@ -5,16 +5,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	appsdomain "github.com/autobrr/brrewery/internal/apps"
+	"github.com/autobrr/brrewery/internal/apps/model"
 	"github.com/autobrr/brrewery/internal/httputil"
-	pkgdomain "github.com/autobrr/brrewery/internal/packages"
-	"github.com/autobrr/brrewery/internal/packages/model"
 )
 
 type JobsHandler struct {
-	service *pkgdomain.Service
+	service *appsdomain.Service
 }
 
-func NewJobsHandler(service *pkgdomain.Service) *JobsHandler {
+func NewJobsHandler(service *appsdomain.Service) *JobsHandler {
 	return &JobsHandler{service: service}
 }
 

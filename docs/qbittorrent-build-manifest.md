@@ -35,7 +35,7 @@ and compiled by `ansible/roles/qbittorrent_build/tasks/vendor.yml`:
 
 The Go API reads the manifest for the install wizard and validation; Ansible
 reads it to drive the build. Version resolution runs inside brrewery when a
-package job starts.
+app job starts.
 
 ## Maintainers
 

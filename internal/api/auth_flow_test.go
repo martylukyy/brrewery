@@ -14,8 +14,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/autobrr/brrewery/internal/api"
+	appsdomain "github.com/autobrr/brrewery/internal/apps"
 	"github.com/autobrr/brrewery/internal/auth"
-	pkgdomain "github.com/autobrr/brrewery/internal/packages"
 	"github.com/autobrr/brrewery/internal/system"
 	"github.com/autobrr/brrewery/internal/vnstat"
 )
@@ -44,7 +44,7 @@ func TestLoginThenVersionWithSessionCookie(t *testing.T) {
 		&logger,
 		authService,
 		session,
-		pkgdomain.NewService(),
+		appsdomain.NewService(),
 		system.NewCollector(),
 		vnstat.NewCollector(),
 		nil,

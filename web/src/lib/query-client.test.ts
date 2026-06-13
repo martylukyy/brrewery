@@ -14,8 +14,8 @@ describe("createQueryClient", () => {
 
     await client
       .fetchQuery({
-        queryKey: ["packages"],
-        queryFn: () => Promise.reject(new ApiError("Unauthorized", 401, "/packages")),
+        queryKey: ["apps"],
+        queryFn: () => Promise.reject(new ApiError("Unauthorized", 401, "/apps")),
         retry: false,
       })
       .catch(() => {});

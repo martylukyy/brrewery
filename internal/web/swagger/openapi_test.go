@@ -41,7 +41,7 @@ func TestOpenAPISpec(t *testing.T) {
 	schemas, ok := components["schemas"].(map[string]any)
 	require.True(t, ok)
 
-	for _, name := range []string{"LoginRequest", "Package", "PackageListResponse", "ErrorResponse"} {
+	for _, name := range []string{"LoginRequest", "App", "AppListResponse", "ErrorResponse"} {
 		require.NotNil(t, schemas[name], "missing schema %s", name)
 	}
 }

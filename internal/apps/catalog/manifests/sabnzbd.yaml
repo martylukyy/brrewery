@@ -1,0 +1,14 @@
+# SABnzbd is installed from source ("off modules"): the master branch is cloned
+# to /opt/sabnzbd and its Python dependencies are installed into a venv there,
+# then run as a per-user systemd service. See ansible/playbooks/apps/sabnzbd.
+id: sabnzbd
+name: SABnzbd
+description: Usenet downloader
+category: download
+web_path: /sabnzbd/
+requires_account_password: true
+detection:
+  paths:
+    - /opt/sabnzbd/SABnzbd.py
+  systemd_user_units:
+    - "sabnzbd@{user}.service"

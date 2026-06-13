@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/autobrr/brrewery/internal/api"
+	appsdomain "github.com/autobrr/brrewery/internal/apps"
+	"github.com/autobrr/brrewery/internal/apps/ansible"
+	"github.com/autobrr/brrewery/internal/apps/detect"
+	"github.com/autobrr/brrewery/internal/apps/jobs"
+	"github.com/autobrr/brrewery/internal/apps/model"
 	"github.com/autobrr/brrewery/internal/auth"
-	pkgdomain "github.com/autobrr/brrewery/internal/packages"
-	"github.com/autobrr/brrewery/internal/packages/ansible"
-	"github.com/autobrr/brrewery/internal/packages/detect"
-	"github.com/autobrr/brrewery/internal/packages/jobs"
-	"github.com/autobrr/brrewery/internal/packages/model"
 	"github.com/autobrr/brrewery/internal/system"
 	"github.com/autobrr/brrewery/internal/vnstat"
 )
@@ -33,7 +33,7 @@ func (stubRunner) Run(_ context.Context, _ ansible.RunRequest) error {
 	return nil
 }
 
-func TestInstallPackageEndpoint(t *testing.T) {
+func TestInstallAppEndpoint(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -50,7 +50,7 @@ func TestInstallPackageEndpoint(t *testing.T) {
 	authService := auth.NewService(store, session)
 	logger := zerolog.New(io.Discard)
 
-	packagesService := pkgdomain.NewServiceWithDeps(
+	appsService := appsdomain.NewServiceWithDeps(
 		detect.NewEvaluator(),
 		stubRunner{},
 		jobs.NewStore(),
@@ -60,7 +60,7 @@ func TestInstallPackageEndpoint(t *testing.T) {
 		&logger,
 		authService,
 		session,
-		packagesService,
+		appsService,
 		system.NewCollector(),
 		vnstat.NewCollector(),
 		nil,
@@ -93,7 +93,7 @@ func TestInstallPackageEndpoint(t *testing.T) {
 			"ansible_become_password": "password123",
 		},
 	})
-	installReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/packages/autobrr/install", bytes.NewReader(installBody))
+	installReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/apps/autobrr/install", bytes.NewReader(installBody))
 	require.NoError(t, err)
 	installReq.Header.Set("Content-Type", "application/json")
 	installRes, err := client.Do(installReq)
@@ -112,7 +112,7 @@ func TestInstallPackageEndpoint(t *testing.T) {
 	require.NotEmpty(t, resp.JobID)
 }
 
-func TestInstallPackageEndpoint_InvalidPassword(t *testing.T) {
+func TestInstallAppEndpoint_InvalidPassword(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -129,7 +129,7 @@ func TestInstallPackageEndpoint_InvalidPassword(t *testing.T) {
 	authService := auth.NewService(store, session)
 	logger := zerolog.New(io.Discard)
 
-	packagesService := pkgdomain.NewServiceWithDeps(
+	appsService := appsdomain.NewServiceWithDeps(
 		detect.NewEvaluator(),
 		stubRunner{},
 		jobs.NewStore(),
@@ -139,7 +139,7 @@ func TestInstallPackageEndpoint_InvalidPassword(t *testing.T) {
 		&logger,
 		authService,
 		session,
-		packagesService,
+		appsService,
 		system.NewCollector(),
 		vnstat.NewCollector(),
 		nil,
@@ -169,7 +169,7 @@ func TestInstallPackageEndpoint_InvalidPassword(t *testing.T) {
 			"ansible_become_password": "wrong-password",
 		},
 	})
-	installReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/packages/autobrr/install", bytes.NewReader(installBody))
+	installReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/apps/autobrr/install", bytes.NewReader(installBody))
 	require.NoError(t, err)
 	installReq.Header.Set("Content-Type", "application/json")
 	installRes, err := client.Do(installReq)
@@ -196,8 +196,8 @@ func newLoggedInClient(t *testing.T) (client *http.Client, baseURL string) {
 	authService := auth.NewService(store, session)
 	logger := zerolog.New(io.Discard)
 
-	packagesService := pkgdomain.NewServiceWithDeps(detect.NewEvaluator(), stubRunner{}, jobs.NewStore())
-	srv := api.NewServer(&logger, authService, session, packagesService, system.NewCollector(), vnstat.NewCollector(), nil)
+	appsService := appsdomain.NewServiceWithDeps(detect.NewEvaluator(), stubRunner{}, jobs.NewStore())
+	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), vnstat.NewCollector(), nil)
 
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
@@ -239,7 +239,7 @@ func TestQbittorrentInstallOptionValidation(t *testing.T) {
 	)
 
 	t.Run("valid options accepted", func(t *testing.T) {
-		res := postJSON(t, client, baseURL+"/api/v1/packages/qbittorrent/install", map[string]any{
+		res := postJSON(t, client, baseURL+"/api/v1/apps/qbittorrent/install", map[string]any{
 			"extra_vars": map[string]string{
 				"ansible_become_password": "password123",
 				"qbittorrent_version":     "5.2",
@@ -252,7 +252,7 @@ func TestQbittorrentInstallOptionValidation(t *testing.T) {
 	})
 
 	t.Run("missing password rejected", func(t *testing.T) {
-		res := postJSON(t, client, baseURL+"/api/v1/packages/qbittorrent/install", map[string]any{
+		res := postJSON(t, client, baseURL+"/api/v1/apps/qbittorrent/install", map[string]any{
 			"extra_vars": map[string]string{"qbittorrent_version": "5.2"},
 		})
 		defer res.Body.Close()
@@ -260,7 +260,7 @@ func TestQbittorrentInstallOptionValidation(t *testing.T) {
 	})
 
 	t.Run("unknown version rejected", func(t *testing.T) {
-		res := postJSON(t, client, baseURL+"/api/v1/packages/qbittorrent/install", map[string]any{
+		res := postJSON(t, client, baseURL+"/api/v1/apps/qbittorrent/install", map[string]any{
 			"extra_vars": map[string]string{
 				"ansible_become_password": "password123",
 				"qbittorrent_version":     "9.9",
@@ -271,7 +271,7 @@ func TestQbittorrentInstallOptionValidation(t *testing.T) {
 	})
 
 	t.Run("disallowed branch rejected", func(t *testing.T) {
-		res := postJSON(t, client, baseURL+"/api/v1/packages/qbittorrent/install", map[string]any{
+		res := postJSON(t, client, baseURL+"/api/v1/apps/qbittorrent/install", map[string]any{
 			"extra_vars": map[string]string{
 				"ansible_become_password": "password123",
 				"qbittorrent_version":     "4.3",
@@ -283,7 +283,7 @@ func TestQbittorrentInstallOptionValidation(t *testing.T) {
 	})
 
 	t.Run("invalid patch rejected", func(t *testing.T) {
-		res := postJSON(t, client, baseURL+"/api/v1/packages/qbittorrent/install", map[string]any{
+		res := postJSON(t, client, baseURL+"/api/v1/apps/qbittorrent/install", map[string]any{
 			"extra_vars": map[string]string{
 				"ansible_become_password": "password123",
 				"qbittorrent_version":     "5.2",
@@ -295,7 +295,7 @@ func TestQbittorrentInstallOptionValidation(t *testing.T) {
 	})
 
 	t.Run("upgrade validates version too", func(t *testing.T) {
-		res := postJSON(t, client, baseURL+"/api/v1/packages/qbittorrent/upgrade", map[string]any{
+		res := postJSON(t, client, baseURL+"/api/v1/apps/qbittorrent/upgrade", map[string]any{
 			"extra_vars": map[string]string{"qbittorrent_version": "9.9"},
 		})
 		defer res.Body.Close()

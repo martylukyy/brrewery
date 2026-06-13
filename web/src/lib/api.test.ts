@@ -4,7 +4,7 @@ import { ApiError, isSessionExpired } from "@/lib/api";
 
 describe("isSessionExpired", () => {
   it("flags a 401 from a normal request as an expired session", () => {
-    expect(isSessionExpired(new ApiError("Unauthorized", 401, "/packages"))).toBe(true);
+    expect(isSessionExpired(new ApiError("Unauthorized", 401, "/apps"))).toBe(true);
     expect(isSessionExpired(new ApiError("Unauthorized", 401, "/version"))).toBe(true);
   });
 
@@ -16,7 +16,7 @@ describe("isSessionExpired", () => {
   });
 
   it("ignores non-401 errors and non-ApiError values", () => {
-    expect(isSessionExpired(new ApiError("Server error", 500, "/packages"))).toBe(false);
+    expect(isSessionExpired(new ApiError("Server error", 500, "/apps"))).toBe(false);
     expect(isSessionExpired(new Error("network down"))).toBe(false);
     expect(isSessionExpired(null)).toBe(false);
   });

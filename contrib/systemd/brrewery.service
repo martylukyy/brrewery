@@ -1,5 +1,5 @@
 [Unit]
-Description=brrewery package management API
+Description=brrewery app management API
 After=network-online.target
 Wants=network-online.target
 
@@ -8,11 +8,11 @@ Type=simple
 ExecStart=/usr/local/bin/brrewery serve
 Restart=on-failure
 RestartSec=5
-# brrewery compiles and installs system packages through Ansible. When it runs
+# brrewery compiles and installs system apps through Ansible. When it runs
 # as a non-root user it escalates per operation with sudo, using a password
 # entered in the web UI. Sandboxing such as NoNewPrivileges= (blocks sudo) or
 # ProtectSystem=strict (makes /usr, /etc, /opt read-only even for the privileged
-# child) would prevent package installation, so they are intentionally not set.
+# child) would prevent app installation, so they are intentionally not set.
 
 [Install]
 WantedBy=multi-user.target

@@ -1,4 +1,4 @@
 ---
 galaxy_info:
   role_name: brrewery_user
-  description: Resolve brrewery admin OS user and primary group for package installs
+  description: Resolve brrewery admin OS user and primary group for app installs

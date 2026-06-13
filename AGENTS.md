@@ -4,7 +4,7 @@ Repository guidelines for AI coding agents (Codex, Claude Code, etc.) working on
 
 ## Project description
 
-brrewery is a web interface for accessing, installing, managing, updating/upgrading and removing packages.
+brrewery is a web interface for accessing, installing, managing, updating/upgrading and removing apps.
 It is driven by a Go backend and a React + Vite + TypeScript + TailwindCSS + TanStack frontend.
 It is supposed to be a successor to https://github.com/swizzin/swizzin but only supporting amd64 archiectures.
 It's project structure should adhere to related projects in the https://github.com/autobrr org on GitHub like:
@@ -16,7 +16,7 @@ It's project structure should adhere to related projects in the https://github.c
 Unlike related projects, brrewery does not use a SQLite or PostgreSQL database due to the nature of the project.
 Unlike related projects, brrewery should only log to a logfile and should not use a config.toml since it's dashboard should always be served by a nginx webserver at `/`.
 For the nginx configuration use a configuration structure like https://github.com/digitalocean/nginxconfig.io does.
-Do not keep track of packages installed via JSON files which could be tampered with but by querying the filesystem if the executables or dependencies for a certain exists.
+Do not keep track of apps installed via JSON files which could be tampered with but by querying the filesystem if the executables or dependencies for a certain exists.
 For setup we need a sh/bash install script that installs all the dependencies for brrewery and autostarts the daemon for brrewery
 so we don't need any env vars or CLI flags.
 The listen adresses for the brrewery webUI in production Environments should be port 80 for HTTP and port 443 for HTTPS.
@@ -25,8 +25,8 @@ Later on other users can be added since brrewery should be a multi-tenant softwa
 
 ## Security related notes
 
-Do not store package install secrets (API keys, tokens, etc.) in files or a database — prompt for them in the frontend at install time only.
-Dashboard operator accounts use bcrypt password hashes in `/var/lib/brrewery/users.json` (`0o600`); this is intentional and is not the same as persisted package credentials.
+Do not store app install secrets (API keys, tokens, etc.) in files or a database — prompt for them in the frontend at install time only.
+Dashboard operator accounts use bcrypt password hashes in `/var/lib/brrewery/users.json` (`0o600`); this is intentional and is not the same as persisted app credentials.
 Do not store other user profile data in a database.
 
 ## Owner Collaboration Notes
@@ -36,7 +36,7 @@ Do not store other user profile data in a database.
 
 ## Project Structure & Module Organization
 
-The Go backend lives in `cmd/brrewery` (entrypoint) and `internal/` modules for API routing, configuration, metrics, and packages; shared helpers sit in `pkg/`. 
+The Go backend lives in `cmd/brrewery` (entrypoint) and `internal/` modules for API routing, configuration, metrics, and apps; shared helpers sit in `pkg/`. 
 The React/TailwindCSS/Vite client is in `web/src` with static assets in `web/public`, and its production bundle must stay synced to `internal/web/dist`. 
 Reference docs live under `docs/`, while Docker and compose files in the repository root support container workflows.
 End-user docs live in the Docusaurus project under `documentation/docs/`. Prefer updating those for user-facing copy; `docs/` is mostly internal/engineering notes.
@@ -159,10 +159,10 @@ PRs need a clear summary, testing checklist, and UI screenshots for visual tweak
 cmd/brrewery/main.go         CLI entrypoint (serve, version, create-admin)
 internal/api/                HTTP handlers + middleware (chi router, scs sessions)
 internal/auth/               File-backed users + bcrypt
-internal/packages/           Catalog, filesystem detect, ansible runner (M2)
-internal/packages/catalog/manifests/  Per-package YAML manifests (the catalog is data, not code)
+internal/apps/           Catalog, filesystem detect, ansible runner (M2)
+internal/apps/catalog/manifests/  Per-app YAML manifests (the catalog is data, not code)
 internal/paths/              Fixed production paths
 internal/web/                Embedded SPA dist + OpenAPI
-ansible/                     Package playbooks (install/upgrade/remove per package id)
+ansible/                     App playbooks (install/upgrade/remove per app id)
 web/src/                     React + Vite + TypeScript + TailwindCSS
 ```
