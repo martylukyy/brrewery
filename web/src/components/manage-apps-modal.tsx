@@ -57,7 +57,7 @@ export function ManageAppsModal({ apps, onClose, onConfirm }: Props) {
         <div className="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4">
           <div>
             <h2 id="manage-apps-title" className="text-lg font-semibold text-zinc-100">
-              Manage apps
+              Manage server
             </h2>
             <p className="mt-1 text-sm text-zinc-400">
               Install, upgrade, or remove an app on this host.
@@ -71,7 +71,7 @@ export function ManageAppsModal({ apps, onClose, onConfirm }: Props) {
           >
             <svg
               viewBox="0 0 24 24"
-              className="size-8"
+              className="size-6"
               fill="none"
               stroke="currentColor"
               strokeWidth={2}

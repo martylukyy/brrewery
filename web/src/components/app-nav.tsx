@@ -56,7 +56,7 @@ export function AppNav({ apps, onManageClick }: Props) {
           className="w-full rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
           onClick={onManageClick}
         >
-          Manage apps
+          Manage server
         </button>
       </div>
     </nav>
