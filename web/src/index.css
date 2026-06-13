@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+@theme {
+  /* Login card glow: starts at full intensity (the 0%/100% frame), fades out
+     completely at the midpoint, then fades back in to the initial state. Only
+     the glow's opacity changes — the geometry is constant so it reads as a fade. */
+  --animate-glow: glow 4s ease-in-out infinite;
+
+  @keyframes glow {
+    0%,
+    100% {
+      box-shadow: 0 0 32px 0 color-mix(in oklab, var(--color-white) 10%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 32px 0 color-mix(in oklab, var(--color-white) 5%, transparent);
+    }
+  }
+}
+
 body {
   @apply bg-zinc-950 text-zinc-100 min-h-screen antialiased;
 }

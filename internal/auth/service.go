@@ -51,7 +51,7 @@ func (s *Service) CreateAdmin(username, password string) (*User, error) {
 	return &user, nil
 }
 
-func (s *Service) Login(ctx context.Context, username, password string) (*User, error) {
+func (s *Service) Login(ctx context.Context, username, password string, rememberMe bool) (*User, error) {
 	user, err := s.store.GetByUsername(username)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
@@ -71,6 +71,9 @@ func (s *Service) Login(ctx context.Context, username, password string) (*User, 
 	s.session.Put(ctx, SessionKey(), true)
 	s.session.Put(ctx, "user_id", user.ID)
 	s.session.Put(ctx, "username", user.Username)
+	// Persist the cookie for its full Lifetime only when the operator opted into
+	// being remembered; otherwise it stays a session-only cookie.
+	s.session.RememberMe(ctx, rememberMe)
 
 	return user, nil
 }

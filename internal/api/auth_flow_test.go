@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -20,8 +21,10 @@ import (
 	"github.com/autobrr/brrewery/internal/vnstat"
 )
 
-func TestLoginThenVersionWithSessionCookie(t *testing.T) {
-	t.Parallel()
+// newLoginTestServer spins up an API server backed by a temp user store seeded
+// with a single admin account (admin / password123).
+func newLoginTestServer(t *testing.T) *httptest.Server {
+	t.Helper()
 
 	dir := t.TempDir()
 	store := auth.NewFileStore(filepath.Join(dir, "users.json"))
@@ -53,6 +56,54 @@ func TestLoginThenVersionWithSessionCookie(t *testing.T) {
 
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
+	return ts
+}
+
+// doLogin authenticates the seeded admin against the server, honouring the
+// caller's rememberMe choice.
+func doLogin(t *testing.T, client *http.Client, baseURL string, rememberMe bool) *http.Response {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]any{
+		"username":    "admin",
+		"password":    "password123",
+		"remember_me": rememberMe,
+	})
+	if err != nil {
+		t.Fatalf("marshal login: %v", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+"/api/v1/auth/login", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("login req: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	return res
+}
+
+// sessionCookie returns the brrewery session cookie from a response, failing the
+// test if it is absent.
+func sessionCookie(t *testing.T, res *http.Response) *http.Cookie {
+	t.Helper()
+
+	for _, c := range res.Cookies() {
+		if c.Name == "brrewery_session" {
+			return c
+		}
+	}
+	t.Fatalf("session cookie %q not set, set-cookie: %v", "brrewery_session", res.Header["Set-Cookie"])
+	return nil
+}
+
+func TestLoginThenVersionWithSessionCookie(t *testing.T) {
+	t.Parallel()
+
+	ts := newLoginTestServer(t)
 
 	baseURL, err := url.Parse(ts.URL)
 	if err != nil {
@@ -64,20 +115,7 @@ func TestLoginThenVersionWithSessionCookie(t *testing.T) {
 	}
 	client := &http.Client{Jar: jar}
 
-	loginBody, _ := json.Marshal(map[string]string{
-		"username": "admin",
-		"password": "password123",
-	})
-	loginReq, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/auth/login", bytes.NewReader(loginBody))
-	if err != nil {
-		t.Fatalf("login req: %v", err)
-	}
-	loginReq.Header.Set("Content-Type", "application/json")
-
-	loginRes, err := client.Do(loginReq)
-	if err != nil {
-		t.Fatalf("login: %v", err)
-	}
+	loginRes := doLogin(t, client, ts.URL, true)
 	defer loginRes.Body.Close()
 
 	if loginRes.StatusCode != http.StatusOK {
@@ -99,7 +137,7 @@ func TestLoginThenVersionWithSessionCookie(t *testing.T) {
 		t.Fatalf("session cookie %q not set after login, cookies: %v", "brrewery_session", cookies)
 	}
 
-	versionReq, err := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/version", nil)
+	versionReq, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL+"/api/v1/version", http.NoBody)
 	if err != nil {
 		t.Fatalf("version req: %v", err)
 	}
@@ -113,5 +151,44 @@ func TestLoginThenVersionWithSessionCookie(t *testing.T) {
 	if versionRes.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(versionRes.Body)
 		t.Fatalf("version status = %d body = %s", versionRes.StatusCode, body)
+	}
+}
+
+// TestLoginRememberMeControlsCookiePersistence verifies that the "Remember me"
+// choice decides whether the session cookie persists for its full lifetime or is
+// dropped when the browser closes.
+func TestLoginRememberMeControlsCookiePersistence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		rememberMe bool
+		persistent bool
+	}{
+		{name: "remember me sets a persistent cookie", rememberMe: true, persistent: true},
+		{name: "without remember me cookie is session only", rememberMe: false, persistent: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ts := newLoginTestServer(t)
+			res := doLogin(t, &http.Client{}, ts.URL, tc.rememberMe)
+			defer res.Body.Close()
+
+			if res.StatusCode != http.StatusOK {
+				t.Fatalf("login status = %d", res.StatusCode)
+			}
+
+			c := sessionCookie(t, res)
+			if tc.persistent {
+				if c.MaxAge <= 0 {
+					t.Fatalf("expected persistent cookie, got MaxAge=%d Expires=%v", c.MaxAge, c.Expires)
+				}
+			} else if c.MaxAge != 0 || !c.Expires.IsZero() {
+				t.Fatalf("expected session-only cookie, got MaxAge=%d Expires=%v", c.MaxAge, c.Expires)
+			}
+		})
 	}
 }

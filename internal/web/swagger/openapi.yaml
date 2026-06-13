@@ -33,6 +33,12 @@ components:
         password:
           type: string
           format: password
+        remember_me:
+          type: boolean
+          description: >-
+            When true, the session cookie persists for its full lifetime. When
+            false (the default), a session-only cookie is issued that the browser
+            clears when it closes.
     LoginResponse:
       type: object
       properties:

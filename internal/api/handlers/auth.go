@@ -18,8 +18,9 @@ func NewAuthHandler(authService *auth.Service) *AuthHandler {
 }
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	RememberMe bool   `json:"remember_me"`
 }
 
 type LoginResponse struct {
@@ -38,7 +39,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.auth.Login(r.Context(), req.Username, req.Password)
+	user, err := h.auth.Login(r.Context(), req.Username, req.Password, req.RememberMe)
 	if err != nil {
 		if errors.Is(err, auth.ErrInvalidPassword) {
 			httputil.WriteError(w, http.StatusUnauthorized, "Invalid credentials")

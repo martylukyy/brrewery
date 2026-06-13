@@ -69,6 +69,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 export type LoginRequest = {
   username: string;
   password: string;
+  remember_me: boolean;
 };
 
 export type LoginResponse = {

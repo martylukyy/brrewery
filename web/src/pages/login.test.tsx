@@ -47,5 +47,44 @@ describe("LoginPage", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+
+    const [, init] = fetchMock.mock.calls.find(([url]) => url === "/api/v1/auth/login")!;
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      username: "admin",
+      password: "password123",
+      remember_me: true,
+    });
+  });
+
+  it("sends a session-only request when remember me is unchecked", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ username: "admin" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.type(screen.getByLabelText(/username/i), "admin");
+    await userEvent.type(screen.getByLabelText(/password/i), "password123");
+    await userEvent.click(screen.getByLabelText(/remember me/i));
+    await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([url]) => url === "/api/v1/auth/login",
+      );
+      expect(call).toBeDefined();
+      expect(JSON.parse(call![1].body as string)).toMatchObject({
+        remember_me: false,
+      });
+    });
   });
 });

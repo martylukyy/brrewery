@@ -54,6 +54,11 @@ func NewSessionManager(secret []byte) *scs.SessionManager {
 	manager.Cookie.HttpOnly = true
 	manager.Cookie.SameSite = http.SameSiteLaxMode
 	manager.Cookie.Secure = false
+	// Persist defaults to true, which forces every cookie to carry the full
+	// Lifetime expiry. Disable it so persistence is decided per login via the
+	// "Remember me" choice: RememberMe(true) keeps the long-lived cookie, while
+	// RememberMe(false) leaves a session-only cookie cleared when the browser closes.
+	manager.Cookie.Persist = false
 	manager.Codec = scs.GobCodec{}
 	_ = secret // reserved for persistent session signing (M2)
 	return manager
