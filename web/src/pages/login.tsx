@@ -20,9 +20,8 @@ export function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
-      <h1 className="mb-2 text-2xl font-semibold">brrewery</h1>
-      <p className="mb-8 text-zinc-400">Sign in to manage apps on this host.</p>
       <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
+        <p className="mb-6 text-xl font-semibold">brrewery</p>
         <label className="block text-sm text-zinc-300">
           Username
           <input
