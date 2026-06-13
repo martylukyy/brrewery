@@ -89,12 +89,34 @@ describe("SysctlModal", () => {
     expect(input).toBeDisabled();
   });
 
-  it("shows only Upload patch and Apply in the footer", async () => {
+  it("shows the footer actions", async () => {
     renderModal();
     await screen.findByText("Swappiness");
+    expect(screen.getByRole("button", { name: "Apply recommended" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Upload patch" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  });
+
+  it("applies all recommended values after confirming the password", async () => {
+    const user = userEvent.setup();
+    renderModal();
+    await screen.findByText("Swappiness");
+
+    await user.click(screen.getByRole("button", { name: "Apply recommended" }));
+    await user.type(await screen.findByLabelText("Account password"), "secret");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(api.applySysctl).toHaveBeenCalledTimes(1));
+    // Every readable parameter is sent at its recommended value; the unavailable
+    // one (kernel.sched_migration_cost_ns) is excluded.
+    expect(api.applySysctl).toHaveBeenCalledWith({
+      password: "secret",
+      values: {
+        "vm.swappiness": "10",
+        "net.ipv4.tcp_congestion_control": "bbr",
+      },
+    });
   });
 
   it("prompts for the password when applying", async () => {

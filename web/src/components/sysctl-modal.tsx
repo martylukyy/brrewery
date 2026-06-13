@@ -123,10 +123,25 @@ export function SysctlModal({ onClose }: Props) {
     setEdits((current) => ({ ...current, [key]: value }));
   }
 
-  // Both Apply and Upload patch converge on the password prompt; on confirm the
-  // current panel values (Upload patch having merged the file in first) are applied.
+  // Apply, Upload patch, and Apply recommended all converge on the password
+  // prompt; on confirm the current panel values are applied (the latter two
+  // having merged their values in first).
   function requestApply() {
     setUploadError(null);
+    setPromptOpen(true);
+  }
+
+  // Load every readable parameter's recommended value into the panel, then apply.
+  function applyRecommended() {
+    const recommended: Record<string, string> = {};
+    for (const setting of report?.settings ?? []) {
+      if (setting.available) {
+        recommended[setting.key] = setting.recommended;
+      }
+    }
+    setApplied(false);
+    setUploadError(null);
+    setEdits((current) => ({ ...current, ...recommended }));
     setPromptOpen(true);
   }
 
@@ -255,6 +270,14 @@ export function SysctlModal({ onClose }: Props) {
               {applied && <span className="text-emerald-400">Settings applied.</span>}
             </p>
             <div className="flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!writable || apply.isPending}
+                onClick={applyRecommended}
+              >
+                Apply recommended
+              </button>
               <button
                 type="button"
                 className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
