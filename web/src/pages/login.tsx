@@ -1,5 +1,9 @@
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 
 export function LoginPage() {
@@ -20,10 +24,10 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative isolate flex min-h-screen flex-col items-center justify-center bg-zinc-950 px-4">
+    <div className="relative isolate flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <svg
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 h-full w-full text-zinc-900/25"
+        className="pointer-events-none absolute inset-0 -z-10 h-full w-full text-muted/25"
       >
         <defs>
           <pattern id="brick-wall" width={42} height={44} patternUnits="userSpaceOnUse">
@@ -38,53 +42,48 @@ export function LoginPage() {
       </svg>
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-[0_0_32px_0_var(--color-white)]/5 animate-glow motion-reduce:animate-none"
+        className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-[0_0_32px_0_var(--color-white)]/5 animate-glow motion-reduce:animate-none"
       >
         <div className="flex flex-col items-center mb-4">
-          <img src="/brrewery.png" className="size-16"/>
+          <img src="/brrewery.png" className="size-16" />
           <h1 className="text-xl font-semibold">brrewery</h1>
-          <p className="text-sm text-zinc-500">seedbox management suite.</p>
+          <p className="text-sm text-muted-foreground">seedbox management suite.</p>
         </div>
-   
+
         <div className="space-y-4">
-          <label className="block text-sm text-zinc-300">
-            Username
-            <input
-              className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2"
+          <div className="space-y-1">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               required
             />
-          </label>
-          <label className="block text-sm text-zinc-300">
-            Password
-            <input
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
               type="password"
-              className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               required
             />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-zinc-700 bg-zinc-950 accent-blue-600"
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="remember-me"
               checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
+              onCheckedChange={(checked) => setRememberMe(checked === true)}
             />
-            Remember me
-          </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <button
-            type="submit"
-            className="w-full rounded-md px-4 py-2 font-medium bg-blue-600 hover:bg-blue-700"
-            disabled={login.isPending}
-          >
+            <Label htmlFor="remember-me">Remember me</Label>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button type="submit" className="w-full" disabled={login.isPending}>
             {login.isPending ? "Signing in…" : "Sign in"}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

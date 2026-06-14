@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Card } from "@/components/ui/card";
+
 type Props = {
   label: string;
   /** 0–100 fill level for the gauge arc. */
@@ -102,8 +104,8 @@ export function GaugePanel({ label, value, display, footer }: Props) {
   const fillPath = gaugeFillPath(clamped);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-visible rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
-      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">
+    <Card className="flex h-full min-h-0 flex-col gap-0 overflow-visible p-3 py-3">
+      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <div
@@ -127,7 +129,7 @@ export function GaugePanel({ label, value, display, footer }: Props) {
               stroke="currentColor"
               strokeWidth={STROKE}
               strokeLinecap="round"
-              className="text-zinc-800"
+              className="text-border"
             />
             {fillPath && (
               <path
@@ -141,7 +143,7 @@ export function GaugePanel({ label, value, display, footer }: Props) {
             )}
           </svg>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-semibold tabular-nums text-zinc-100">{display}</span>
+            <span className="text-2xl font-semibold tabular-nums text-foreground">{display}</span>
           </div>
         </div>
       </div>
@@ -151,6 +153,6 @@ export function GaugePanel({ label, value, display, footer }: Props) {
           <div className="flex h-full w-full flex-1 flex-col">{footer}</div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,6 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
   ApiError,
   applySysctl,
@@ -84,16 +96,6 @@ export function SysctlModal({ onClose }: Props) {
 
   const effectiveValue = (setting: SysctlSetting): string =>
     edits[setting.key] ?? seedValue(setting);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
 
   const groups = useMemo(() => groupSettings(report?.settings ?? []), [report]);
   const writable = report?.writable ?? false;
@@ -180,58 +182,35 @@ export function SysctlModal({ onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="sysctl-title"
-        className="relative z-10 flex h-full sm:max-h-[90%] w-full sm:max-w-[60%] flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4">
-          <div>
-            <h2 id="sysctl-title" className="text-lg font-semibold text-zinc-100">
-              Tune sysctl parameters
-            </h2>
-            <p className="mt-1 text-sm text-zinc-400">
-              Adjust kernel parameters for network and storage throughput on this host.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="-mr-1 -mt-1 shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-            aria-label="Close tune sysctl dialog"
-            onClick={onClose}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="size-6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </div>
+        <DialogHeader className="gap-1 border-b border-border px-5 py-4">
+          <DialogTitle className="text-base">Tune sysctl parameters</DialogTitle>
+          <DialogDescription>
+            Adjust kernel parameters for network and storage throughput on this host.
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="scrollbar-zinc min-h-0 flex-1 overflow-y-auto px-5 py-3">
-          {query.isLoading && <p className="py-6 text-center text-sm text-zinc-500">Loading parameters…</p>}
+          {query.isLoading && (
+            <p className="py-6 text-center text-sm text-muted-foreground">Loading parameters…</p>
+          )}
           {query.isError && (
-            <p className="py-6 text-center text-sm text-red-400">{(query.error as Error).message}</p>
+            <p className="py-6 text-center text-sm text-destructive">{(query.error as Error).message}</p>
           )}
 
           {report && !writable && (
-            <p className="mb-3 rounded-md border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+            <p className="mb-3 rounded-md border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-xs text-amber-500">
               Applying changes is not supported on this platform. Values are shown for reference only.
             </p>
           )}
 
           {groups.map((group) => (
             <section key={group.name} className="mb-5">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {group.name}
               </h3>
               <ul className="space-y-1">
@@ -250,7 +229,7 @@ export function SysctlModal({ onClose }: Props) {
           ))}
         </div>
 
-        <div className="border-t border-zinc-800 px-5 py-4">
+        <DialogFooter className="border-t border-border px-5 py-4 sm:justify-between">
           <input
             ref={fileInputRef}
             type="file"
@@ -261,48 +240,39 @@ export function SysctlModal({ onClose }: Props) {
             onChange={handlePatchFile}
           />
 
-          <div className="flex items-center justify-between gap-3">
-            <p className="min-w-0 flex-1 truncate text-sm">
-              {uploadError && <span className="text-red-400">{uploadError}</span>}
-              {apply.isError && (
-                <span className="text-red-400">{(apply.error as Error).message}</span>
-              )}
-              {applied && <span className="text-emerald-400">Settings applied.</span>}
-            </p>
-            <div className="flex shrink-0 items-center gap-3">
-              <button
-                type="button"
-                className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!writable || apply.isPending}
-                onClick={applyRecommended}
-              >
-                Apply recommended
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!writable || apply.isPending}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Upload patch
-              </button>
-              <button
-                type="button"
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!writable || apply.isPending}
-                onClick={requestApply}
-              >
-                {apply.isPending ? "Applying…" : "Apply"}
-              </button>
-            </div>
+          <p className="min-w-0 flex-1 truncate text-sm">
+            {uploadError && <span className="text-destructive">{uploadError}</span>}
+            {apply.isError && (
+              <span className="text-destructive">{(apply.error as Error).message}</span>
+            )}
+            {applied && <span className="text-emerald-400">Settings applied.</span>}
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!writable || apply.isPending}
+              onClick={applyRecommended}
+            >
+              Apply recommended
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!writable || apply.isPending}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Upload patch
+            </Button>
+            <Button disabled={!writable || apply.isPending} onClick={requestApply}>
+              {apply.isPending ? "Applying…" : "Apply"}
+            </Button>
           </div>
-        </div>
-      </div>
+        </DialogFooter>
+      </DialogContent>
 
       {promptOpen && (
         <SysctlPasswordPrompt onCancel={() => setPromptOpen(false)} onConfirm={confirmPassword} />
       )}
-    </div>
+    </Dialog>
   );
 }
 
@@ -345,74 +315,43 @@ function SysctlPasswordPrompt({ onCancel, onConfirm }: PasswordPromptProps) {
     onConfirm(password);
   }
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onCancel();
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onCancel]);
-
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60"
-        aria-label="Close password dialog"
-        onClick={onCancel}
-      />
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent showCloseButton={false} className="gap-0 p-0 sm:max-w-md">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader className="gap-1 border-b border-border px-5 py-4">
+            <DialogTitle className="text-base">Confirm your password</DialogTitle>
+            <DialogDescription>
+              Enter your account password to apply the sysctl changes.
+            </DialogDescription>
+          </DialogHeader>
 
-      <form
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="sysctl-password-title"
-        className="relative z-10 flex w-full max-w-md flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
-        onSubmit={handleSubmit}
-      >
-        <div className="border-b border-zinc-800 px-5 py-4">
-          <h2 id="sysctl-password-title" className="text-lg font-semibold text-zinc-100">
-            Confirm your password
-          </h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            Enter your account password to apply the sysctl changes.
-          </p>
-        </div>
+          <div className="space-y-4 px-5 py-4">
+            <div className="space-y-1">
+              <Label htmlFor="sysctl-password">Account password</Label>
+              <Input
+                id="sysctl-password"
+                type="password"
+                value={password}
+                name="password"
+                autoComplete="current-password"
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
 
-        <div className="space-y-4 px-5 py-4">
-          <label className="block">
-            <span className="mb-1 block text-sm text-zinc-300">Account password</span>
-            <input
-              type="password"
-              className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
-              value={password}
-              name="password"
-              autoComplete="current-password"
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-zinc-800 px-5 py-4">
-          <button
-            type="button"
-            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={verifying}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {verifying ? "Verifying…" : "Continue"}
-          </button>
-        </div>
-      </form>
-    </div>
+          <DialogFooter className="border-t border-border px-5 py-4">
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={verifying}>
+              {verifying ? "Verifying…" : "Continue"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -428,39 +367,41 @@ function SettingRow({ setting, value, disabled, onChange, onReset }: RowProps) {
   const current = setting.available ? setting.value : "unavailable";
 
   return (
-    <li className="flex flex-col gap-1 rounded-md px-2 py-2 hover:bg-zinc-800/40 sm:flex-row sm:items-start sm:gap-4">
+    <li className="flex flex-col gap-1 rounded-md px-2 py-2 hover:bg-accent/50 sm:flex-row sm:items-start sm:gap-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium text-zinc-100">{setting.label}</span>
-          {setting.unit && <span className="text-[10px] text-zinc-500">in {setting.unit}</span>}
+          <span className="text-sm font-medium text-foreground">{setting.label}</span>
+          {setting.unit && (
+            <span className="text-[10px] text-muted-foreground">in {setting.unit}</span>
+          )}
         </div>
-        <p className="mt-0.5 text-xs text-zinc-500">{setting.description}</p>
-        <p className="mt-0.5 font-mono text-[10px] text-zinc-600">{setting.key}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{setting.description}</p>
+        <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{setting.key}</p>
       </div>
 
-      <div className="flex shrink-0 flex-col items-stretch gap-1 sm:w-80
-      ">
+      <div className="flex shrink-0 flex-col items-stretch gap-1 sm:w-80">
         {setting.kind === "enum" && setting.choices ? (
-          <select
-            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 disabled:opacity-50"
+          <NativeSelect
+            className="w-full"
             aria-label={setting.label}
             value={value}
             disabled={disabled}
             onChange={(event) => onChange(event.target.value)}
           >
             {/* Surface the live value even when it is outside the recommended choices. */}
-            {setting.choices.includes(value) ? null : <option value={value}>{value || "—"}</option>}
+            {setting.choices.includes(value) ? null : (
+              <NativeSelectOption value={value}>{value || "—"}</NativeSelectOption>
+            )}
             {setting.choices.map((choice) => (
-              <option key={choice} value={choice}>
+              <NativeSelectOption key={choice} value={choice}>
                 {choice}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         ) : (
-          <input
+          <Input
             type="text"
             inputMode={setting.kind === "integer" ? "numeric" : "text"}
-            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 disabled:opacity-50"
             aria-label={setting.label}
             placeholder={setting.available ? undefined : "unavailable"}
             value={value}
@@ -468,19 +409,21 @@ function SettingRow({ setting, value, disabled, onChange, onReset }: RowProps) {
             onChange={(event) => onChange(event.target.value)}
           />
         )}
-        <div className="flex items-center justify-between text-[10px] text-zinc-500">
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
           <span className="truncate" title={`Current: ${current}`}>
             now: {current || "—"}
           </span>
-          <button
+          <Button
             type="button"
-            className="rounded px-1 text-blue-400 hover:text-blue-300 disabled:opacity-40"
+            variant="link"
+            size="xs"
+            className="h-auto px-1"
             disabled={disabled || value === setting.recommended}
             onClick={onReset}
             title={`Recommended: ${setting.recommended}`}
           >
             use {setting.recommended}
-          </button>
+          </Button>
         </div>
       </div>
     </li>

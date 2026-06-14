@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ApiError, verifyPassword, type InstallSecret, type AppStatus } from "@/lib/api";
 
 type Props = {
@@ -75,86 +86,54 @@ export function InstallSecretsModal({ appIds, apps, onClose, onConfirm }: Props)
     );
   }
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60"
-        aria-label="Close install credentials dialog"
-        onClick={onClose}
-      />
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-md">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="gap-1 border-b border-border px-5 py-4">
+            <DialogTitle className="text-base">Install credentials</DialogTitle>
+            <DialogDescription>
+              Enter the credentials required to install {appNames}.
+            </DialogDescription>
+          </DialogHeader>
 
-      <form
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="install-secrets-title"
-        className="relative z-10 flex w-full max-w-md flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
-        onSubmit={handleSubmit}
-      >
-        <div className="border-b border-zinc-800 px-5 py-4">
-          <h2 id="install-secrets-title" className="text-lg font-semibold text-zinc-100">
-            Install credentials
-          </h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            Enter the credentials required to install {appNames}.
-          </p>
-        </div>
+          <div className="scrollbar-zinc min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            {secrets.map((secret) => (
+              <div key={secret.key} className="space-y-1">
+                <Label htmlFor={`secret-${secret.key}`}>{secret.label}</Label>
+                <Input
+                  id={`secret-${secret.key}`}
+                  type={secret.type === "password" ? "password" : "text"}
+                  value={values[secret.key] ?? ""}
+                  name={secret.key}
+                  autoComplete={secret.disable_password_manager ? "off" : "current-password"}
+                  data-1p-ignore={secret.disable_password_manager || undefined}
+                  data-bwignore={secret.disable_password_manager || undefined}
+                  data-lpignore={secret.disable_password_manager ? "true" : undefined}
+                  data-form-type={secret.disable_password_manager ? "other" : undefined}
+                  onChange={(event) => {
+                    setValues((current) => ({
+                      ...current,
+                      [secret.key]: event.target.value,
+                    }));
+                  }}
+                />
+              </div>
+            ))}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
 
-        <div className="space-y-4 px-5 py-4">
-          {secrets.map((secret) => (
-            <label key={secret.key} className="block">
-              <span className="mb-1 block text-sm text-zinc-300">{secret.label}</span>
-              <input
-                type={secret.type === "password" ? "password" : "text"}
-                className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
-                value={values[secret.key] ?? ""}
-                name={secret.key}
-                autoComplete={secret.disable_password_manager ? "off" : "current-password"}
-                data-1p-ignore={secret.disable_password_manager || undefined}
-                data-bwignore={secret.disable_password_manager || undefined}
-                data-lpignore={secret.disable_password_manager ? "true" : undefined}
-                data-form-type={secret.disable_password_manager ? "other" : undefined}
-                onChange={(event) => {
-                  setValues((current) => ({
-                    ...current,
-                    [secret.key]: event.target.value,
-                  }));
-                }}
-              />
-            </label>
-          ))}
-          {error && <p className="text-sm text-red-400">{error}</p>}
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-zinc-800 px-5 py-4">
-          <button
-            type="button"
-            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={verifying}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {verifying ? "Verifying…" : "Continue install"}
-          </button>
-        </div>
-      </form>
-    </div>
+          <DialogFooter className="border-t border-border px-5 py-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={verifying}>
+              {verifying ? "Verifying…" : "Continue install"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

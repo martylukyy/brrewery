@@ -1,6 +1,17 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { IconAlertTriangle, IconCheck, IconLoader2 } from "@tabler/icons-react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ApiError,
   getJob,
@@ -139,16 +150,7 @@ export function AppJobModal({
     logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [logs.data?.lines.length]);
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && canClose) {
-        handleClose();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [canClose, handleClose]);
+  const isError = jobStart.isError || job.isError;
 
   const statusLabel = (() => {
     if (jobStart.isError) {
@@ -209,87 +211,62 @@ export function AppJobModal({
     return () => window.clearTimeout(timer);
   }, [copied]);
 
+  const statusVariant =
+    status === "succeeded" ? "secondary" : isError || status === "failed" ? "destructive" : "outline";
+  const StatusIcon =
+    status === "succeeded"
+      ? IconCheck
+      : isError || status === "failed"
+        ? IconAlertTriangle
+        : IconLoader2;
+  const statusIconClassName =
+    status === "succeeded" || isError || status === "failed" ? undefined : "animate-spin";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="app-job-title"
-        className="relative z-10 flex h-full max-h-[90%] w-full max-w-[90%] flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl md:h-full md:max-h-[90%] md:max-w-[90%]"
+    <Dialog open onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent
+        showCloseButton={canClose}
+        onEscapeKeyDown={(event) => {
+          if (!canClose) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={(event) => event.preventDefault()}
+        className="flex h-full max-h-[90vh] w-full max-w-[90vw] flex-col gap-0 p-0"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4">
-          <div>
-            <h2 id="app-job-title" className="text-lg font-semibold text-zinc-100">
-              {title}
-            </h2>
-            <p className="mt-1 text-sm text-zinc-400">
-              {queueTotal > 1 ? `App ${queuePosition} of ${queueTotal}` : labels.output}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="-mr-1 -mt-1 shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-            aria-label={canClose ? "Close app job dialog" : "Abort and close app job dialog"}
-            onClick={handleClose}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </div>
+        <DialogHeader className="gap-1 border-b border-border px-5 py-4">
+          <DialogTitle className="text-base">{title}</DialogTitle>
+          <DialogDescription>
+            {queueTotal > 1 ? `App ${queuePosition} of ${queueTotal}` : labels.output}
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex items-center gap-3 border-b border-zinc-800 px-5 py-3">
-          <span
-            className={
-              status === "succeeded"
-                ? "rounded-full bg-emerald-900/50 px-2 py-0.5 text-xs text-emerald-300"
-                : status === "failed" || jobStart.isError || job.isError
-                  ? "rounded-full bg-red-900/50 px-2 py-0.5 text-xs text-red-300"
-                  : "rounded-full bg-amber-900/40 px-2 py-0.5 text-xs text-amber-200"
-            }
-          >
+        <div className="flex items-center gap-3 border-b border-border px-5 py-3">
+          <Badge variant={statusVariant}>
+            <StatusIcon data-icon="inline-start" className={statusIconClassName} />
             {statusLabel}
-          </span>
+          </Badge>
           {errorMessage && (
-            <p className="min-w-0 truncate text-sm text-red-400">{errorMessage}</p>
+            <p className="min-w-0 truncate text-sm text-destructive">{errorMessage}</p>
           )}
         </div>
 
         <pre
           ref={logRef}
-          className="scrollbar-zinc min-h-0 flex-1 overflow-y-auto px-5 py-3 text-xs leading-relaxed text-zinc-300"
+          className="scrollbar-zinc min-h-0 flex-1 overflow-y-auto bg-muted px-5 py-3 font-mono text-xs leading-relaxed text-muted-foreground"
         >
           {logText || (canClose ? "No job output was captured." : "Waiting for job output…")}
         </pre>
 
-        <div className="flex justify-between gap-2 border-t border-zinc-800 px-5 py-4">
-          <button
-            type="button"
-            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={handleCopy}
-            disabled={!logText}
-          >
+        <DialogFooter className="border-t border-border px-5 py-4 sm:justify-between">
+          <Button variant="outline" onClick={handleCopy} disabled={!logText}>
             {copied ? "Copied!" : "Copy log"}
-          </button>
-          <button
-            type="button"
-            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={handleClose}
-            disabled={!canClose}
-          >
+          </Button>
+          <Button variant="outline" onClick={handleClose} disabled={!canClose}>
             {canClose ? "Close" : labels.running}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

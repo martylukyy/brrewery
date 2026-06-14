@@ -4,6 +4,15 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { VnstatRangeSelect } from "@/components/vnstat-range-select";
+import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useSetting } from "@/hooks/use-setting";
 import { getVnstatReport, type TrafficPeriod } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
@@ -44,7 +53,7 @@ export function VnstatPanel() {
   if (vnstat.isLoading) {
     return (
       <Panel title="vnStat - Historic traffic">
-        <p className="text-sm text-zinc-400">Loading vnstat data…</p>
+        <p className="text-sm text-muted-foreground">Loading vnstat data…</p>
       </Panel>
     );
   }
@@ -52,17 +61,17 @@ export function VnstatPanel() {
   if (vnstat.isError) {
     return (
       <Panel title="vnStat - Historic traffic">
-        <p className="text-sm text-red-400">{vnstat.error.message}</p>
+        <p className="text-sm text-destructive">{vnstat.error.message}</p>
       </Panel>
     );
   }
   if (!report?.installed) {
     return (
       <Panel title="vnStat - Historic traffic">
-        <p className="text-sm text-zinc-400">
+        <p className="text-sm text-muted-foreground">
           {report?.message ?? "vnstat is not installed on this system."}
         </p>
-        <p className="mt-2 text-xs text-zinc-600">
+        <p className="mt-2 text-xs text-muted-foreground">
           Install vnstat and ensure the daemon is collecting data for your interfaces.
         </p>
       </Panel>
@@ -97,16 +106,16 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+    <Card className="gap-0 p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-200">{title}</h2>
-          {subtitle && <p className="text-xs text-zinc-500">{subtitle}</p>}
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
         </div>
         {headerRight}
       </div>
       {children}
-    </div>
+    </Card>
   );
 }
 
@@ -114,7 +123,7 @@ function TrafficTable({ periods, reverse = true }: { periods: TrafficPeriod[]; r
   if (periods.length === 0) {
     return (
       <div>
-        <p className="text-sm text-zinc-500">No data recorded yet.</p>
+        <p className="text-sm text-muted-foreground">No data recorded yet.</p>
       </div>
     );
   }
@@ -123,27 +132,27 @@ function TrafficTable({ periods, reverse = true }: { periods: TrafficPeriod[]; r
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-md border border-zinc-800">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-zinc-900 text-zinc-500">
-            <tr>
-              <th className="px-3 py-2 font-medium text-zinc-100">Period</th>
-              <th className="px-3 py-2 font-medium text-sky-400">Download</th>
-              <th className="px-3 py-2 font-medium text-emerald-400">Upload</th>
-              <th className="px-3 py-2 font-medium text-orange-400">Total</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-x-auto rounded-md border border-border">
+        <Table className="min-w-full text-left text-sm">
+          <TableHeader className="bg-muted text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-3 py-2 font-medium text-foreground">Period</TableHead>
+              <TableHead className="px-3 py-2 font-medium text-sky-400">Download</TableHead>
+              <TableHead className="px-3 py-2 font-medium text-emerald-400">Upload</TableHead>
+              <TableHead className="px-3 py-2 font-medium text-orange-400">Total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((row) => (
-              <tr key={row.label} className="border-t border-zinc-800">
-                <td className="px-3 py-2 tabular-nums text-zinc-100">{row.label}</td>
-                <td className="px-3 py-2 tabular-nums text-sky-400">{formatBytes(row.rx_bytes)}</td>
-                <td className="px-3 py-2 tabular-nums text-emerald-400">{formatBytes(row.tx_bytes)}</td>
-                <td className="px-3 py-2 tabular-nums text-orange-400">{formatBytes(row.rx_bytes + row.tx_bytes)}</td>
-              </tr>
+              <TableRow key={row.label} className="border-t border-border">
+                <TableCell className="px-3 py-2 tabular-nums text-foreground">{row.label}</TableCell>
+                <TableCell className="px-3 py-2 tabular-nums text-sky-400">{formatBytes(row.rx_bytes)}</TableCell>
+                <TableCell className="px-3 py-2 tabular-nums text-emerald-400">{formatBytes(row.tx_bytes)}</TableCell>
+                <TableCell className="px-3 py-2 tabular-nums text-orange-400">{formatBytes(row.rx_bytes + row.tx_bytes)}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

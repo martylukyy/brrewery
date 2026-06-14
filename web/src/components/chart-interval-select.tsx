@@ -2,6 +2,10 @@ import {
   CHART_INTERVAL_OPTIONS,
   type ChartIntervalId,
 } from "@/lib/chart-interval";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 
 type Props = {
   value: ChartIntervalId;
@@ -11,21 +15,21 @@ type Props = {
 
 export function ChartIntervalSelect({ value, onChange, id = "chart-interval" }: Props) {
   return (
-    <label htmlFor={id} className="flex items-center gap-2 text-xs text-zinc-500">
+    <label htmlFor={id} className="flex items-center gap-2 text-xs text-muted-foreground">
       <span>Time range</span>
-      <select
+      <NativeSelect
         id={id}
+        size="sm"
         value={value}
         onChange={(e) => onChange(e.target.value as ChartIntervalId)}
-        className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-200"
         aria-label="Chart time range"
       >
         {CHART_INTERVAL_OPTIONS.map((option) => (
-          <option key={option.id} value={option.id}>
+          <NativeSelectOption key={option.id} value={option.id}>
             {option.label}
-          </option>
+          </NativeSelectOption>
         ))}
-      </select>
+      </NativeSelect>
     </label>
   );
 }

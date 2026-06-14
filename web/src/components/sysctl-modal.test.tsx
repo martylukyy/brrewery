@@ -156,7 +156,7 @@ describe("SysctlModal", () => {
 
   it("applies an uploaded patch after confirming the password", async () => {
     const user = userEvent.setup();
-    const { container } = renderModal();
+    renderModal();
     await screen.findByText("Swappiness");
 
     const file = new File(
@@ -164,7 +164,7 @@ describe("SysctlModal", () => {
       "tune.conf",
       { type: "text/plain" },
     );
-    const fileInput = container.querySelector("input[type=file]") as HTMLInputElement;
+    const fileInput = document.querySelector("input[type=file]") as HTMLInputElement;
     await user.upload(fileInput, file);
 
     await user.type(await screen.findByLabelText("Account password"), "secret");

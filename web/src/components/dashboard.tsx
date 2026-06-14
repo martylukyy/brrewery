@@ -39,16 +39,16 @@ export function Dashboard() {
   const { networkHistory, diskHistoryByMount } = useIOHistory(system.data);
 
   if (system.isLoading) {
-    return <p className="text-zinc-400">Loading system metrics…</p>;
+    return <p className="text-muted-foreground">Loading system metrics…</p>;
   }
 
   if (system.isError) {
-    return <p className="text-red-400">{system.error.message}</p>;
+    return <p className="text-destructive">{system.error.message}</p>;
   }
 
   const info = system.data;
   if (!info) {
-    return <p className="text-zinc-400">No system metrics available.</p>;
+    return <p className="text-muted-foreground">No system metrics available.</p>;
   }
 
   const memoryPercent = Math.min(100, Math.max(0, info.memory.used_percent));
@@ -65,7 +65,7 @@ export function Dashboard() {
           value={cpuPercent}
           display={`${cpuPercent.toFixed(1)}%`}
           footer={
-            <p className="line-clamp-2 flex h-full items-center justify-center text-center text-xs text-zinc-500">{info.cpu_name}</p>
+            <p className="line-clamp-2 flex h-full items-center justify-center text-center text-xs text-muted-foreground">{info.cpu_name}</p>
           }
         />
         <LoadGaugePanel load={info.load} gaugePercent={loadPercent} />
@@ -74,7 +74,7 @@ export function Dashboard() {
           value={memoryPercent}
           display={`${memoryPercent.toFixed(1)}%`}
           footer={
-            <p className="flex h-full items-center justify-center text-center text-xs text-zinc-500">
+            <p className="flex h-full items-center justify-center text-center text-xs text-muted-foreground">
               {formatBytes(info.memory.used_bytes)} / {formatBytes(info.memory.total_bytes)}
             </p>
           }
@@ -89,7 +89,7 @@ export function Dashboard() {
         return (
           <section key={disk.mount} className="space-y-3">
             {showDiskHeadings ? (
-              <h2 className="text-lg font-semibold text-zinc-100">{disk.mount}</h2>
+              <h2 className="text-lg font-semibold text-foreground">{disk.mount}</h2>
             ) : null}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 [&>*]:h-full">
               <GaugePanel
@@ -97,7 +97,7 @@ export function Dashboard() {
                 value={usedPercent}
                 display={`${usedPercent.toFixed(1)}%`}
                 footer={
-                  <p className="flex h-full items-center justify-center text-center text-xs text-zinc-500">
+                  <p className="flex h-full items-center justify-center text-center text-xs text-muted-foreground">
                     {formatBytes(disk.used_bytes)} / {formatBytes(disk.total_bytes)}
                   </p>
                 }
@@ -129,17 +129,17 @@ export function Dashboard() {
 
 function UptimePanel({ uptimeSeconds, hostname }: { uptimeSeconds: number; hostname: string }) {
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
-      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">
+    <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card p-3">
+      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Uptime
       </p>
       <div className="flex flex-1 flex-col items-center justify-center py-6">
-        <span className="text-2xl font-semibold tabular-nums text-zinc-100">
+        <span className="text-2xl font-semibold tabular-nums text-foreground">
           {formatUptime(uptimeSeconds)}
         </span>
       </div>
       <div className="flex min-h-11 items-center justify-center px-4 text-center">
-        <p className="line-clamp-2 text-xs text-zinc-500">{hostname}</p>
+        <p className="line-clamp-2 text-xs text-muted-foreground">{hostname}</p>
       </div>
     </div>
   );
@@ -161,8 +161,8 @@ function LoadGaugePanel({ load, gaugePercent }: { load: LoadAvg; gaugePercent: n
         <div className="flex h-full w-full items-center justify-between">
           {windows.map((slot) => (
             <div key={slot.label} className="flex flex-col items-center">
-              <span className="text-xs font-medium text-zinc-500">{slot.label}</span>
-              <span className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-200">
+              <span className="text-xs font-medium text-muted-foreground">{slot.label}</span>
+              <span className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
                 {slot.value.toFixed(2)}
               </span>
             </div>

@@ -96,7 +96,7 @@ export function LineChart({ series, height = 120, pointCount, maxValue, formatVa
           <div
             aria-hidden
             data-testid="chart-y-axis"
-            className="flex shrink-0 flex-col justify-between py-1 text-right text-xs whitespace-nowrap text-zinc-500"
+            className="flex shrink-0 flex-col justify-between py-1 text-right text-xs whitespace-nowrap text-muted-foreground"
           >
             {Y_TICKS.map((fraction) => (
               <span key={fraction}>{formatValue(max * fraction)}</span>
@@ -105,7 +105,7 @@ export function LineChart({ series, height = 120, pointCount, maxValue, formatVa
         )}
         <svg
           viewBox={`0 0 ${PLOT_WIDTH} ${height}`}
-          className="min-w-0 flex-1 text-zinc-500"
+          className="min-w-0 flex-1 text-muted-foreground"
           role="img"
           aria-hidden
         >
@@ -153,13 +153,13 @@ export function LineChart({ series, height = 120, pointCount, maxValue, formatVa
       </div>
       <div className="mt-2 flex flex-wrap gap-4 text-xs">
         {series.map((s) => (
-          <span key={s.label} className="flex items-center gap-1.5 text-zinc-400">
+          <span key={s.label} className="flex items-center gap-1.5 text-muted-foreground">
             <span
               className={`inline-block h-2 w-2 shrink-0 rounded-full bg-current ${s.colorClass}`}
             />
             {s.label}
             {formatValue && (
-              <span className="font-medium text-zinc-200">{formatValue(latestValue(s.values))}</span>
+              <span className="font-medium text-foreground">{formatValue(latestValue(s.values))}</span>
             )}
           </span>
         ))}

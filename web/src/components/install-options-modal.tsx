@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { InstallOption, AppStatus } from "@/lib/api";
 
 const VERSION_KEY = "qbittorrent_version";
@@ -68,16 +79,6 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
     return branchOption.when.one_of.includes(version);
   }, [branchOption, version]);
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
     const file = event.target.files?.[0];
@@ -125,107 +126,99 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60"
-        aria-label="Close install options dialog"
-        onClick={onClose}
-      />
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-md">
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+          <DialogHeader className="gap-1 border-b border-border px-5 py-4">
+            <DialogTitle className="text-base">
+              {step === "version" ? "Choose qBittorrent version" : "libtorrent options"}
+            </DialogTitle>
+            <DialogDescription>
+              {step === "version"
+                ? `Select the qBittorrent release to build for ${appNames}.`
+                : "Pick the libtorrent line and optionally supply a custom patch."}
+            </DialogDescription>
+          </DialogHeader>
 
-      <form
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="install-options-title"
-        className="relative z-10 flex w-full max-w-md flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
-        onSubmit={handleSubmit}
-      >
-        <div className="border-b border-zinc-800 px-5 py-4">
-          <h2 id="install-options-title" className="text-lg font-semibold text-zinc-100">
-            {step === "version" ? "Choose qBittorrent version" : "libtorrent options"}
-          </h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            {step === "version"
-              ? `Select the qBittorrent release to build for ${appNames}.`
-              : "Pick the libtorrent line and optionally supply a custom patch."}
-          </p>
-        </div>
+          <div className="scrollbar-zinc min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            {step === "version" && (
+              <fieldset className="space-y-2">
+                <legend className="sr-only">qBittorrent version</legend>
+                {versionOption?.choices?.map((choice) => (
+                  <label
+                    key={choice.value}
+                    className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2 hover:bg-accent/50"
+                  >
+                    <input
+                      type="radio"
+                      name="qbittorrent-version"
+                      value={choice.value}
+                      checked={version === choice.value}
+                      onChange={() => setVersion(choice.value)}
+                    />
+                    <span className="text-sm text-foreground">{choice.label}</span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
 
-        <div className="space-y-4 px-5 py-4">
-          {step === "version" && (
-            <fieldset className="space-y-2">
-              <legend className="sr-only">qBittorrent version</legend>
-              {versionOption?.choices?.map((choice) => (
-                <label key={choice.value} className="flex cursor-pointer items-center gap-3 rounded-md border border-zinc-700 px-3 py-2 hover:bg-zinc-800">
-                  <input
-                    type="radio"
-                    name="qbittorrent-version"
-                    value={choice.value}
-                    checked={version === choice.value}
-                    onChange={() => setVersion(choice.value)}
+            {step === "libtorrent" && (
+              <>
+                {branchVisible && (
+                  <fieldset className="space-y-2">
+                    <legend className="mb-1 block text-sm text-foreground">libtorrent version</legend>
+                    {branchOption?.choices?.map((choice) => (
+                      <label
+                        key={choice.value}
+                        className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2 hover:bg-accent/50"
+                      >
+                        <input
+                          type="radio"
+                          name="libtorrent-branch"
+                          value={choice.value}
+                          checked={branch === choice.value}
+                          onChange={() => setBranch(choice.value)}
+                        />
+                        <span className="text-sm text-foreground">{choice.label}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
+
+                <div className="space-y-1">
+                  <Label htmlFor="libtorrent-patch">Custom libtorrent patch (optional)</Label>
+                  <Input
+                    ref={fileInputRef}
+                    id="libtorrent-patch"
+                    type="file"
+                    accept=".patch,.diff,text/plain"
+                    onChange={handleFileChange}
                   />
-                  <span className="text-sm text-zinc-100">{choice.label}</span>
-                </label>
-              ))}
-            </fieldset>
-          )}
+                  <span className="block text-xs text-muted-foreground">
+                    Leave empty to use brrewery&apos;s default performance patch. Applied to this build only; not saved.
+                  </span>
+                  {patch && <span className="block text-xs text-emerald-400">Selected {patch.name}</span>}
+                </div>
+              </>
+            )}
 
-          {step === "libtorrent" && (
-            <>
-              {branchVisible && (
-                <fieldset className="space-y-2">
-                  <legend className="mb-1 block text-sm text-zinc-300">libtorrent version</legend>
-                  {branchOption?.choices?.map((choice) => (
-                    <label key={choice.value} className="flex cursor-pointer items-center gap-3 rounded-md border border-zinc-700 px-3 py-2 hover:bg-zinc-800">
-                      <input
-                        type="radio"
-                        name="libtorrent-branch"
-                        value={choice.value}
-                        checked={branch === choice.value}
-                        onChange={() => setBranch(choice.value)}
-                      />
-                      <span className="text-sm text-zinc-100">{choice.label}</span>
-                    </label>
-                  ))}
-                </fieldset>
-              )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
 
-              <label className="block">
-                <span className="mb-1 block text-sm text-zinc-300">Custom libtorrent patch (optional)</span>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".patch,.diff,text/plain"
-                  className="block w-full text-sm text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-700 file:px-3 file:py-1.5 file:text-sm file:text-zinc-100 hover:file:bg-zinc-600"
-                  onChange={handleFileChange}
-                />
-                <span className="mt-1 block text-xs text-zinc-500">
-                  Leave empty to use brrewery&apos;s default performance patch. Applied to this build only; not saved.
-                </span>
-                {patch && <span className="mt-1 block text-xs text-emerald-400">Selected {patch.name}</span>}
-              </label>
-            </>
-          )}
-
-          {error && <p className="text-sm text-red-400">{error}</p>}
-        </div>
-
-        <div className="flex justify-between gap-2 border-t border-zinc-800 px-5 py-4">
-          <button
-            type="button"
-            className="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
-            onClick={step === "libtorrent" ? () => setStep("version") : onClose}
-          >
-            {step === "libtorrent" ? "Back" : "Cancel"}
-          </button>
-          <button
-            type="submit"
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700"
-          >
-            {step === "version" ? "Continue" : "Start install"}
-          </button>
-        </div>
-      </form>
-    </div>
+          <DialogFooter className="border-t border-border px-5 py-4 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={step === "libtorrent" ? () => setStep("version") : onClose}
+            >
+              {step === "libtorrent" ? "Back" : "Cancel"}
+            </Button>
+            <Button type="submit">
+              {step === "version" ? "Continue" : "Start install"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

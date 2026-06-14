@@ -8,6 +8,7 @@ import { ManageAppsModal, type ManageAppsConfirm } from "@/components/manage-app
 import { SysctlModal } from "@/components/sysctl-modal";
 import { AppJobModal } from "@/components/app-job-modal";
 import { AppNav } from "@/components/app-nav";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { listApps, type JobAction } from "@/lib/api";
 
@@ -92,13 +93,13 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="flex h-full min-h-0 w-56 shrink-0 flex-col border-r border-zinc-800 lg:w-64">
+      <aside className="flex h-full min-h-0 w-56 shrink-0 flex-col border-r border-border lg:w-64">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {apps.isLoading && (
-            <p className="p-3 text-sm text-zinc-500">Loading apps…</p>
+            <p className="p-3 text-sm text-muted-foreground">Loading apps…</p>
           )}
           {apps.isError && (
-            <p className="p-3 text-sm text-red-400">{apps.error.message}</p>
+            <p className="p-3 text-sm text-destructive">{apps.error.message}</p>
           )}
           {apps.data && (
             <AppNav
@@ -108,19 +109,20 @@ export function AppShell() {
           )}
         </div>
 
-        <div className="shrink-0 space-y-3 border-t border-zinc-800 bg-zinc-950 px-4 py-3">
+        <div className="shrink-0 space-y-3 border-t border-border bg-background px-4 py-3">
           <div className="flex items-baseline gap-3">
             {session?.version && (
-              <span className="text-xs text-zinc-500">Version {session.version}</span>
+              <span className="text-xs text-muted-foreground">Version {session.version}</span>
             )}
           </div>
-          <button
+          <Button
             type="button"
-            className="w-full rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-900"
+            variant="outline"
+            className="w-full"
             onClick={() => logout.mutate()}
           >
             Log out
-          </button>
+          </Button>
         </div>
       </aside>
 
