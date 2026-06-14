@@ -12,7 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ApiError,
   applySysctl,
@@ -185,7 +191,7 @@ export function SysctlModal({ onClose }: Props) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-1/2"
+        className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3/4"
       >
         <DialogHeader className="gap-1 border-b border-border px-5 py-4">
           <DialogTitle className="text-base">Tune sysctl parameters</DialogTitle>
@@ -372,32 +378,35 @@ function SettingRow({ setting, value, disabled, onChange, onReset }: RowProps) {
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium text-foreground">{setting.label}</span>
           {setting.unit && (
-            <span className="text-[10px] text-muted-foreground">in {setting.unit}</span>
+            <span className="text-xs text-muted-foreground">in {setting.unit}</span>
           )}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{setting.description}</p>
-        <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{setting.key}</p>
+        <p className="mt-0.5 font-mono text-xs text-muted-foreground">{setting.key}</p>
       </div>
 
-      <div className="flex shrink-0 flex-col items-stretch gap-1 sm:w-80">
+      <div className="flex shrink-0 flex-col items-stretch gap-1 sm:w-96">
         {setting.kind === "enum" && setting.choices ? (
-          <NativeSelect
-            className="w-full"
-            aria-label={setting.label}
-            value={value}
+          <Select
+            value={value || undefined}
             disabled={disabled}
-            onChange={(event) => onChange(event.target.value)}
+            onValueChange={onChange}
           >
-            {/* Surface the live value even when it is outside the recommended choices. */}
-            {setting.choices.includes(value) ? null : (
-              <NativeSelectOption value={value}>{value || "—"}</NativeSelectOption>
-            )}
-            {setting.choices.map((choice) => (
-              <NativeSelectOption key={choice} value={choice}>
-                {choice}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+            <SelectTrigger className="w-full" aria-label={setting.label}>
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              {/* Surface the live value even when it is outside the recommended choices. */}
+              {value && !setting.choices.includes(value) && (
+                <SelectItem value={value}>{value}</SelectItem>
+              )}
+              {setting.choices.map((choice) => (
+                <SelectItem key={choice} value={choice}>
+                  {choice}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         ) : (
           <Input
             type="text"
@@ -409,7 +418,7 @@ function SettingRow({ setting, value, disabled, onChange, onReset }: RowProps) {
             onChange={(event) => onChange(event.target.value)}
           />
         )}
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="truncate" title={`Current: ${current}`}>
             now: {current || "—"}
           </span>

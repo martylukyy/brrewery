@@ -1,5 +1,11 @@
 import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ScaleOption<T extends string> = {
   id: T;
@@ -26,19 +32,18 @@ export function ChartScaleSelect<T extends string>({
       <Label htmlFor={id} className="text-xs text-muted-foreground">
         Scale
       </Label>
-      <NativeSelect
-        id={id}
-        size="sm"
-        value={value}
-        onChange={(event) => onChange(event.target.value as T)}
-        aria-label={ariaLabel}
-      >
-        {options.map((option) => (
-          <NativeSelectOption key={option.id} value={option.id}>
-            {option.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+      <Select value={value} onValueChange={(next) => onChange(next as T)}>
+        <SelectTrigger id={id} size="sm" aria-label={ariaLabel}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

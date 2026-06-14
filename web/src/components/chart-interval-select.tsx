@@ -2,10 +2,14 @@ import {
   CHART_INTERVAL_OPTIONS,
   type ChartIntervalId,
 } from "@/lib/chart-interval";
+import { Label } from "@/components/ui/label";
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Props = {
   value: ChartIntervalId;
@@ -15,21 +19,22 @@ type Props = {
 
 export function ChartIntervalSelect({ value, onChange, id = "chart-interval" }: Props) {
   return (
-    <label htmlFor={id} className="flex items-center gap-2 text-xs text-muted-foreground">
-      <span>Time range</span>
-      <NativeSelect
-        id={id}
-        size="sm"
-        value={value}
-        onChange={(e) => onChange(e.target.value as ChartIntervalId)}
-        aria-label="Chart time range"
-      >
-        {CHART_INTERVAL_OPTIONS.map((option) => (
-          <NativeSelectOption key={option.id} value={option.id}>
-            {option.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-    </label>
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        Time range
+      </Label>
+      <Select value={value} onValueChange={(next) => onChange(next as ChartIntervalId)}>
+        <SelectTrigger id={id} size="sm" aria-label="Chart time range">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {CHART_INTERVAL_OPTIONS.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

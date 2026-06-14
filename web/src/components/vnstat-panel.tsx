@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { IconArrowDown, IconArrowUp, IconArrowsUpDown } from "@tabler/icons-react";
 
 import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { VnstatRangeSelect } from "@/components/vnstat-range-select";
@@ -137,9 +138,24 @@ function TrafficTable({ periods, reverse = true }: { periods: TrafficPeriod[]; r
           <TableHeader className="bg-muted text-muted-foreground">
             <TableRow>
               <TableHead className="px-3 py-2 font-medium text-foreground">Period</TableHead>
-              <TableHead className="px-3 py-2 font-medium text-sky-400">Download</TableHead>
-              <TableHead className="px-3 py-2 font-medium text-emerald-400">Upload</TableHead>
-              <TableHead className="px-3 py-2 font-medium text-orange-400">Total</TableHead>
+              <TableHead className="px-3 py-2 font-medium text-sky-400">
+                <span className="inline-flex items-center gap-1">
+                  <IconArrowDown className="size-3.5" aria-hidden="true" />
+                  Download
+                </span>
+              </TableHead>
+              <TableHead className="px-3 py-2 font-medium text-emerald-400">
+                <span className="inline-flex items-center gap-1">
+                  <IconArrowUp className="size-3.5" aria-hidden="true" />
+                  Upload
+                </span>
+              </TableHead>
+              <TableHead className="px-3 py-2 font-medium text-orange-400">
+                <span className="inline-flex items-center gap-1">
+                  <IconArrowsUpDown className="size-3.5" aria-hidden="true" />
+                  Total
+                </span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

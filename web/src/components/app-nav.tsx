@@ -1,3 +1,5 @@
+import { IconServerCog } from "@tabler/icons-react";
+
 import { AppIcon } from "@/components/app-icon";
 import { Button } from "@/components/ui/button";
 import { appUrl } from "@/lib/app-link";
@@ -53,6 +55,7 @@ export function AppNav({ apps, onManageClick }: Props) {
 
       <div className="shrink-0 border-t border-border p-3">
         <Button type="button" variant="outline" className="w-full" onClick={onManageClick}>
+          <IconServerCog className="size-4" />
           Manage server
         </Button>
       </div>

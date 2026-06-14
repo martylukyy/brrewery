@@ -42,7 +42,7 @@ export function DiskIOChart({ history, chartIdSuffix, mountPoint }: Props) {
 
   return (
     <ChartPanel
-      title={`${mountPoint} throughput`}
+      title={`Disk throughput ( ${mountPoint} )`}
       waiting={sliced.length < 2}
       pollSeconds={interval.pollMs / 1000}
       action={
@@ -60,8 +60,8 @@ export function DiskIOChart({ history, chartIdSuffix, mountPoint }: Props) {
       <LineChart
         pointCount={pointCount}
         series={[
-          { label: "Read", colorClass: "text-primary", values: read },
-          { label: "Write", colorClass: "text-muted-foreground", values: write },
+          { label: "Read", colorClass: "text-sky-400", values: read },
+          { label: "Write", colorClass: "text-emerald-400", values: write },
         ]}
         formatValue={formatRate}
       />

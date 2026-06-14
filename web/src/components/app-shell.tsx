@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { IconLogout } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { Dashboard } from "@/components/dashboard";
@@ -123,6 +124,7 @@ export function AppShell() {
             className="w-full"
             onClick={() => logout.mutate()}
           >
+            <IconLogout className="size-4" />
             Log out
           </Button>
         </div>

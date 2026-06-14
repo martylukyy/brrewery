@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { IconArrowUp, IconDownload, IconTrash } from "@tabler/icons-react";
+import { IconAdjustments, IconArrowUp, IconDownload, IconTrash } from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Prop
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-1/2">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3/4">
         <DialogHeader className="gap-1 border-b border-border px-5 py-4">
           <DialogTitle className="text-base">Manage server</DialogTitle>
           <DialogDescription>
@@ -128,6 +128,7 @@ export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Prop
 
         <DialogFooter className="border-t border-border px-5 py-4 sm:justify-start">
           <Button variant="outline" onClick={onTuneSysctl}>
+            <IconAdjustments />
             Tune sysctl parameters
           </Button>
         </DialogFooter>

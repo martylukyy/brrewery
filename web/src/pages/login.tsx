@@ -1,3 +1,4 @@
+import { IconLogin } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,7 @@ export function LoginPage() {
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={login.isPending}>
+            <IconLogin className="size-4" />
             {login.isPending ? "Signing in…" : "Sign in"}
           </Button>
         </div>

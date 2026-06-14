@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { VnstatPanel } from "@/components/vnstat-panel";
@@ -61,10 +62,14 @@ describe("VnstatPanel", () => {
 
     expect(await screen.findByText("2026-05-31")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Range"), { target: { value: "months" } });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("combobox", { name: "vnStat range" }));
+    await user.click(await screen.findByRole("option", { name: "Last 12 months" }));
     expect(screen.getByText("2026-05")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Range"), { target: { value: "top10" } });
+    await user.click(screen.getByRole("combobox", { name: "vnStat range" }));
+    await user.click(await screen.findByRole("option", { name: "Top 10 days overall" }));
     const top10Rows = screen.getAllByRole("row").slice(1);
     expect(top10Rows[0]).toHaveTextContent("2026-05-30");
     expect(top10Rows[1]).toHaveTextContent("2026-05-31");

@@ -164,7 +164,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground min-h-screen antialiased;
+    @apply min-h-screen antialiased bg-background text-foreground;
   }
   html {
     @apply font-sans;
