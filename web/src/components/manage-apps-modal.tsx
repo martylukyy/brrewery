@@ -74,7 +74,7 @@ export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Prop
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground">{app.name}</span>
-                        <Badge variant={app.installed ? "secondary" : "outline"}>
+                        <Badge variant={app.installed ? "success" : "outline"}>
                           {app.installed ? "Installed" : "Not installed"}
                         </Badge>
                       </div>
