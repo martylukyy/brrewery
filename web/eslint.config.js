@@ -27,4 +27,13 @@ export default tseslint.config(
       "@stylistic/comma-dangle": ["error", "always-multiline"],
     },
   },
+  {
+    // Generated shadcn/ui primitives legitimately co-export variants, hooks, and
+    // contexts alongside their components; Fast Refresh's component-only rule
+    // does not apply to these vendored files.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
 );

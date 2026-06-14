@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError, verifyPassword, type InstallSecret, type AppStatus } from "@/lib/api";
+import { ApiError, verifyPassword, type AppStatus } from "@/lib/api";
+import { requiredSecrets } from "@/lib/install-secrets";
 
 type Props = {
   appIds: string[];
@@ -19,24 +20,6 @@ type Props = {
   onClose: () => void;
   onConfirm: (extraVars: Record<string, string>) => void;
 };
-
-function requiredSecrets(apps: AppStatus[], appIds: string[]): InstallSecret[] {
-  const seen = new Set<string>();
-  const out: InstallSecret[] = [];
-
-  for (const id of appIds) {
-    const app = apps.find((entry) => entry.id === id);
-    for (const secret of app?.install_secrets ?? []) {
-      if (seen.has(secret.key)) {
-        continue;
-      }
-      seen.add(secret.key);
-      out.push(secret);
-    }
-  }
-
-  return out;
-}
 
 export function InstallSecretsModal({ appIds, apps, onClose, onConfirm }: Props) {
   const secrets = useMemo(() => requiredSecrets(apps, appIds), [appIds, apps]);
@@ -136,5 +119,3 @@ export function InstallSecretsModal({ appIds, apps, onClose, onConfirm }: Props)
     </Dialog>
   );
 }
-
-export { requiredSecrets };

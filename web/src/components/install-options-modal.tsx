@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { InstallOption, AppStatus } from "@/lib/api";
+import { requiredInstallOptions } from "@/lib/install-options";
 
 const VERSION_KEY = "qbittorrent_version";
 const BRANCH_KEY = "libtorrent_branch";
@@ -24,20 +25,6 @@ type Props = {
   onClose: () => void;
   onConfirm: (extraVars: Record<string, string>) => void;
 };
-
-/**
- * requiredInstallOptions returns the install options of the first selected
- * app that declares any. Only qBittorrent does today.
- */
-export function requiredInstallOptions(apps: AppStatus[], appIds: string[]): InstallOption[] {
-  for (const id of appIds) {
-    const app = apps.find((entry) => entry.id === id);
-    if (app?.install_options?.length) {
-      return app.install_options;
-    }
-  }
-  return [];
-}
 
 function optionByKey(options: InstallOption[], key: string): InstallOption | undefined {
   return options.find((option) => option.key === key);

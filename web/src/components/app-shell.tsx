@@ -2,8 +2,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Dashboard } from "@/components/dashboard";
-import { InstallOptionsModal, requiredInstallOptions } from "@/components/install-options-modal";
-import { InstallSecretsModal, requiredSecrets } from "@/components/install-secrets-modal";
+import { InstallOptionsModal } from "@/components/install-options-modal";
+import { InstallSecretsModal } from "@/components/install-secrets-modal";
+import { requiredInstallOptions } from "@/lib/install-options";
+import { requiredSecrets } from "@/lib/install-secrets";
 import { ManageAppsModal, type ManageAppsConfirm } from "@/components/manage-apps-modal";
 import { SysctlModal } from "@/components/sysctl-modal";
 import { AppJobModal } from "@/components/app-job-modal";

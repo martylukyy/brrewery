@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { GaugePanel, gaugeFillClass, gaugeFillPath } from "@/components/gauge-panel";
+import { GaugePanel } from "@/components/gauge-panel";
+import { gaugeFillClass, gaugeFillPath } from "@/lib/gauge";
 
 describe("gaugeFillClass", () => {
   it("maps fill level to traffic-light colors", () => {
