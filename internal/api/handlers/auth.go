@@ -62,6 +62,23 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}{Status: "ok"})
 }
 
+type MeResponse struct {
+	Username string `json:"username"`
+}
+
+// Me returns the identity of the currently authenticated session user, backing
+// the dashboard's "signed in as" display. The route sits behind RequireAuth, so
+// a missing username means a valid session with no user attached and is treated
+// as unauthorized.
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	username, ok := h.auth.Username(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, MeResponse{Username: username})
+}
+
 type VerifyPasswordRequest struct {
 	Password string `json:"password"`
 }

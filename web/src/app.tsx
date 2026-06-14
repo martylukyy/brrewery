@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { Spinner } from "@/components/ui/spinner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { LoginPage } from "@/pages/login";
 
@@ -19,5 +20,9 @@ export function App() {
     return <LoginPage />;
   }
 
-  return <AppShell />;
+  return (
+    <TooltipProvider>
+      <AppShell />
+    </TooltipProvider>
+  );
 }

@@ -72,6 +72,7 @@ func (s *Server) Handler() http.Handler {
 			r.Use(middleware.RequireAuth(s.authService))
 			r.Post("/auth/logout", authHandler.Logout)
 			r.Post("/auth/verify-password", authHandler.VerifyPassword)
+			r.Get("/auth/me", authHandler.Me)
 
 			version := handlers.NewVersionHandler()
 			r.Get("/version", version.Version)

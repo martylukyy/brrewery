@@ -76,6 +76,10 @@ export type LoginResponse = {
   username: string;
 };
 
+export type CurrentUser = {
+  username: string;
+};
+
 export type VersionInfo = {
   version: string;
   commit: string;
@@ -205,6 +209,13 @@ export async function checkSession(): Promise<VersionInfo | null> {
   }
 
   return (await res.json()) as VersionInfo;
+}
+
+// getCurrentUser returns the signed-in user's identity. Unlike checkSession
+// (the /version auth probe), this carries the username from the session, so the
+// dashboard can show who is logged in even after a page reload.
+export function getCurrentUser() {
+  return apiFetch<CurrentUser>("/auth/me");
 }
 
 export function listApps() {

@@ -1,8 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AppNav } from "@/components/app-nav";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { AppStatus } from "@/lib/api";
 
 const apps: AppStatus[] = [
@@ -34,14 +37,26 @@ const apps: AppStatus[] = [
   },
 ];
 
-describe("AppNav", () => {
+type Overrides = Partial<ComponentProps<typeof AppSidebar>>;
+
+function renderSidebar(overrides: Overrides = {}) {
+  return render(
+    <TooltipProvider>
+      <SidebarProvider>
+        <AppSidebar
+          apps={apps}
+          onManageClick={() => {}}
+          onLogout={() => {}}
+          {...overrides}
+        />
+      </SidebarProvider>
+    </TooltipProvider>,
+  );
+}
+
+describe("AppSidebar", () => {
   it("lists only installed apps", () => {
-    render(
-      <AppNav
-        apps={apps}
-        onManageClick={() => {}}
-      />,
-    );
+    renderSidebar();
 
     expect(screen.getByRole("link", { name: "Sonarr" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Radarr" })).not.toBeInTheDocument();
@@ -49,12 +64,7 @@ describe("AppNav", () => {
   });
 
   it("opens installed apps in a new tab", () => {
-    render(
-      <AppNav
-        apps={apps}
-        onManageClick={() => {}}
-      />,
-    );
+    renderSidebar();
 
     const link = screen.getByRole("link", { name: "Sonarr" });
     expect(link).toHaveAttribute("href", `${window.location.origin}/sonarr/`);
@@ -66,14 +76,25 @@ describe("AppNav", () => {
     const user = userEvent.setup();
     const onManageClick = vi.fn();
 
-    render(
-      <AppNav
-        apps={apps}
-        onManageClick={onManageClick}
-      />,
-    );
+    renderSidebar({ onManageClick });
 
     await user.click(screen.getByRole("button", { name: "Manage server" }));
     expect(onManageClick).toHaveBeenCalled();
+  });
+
+  it("shows the signed-in user when provided", () => {
+    renderSidebar({ user: "stefan.luksch" });
+
+    expect(screen.getByText("stefan.luksch")).toBeInTheDocument();
+  });
+
+  it("calls onLogout for log out button", async () => {
+    const user = userEvent.setup();
+    const onLogout = vi.fn();
+
+    renderSidebar({ onLogout });
+
+    await user.click(screen.getByRole("button", { name: "Log out" }));
+    expect(onLogout).toHaveBeenCalled();
   });
 });

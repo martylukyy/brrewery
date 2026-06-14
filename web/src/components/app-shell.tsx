@@ -1,5 +1,4 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconLogout } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { Dashboard } from "@/components/dashboard";
@@ -10,15 +9,19 @@ import { requiredSecrets } from "@/lib/install-secrets";
 import { ManageAppsModal, type ManageAppsConfirm } from "@/components/manage-apps-modal";
 import { SysctlModal } from "@/components/sysctl-modal";
 import { AppJobModal } from "@/components/app-job-modal";
-import { AppNav } from "@/components/app-nav";
-import { Button } from "@/components/ui/button";
+import { AppSidebar } from "@/components/app-sidebar";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { listApps, type JobAction } from "@/lib/api";
 
 type ManagePhase = "select" | "secrets" | "options" | "job" | "sysctl";
 
 export function AppShell() {
-  const { session, logout } = useAuth();
+  const { session, username, logout } = useAuth();
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<ManagePhase | null>(null);
   const [pendingAction, setPendingAction] = useState<JobAction>("install");
@@ -95,44 +98,27 @@ export function AppShell() {
   const queuePosition = jobQueueTotal - pendingAppIds.length + 1;
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <aside className="flex h-full min-h-0 w-56 shrink-0 flex-col border-r border-border lg:w-64">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {apps.isLoading && (
-            <p className="p-3 text-sm text-muted-foreground">Loading apps…</p>
-          )}
-          {apps.isError && (
-            <p className="p-3 text-sm text-destructive">{apps.error.message}</p>
-          )}
-          {apps.data && (
-            <AppNav
-              apps={appList}
-              onManageClick={() => setPhase("select")}
-            />
-          )}
-        </div>
+    <SidebarProvider className="h-svh overflow-hidden">
+      <AppSidebar
+        apps={appList}
+        isLoading={apps.isLoading}
+        isError={apps.isError}
+        errorMessage={apps.error?.message}
+        version={session?.version}
+        user={username}
+        onManageClick={() => setPhase("select")}
+        onLogout={() => logout.mutate()}
+      />
 
-        <div className="shrink-0 space-y-3 border-t border-border bg-background px-4 py-3">
-          <div className="flex items-baseline gap-3">
-            {session?.version && (
-              <span className="text-xs text-muted-foreground">Version {session.version}</span>
-            )}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={() => logout.mutate()}
-          >
-            <IconLogout className="size-4" />
-            Log out
-          </Button>
+      <SidebarInset className="min-h-0">
+        <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
+          <SidebarTrigger />
+          <span className="text-sm font-medium text-foreground">Dashboard</span>
+        </header>
+        <div className="scrollbar-zinc min-h-0 flex-1 overflow-y-auto p-6">
+          <Dashboard />
         </div>
-      </aside>
-
-      <main className="scrollbar-zinc min-h-0 min-w-0 flex-1 overflow-y-auto p-6">
-        <Dashboard />
-      </main>
+      </SidebarInset>
 
       {phase === "select" && (
         <ManageAppsModal
@@ -176,6 +162,6 @@ export function AppShell() {
           onFinished={handleJobFinished}
         />
       )}
-    </div>
+    </SidebarProvider>
   );
 }
