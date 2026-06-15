@@ -15,6 +15,7 @@ import {
   SidebarMenuSkeleton,
   SidebarRail,
   SidebarSeparator,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { appUrl } from "@/lib/app-link";
 import type { AppStatus } from "@/lib/api";
@@ -50,15 +51,36 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-1 py-1">
-          <img
-            src="/brrewery.png"
-            alt=""
-            className="size-8 shrink-0 rounded-lg object-contain"
-          />
-          <span className="font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-            brrewery
-          </span>
+        {/*
+          Expanded: logo + name on the left, the collapse toggle pushed to the
+          right with ml-auto. Collapsed: only the toggle remains; it grows to
+          size-8 like the app-icon buttons so it fills the rail and its icon
+          lands dead-center. (ml-auto alone right-aligns the 28px button, leaving
+          a lopsided left margin.) px-0 + transition-[padding] let it glide into
+          place as the rail width animates, instead of jumping the way a
+          justify-center / mx-auto re-center against the still-wide rail would.
+
+          The logo + name sit in their own overflow-hidden box that collapses its
+          max-width to 0 instead of using display:none. data-collapsible flips at
+          the very start of the width animation, so a display toggle would snap
+          them to full size in the still-narrow rail and bleed into the content;
+          animating max-width + opacity instead wipes/fades them in step with the
+          rail. Collapsing to 0 width also keeps them from shoving the toggle.
+        */}
+        <div className="flex items-center px-2 py-1 transition-[padding] group-data-[collapsible=icon]:px-0">
+          <div className="flex max-w-48 items-center gap-2 overflow-hidden transition-[max-width,opacity] duration-200 ease-linear group-data-[collapsible=icon]:max-w-0 group-data-[collapsible=icon]:opacity-0">
+            <img
+              src="/logos/brrewery.webp"
+              alt=""
+              // max-w-none defeats Preflight's `img { max-width: 100% }`, which
+              // would otherwise clamp the logo's width to its narrow parent.
+              className="size-8 max-w-none shrink-0 object-contain"
+            />
+            <span className="font-semibold whitespace-nowrap text-sidebar-foreground">
+              brrewery
+            </span>
+          </div>
+          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:size-8!" />
         </div>
       </SidebarHeader>
 
@@ -89,16 +111,27 @@ export function AppSidebar({
                   return (
                     <SidebarMenuItem key={app.id}>
                       {url ? (
-                        <SidebarMenuButton asChild tooltip={app.name}>
+                        // p-1! shrinks the collapsed button's padding so the
+                        // size-6 icon fits its 32px slot exactly (centered),
+                        // instead of overflowing the default p-2 content box.
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={app.name}
+                          className="group-data-[collapsible=icon]:p-1!"
+                        >
                           <a href={url} target="_blank" rel="noopener noreferrer">
-                            <AppIcon icon={app.icon} className="size-6" />
+                            <AppIcon icon={app.icon} className="size-6 max-w-none" />
                             <span>{app.name}</span>
                           </a>
                         </SidebarMenuButton>
                       ) : (
                         // Installed but no web UI to link to — show it, but inert.
-                        <SidebarMenuButton disabled tooltip={app.name}>
-                          <AppIcon icon={app.icon} className="size-6" />
+                        <SidebarMenuButton
+                          disabled
+                          tooltip={app.name}
+                          className="group-data-[collapsible=icon]:p-1!"
+                        >
+                          <AppIcon icon={app.icon} className="size-6 max-w-none" />
                           <span>{app.name}</span>
                         </SidebarMenuButton>
                       )}

@@ -46,7 +46,7 @@ export function LoginPage() {
         className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-[0_0_32px_0_var(--color-white)]/5 animate-glow motion-reduce:animate-none"
       >
         <div className="flex flex-col items-center mb-4">
-          <img src="/brrewery.png" className="size-16" />
+          <img src="logos/brrewery.webp" className="size-16" />
           <h1 className="text-xl font-semibold">brrewery</h1>
           <p className="text-sm text-muted-foreground">seedbox management suite.</p>
         </div>

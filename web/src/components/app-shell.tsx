@@ -111,9 +111,14 @@ export function AppShell() {
       />
 
       <SidebarInset className="min-h-0">
-        <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
+        {/*
+          Below md the sidebar is an off-canvas sheet whose toggle (now in the
+          sidebar header) is hidden while it's closed, so keep a minimal trigger
+          here to open it. On md+ the toggle lives in the sidebar header and this
+          row collapses away — no dashboard header on desktop.
+        */}
+        <header className="flex h-12 shrink-0 items-center border-b border-border px-2 md:hidden">
           <SidebarTrigger />
-          <span className="text-sm font-medium text-foreground">Dashboard</span>
         </header>
         <div className="scrollbar-zinc min-h-0 flex-1 overflow-y-auto p-6">
           <Dashboard />
