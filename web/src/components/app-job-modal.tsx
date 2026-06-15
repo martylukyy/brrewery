@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { IconAlertTriangle, IconCheck, IconLoader2 } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconCopy, IconLoader2 } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,24 +35,21 @@ type Props = {
 
 const TERMINAL: JobStatus[] = ["succeeded", "failed"];
 
-const ACTION_LABELS: Record<JobAction, { title: string; running: string; failedStart: string; output: string }> = {
+const ACTION_LABELS: Record<JobAction, { title: string; running: string; failedStart: string }> = {
   install: {
     title: "Installing",
     running: "Installing…",
     failedStart: "Failed to start install",
-    output: "Ansible install output",
   },
   upgrade: {
     title: "Upgrading",
     running: "Upgrading…",
     failedStart: "Failed to start upgrade",
-    output: "Ansible upgrade output",
   },
   remove: {
     title: "Removing",
     running: "Removing…",
     failedStart: "Failed to start remove",
-    output: "Ansible remove output",
   },
 };
 
@@ -212,7 +209,13 @@ export function AppJobModal({
   }, [copied]);
 
   const statusVariant =
-    status === "succeeded" ? "secondary" : isError || status === "failed" ? "destructive" : "outline";
+    status === "succeeded"
+      ? "success"
+      : isError || status === "failed"
+        ? "destructive"
+        : status === "running"
+          ? "default"
+          : "secondary";
   const StatusIcon =
     status === "succeeded"
       ? IconCheck
@@ -232,24 +235,27 @@ export function AppJobModal({
           }
         }}
         onInteractOutside={(event) => event.preventDefault()}
-        className="flex h-full max-h-[90vh] w-full max-w-[90vw] flex-col gap-0 p-0"
+        className="flex h-full max-h-[90vh] w-full sm:!max-w-[45vw] flex-col gap-0 p-0"
       >
         <DialogHeader className="gap-1 border-b border-border px-5 py-4">
-          <DialogTitle className="text-base">{title}</DialogTitle>
-          <DialogDescription>
-            {queueTotal > 1 ? `App ${queuePosition} of ${queueTotal}` : labels.output}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex items-center gap-3 border-b border-border px-5 py-3">
-          <Badge variant={statusVariant}>
-            <StatusIcon data-icon="inline-start" className={statusIconClassName} />
-            {statusLabel}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <DialogTitle className="min-w-0 truncate text-base">{title}</DialogTitle>
+            <Badge variant={statusVariant}>
+              <StatusIcon data-icon="inline-start" className={statusIconClassName} />
+              {statusLabel}
+            </Badge>
+          </div>
+          {queueTotal > 1 ? (
+            <DialogDescription>
+              App {queuePosition} of {queueTotal}
+            </DialogDescription>
+          ) : (
+            <DialogDescription className="sr-only">Live output for {title}</DialogDescription>
+          )}
           {errorMessage && (
             <p className="min-w-0 truncate text-sm text-destructive">{errorMessage}</p>
           )}
-        </div>
+        </DialogHeader>
 
         <pre
           ref={logRef}
@@ -260,6 +266,11 @@ export function AppJobModal({
 
         <DialogFooter className="border-t border-border px-5 py-4 sm:justify-between">
           <Button variant="outline" onClick={handleCopy} disabled={!logText}>
+            {copied ? (
+              <IconCheck data-icon="inline-start" />
+            ) : (
+              <IconCopy data-icon="inline-start" />
+            )}
             {copied ? "Copied!" : "Copy log"}
           </Button>
           <Button variant="outline" onClick={handleClose} disabled={!canClose}>
