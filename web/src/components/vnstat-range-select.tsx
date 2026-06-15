@@ -16,15 +16,17 @@ type Props = {
 
 export function VnstatRangeSelect({ value, onChange, id = "vnstat-range" }: Props) {
   return (
-    <div className="flex items-center gap-2 text-muted-foreground">
-      <Label htmlFor={id}>Range</Label>
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        Range
+      </Label>
       <Select value={value} onValueChange={(next) => onChange(next as VnstatRangeId)}>
-        <SelectTrigger id={id} aria-label="vnStat range">
+        <SelectTrigger id={id} size="sm" className="text-xs" aria-label="vnStat range">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper" align="end">
           {VNSTAT_RANGE_OPTIONS.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
+            <SelectItem key={option.id} value={option.id} className="text-xs">
               {option.label}
             </SelectItem>
           ))}

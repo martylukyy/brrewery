@@ -24,12 +24,12 @@ export function ChartIntervalSelect({ value, onChange, id = "chart-interval" }: 
         Time range
       </Label>
       <Select value={value} onValueChange={(next) => onChange(next as ChartIntervalId)}>
-        <SelectTrigger id={id} size="sm" aria-label="Chart time range">
+        <SelectTrigger id={id} size="sm" className="text-xs" aria-label="Chart time range">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper" align="end">
           {CHART_INTERVAL_OPTIONS.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
+            <SelectItem key={option.id} value={option.id} className="text-xs">
               {option.label}
             </SelectItem>
           ))}

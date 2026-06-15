@@ -33,12 +33,12 @@ export function ChartScaleSelect<T extends string>({
         Scale
       </Label>
       <Select value={value} onValueChange={(next) => onChange(next as T)}>
-        <SelectTrigger id={id} size="sm" aria-label={ariaLabel}>
+        <SelectTrigger id={id} size="sm" className="text-xs" aria-label={ariaLabel}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper" align="end">
           {options.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
+            <SelectItem key={option.id} value={option.id} className="text-xs">
               {option.label}
             </SelectItem>
           ))}
