@@ -1,0 +1,16 @@
+---
+- name: Ensure the brrewery nginx apps directory exists
+  ansible.builtin.file:
+    path: /etc/nginx/brrewery/apps
+    state: directory
+    mode: "0755"
+
+- name: Install the ruTorrent nginx location
+  ansible.builtin.template:
+    src: rutorrent-nginx.conf.j2
+    dest: /etc/nginx/brrewery/apps/rutorrent.conf
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Flush handlers so nginx reloads now
+  ansible.builtin.meta: flush_handlers

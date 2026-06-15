@@ -13,6 +13,7 @@ import (
 	"github.com/autobrr/brrewery/internal/apps/jobs"
 	"github.com/autobrr/brrewery/internal/apps/model"
 	"github.com/autobrr/brrewery/internal/apps/qbittorrent"
+	"github.com/autobrr/brrewery/internal/apps/rtorrent"
 )
 
 var (
@@ -206,12 +207,14 @@ func playbookForAction(app *model.App, action model.JobAction) string {
 }
 
 func enrichAppVars(ctx context.Context, appID string, action model.JobAction, vars map[string]string) error {
-	if appID != qbittorrent.AppID {
+	if action != model.JobActionInstall && action != model.JobActionUpgrade {
 		return nil
 	}
-	switch action {
-	case model.JobActionInstall, model.JobActionUpgrade:
+	switch appID {
+	case qbittorrent.AppID:
 		return qbittorrent.EnrichAnsibleVars(ctx, vars, nil, nil, nil, nil, nil)
+	case rtorrent.AppID:
+		return rtorrent.EnrichAnsibleVars(ctx, vars, nil)
 	default:
 		return nil
 	}

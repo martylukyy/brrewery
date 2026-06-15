@@ -1,8 +1,33 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  roles:
+    # The build role rebuilds the selected line's resolved version. brrewery
+    # passes rtorrent_version/rtorrent_release/libtorrent_release as for install.
+    - brrewery_user
+    - rtorrent_build
   tasks:
-    - name: rtorrent upgrade placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for rtorrent upgrade"
+    # Deliberately does NOT rewrite ~/.rtorrent.rc: that would discard any
+    # operator changes. Just restart so the freshly built binary is picked up.
+    - name: Restart rtorrent for brrewery user after rebuild
+      ansible.builtin.systemd:
+        name: "rtorrent@{{ brrewery_user }}.service"
+        state: restarted
+        daemon_reload: true
+
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set rtorrent home fact
+      ansible.builtin.set_fact:
+        rtorrent_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Wait for the rtorrent SCGI socket to appear
+      ansible.builtin.wait_for:
+        path: "{{ rtorrent_scgi_socket }}"
+        timeout: 60

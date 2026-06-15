@@ -1,0 +1,31 @@
+{% if rt_rc_syntax == 'legacy' %}
+# Managed by brrewery — rtorrent {{ rtorrent_release }} (legacy 0.9.6 syntax)
+directory = {{ rtorrent_download_dir }}
+session = {{ rtorrent_session_dir }}
+
+# SCGI socket ruTorrent connects to.
+scgi_local = {{ rtorrent_scgi_socket }}
+
+port_range = {{ rtorrent_port_range }}
+port_random = no
+encryption = allow_incoming,try_outgoing,enable_retry
+dht = disable
+peer_exchange = yes
+use_udp_trackers = yes
+check_hash = no
+{% else %}
+# Managed by brrewery — rtorrent {{ rtorrent_release }} (modern dotted syntax)
+directory.default.set = {{ rtorrent_download_dir }}
+session.path.set = {{ rtorrent_session_dir }}
+
+# SCGI socket ruTorrent connects to.
+network.scgi.open_local = {{ rtorrent_scgi_socket }}
+
+network.port_range.set = {{ rtorrent_port_range }}
+network.port_random.set = no
+protocol.encryption.set = allow_incoming,try_outgoing,enable_retry
+protocol.pex.set = yes
+trackers.use_udp.set = yes
+dht.mode.set = disable
+pieces.hash.on_completion.set = no
+{% endif %}

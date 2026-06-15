@@ -1,8 +1,20 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
-  tasks:
-    - name: rutorrent install placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for rutorrent install"
+  become: true
+  gather_facts: true
+  pre_tasks:
+    # The rutorrent role derives rtorrent's SCGI socket path from rtorrent_home,
+    # so resolve it before the role runs (pre_tasks run before roles).
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set rtorrent home fact
+      ansible.builtin.set_fact:
+        rtorrent_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+  roles:
+    - brrewery_user
+    - rutorrent

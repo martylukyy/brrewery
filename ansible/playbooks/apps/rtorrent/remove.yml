@@ -1,8 +1,93 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    rtorrent_prefix: /usr/local
+    rtorrent_bin: /usr/local/bin/rtorrent
+  roles:
+    - brrewery_user
   tasks:
-    - name: rtorrent remove placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for rtorrent remove"
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Stop and disable rtorrent for brrewery user
+      ansible.builtin.systemd:
+        name: "rtorrent@{{ brrewery_user }}.service"
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Clear any failed state for the stopped instance
+      ansible.builtin.command:
+        cmd: "systemctl reset-failed rtorrent@{{ brrewery_user }}.service"
+      changed_when: false
+      failed_when: false
+
+    - name: Remove rtorrent user config and session
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ brrewery_home }}/.rtorrent.rc"
+        - "{{ brrewery_home }}/.local/share/rtorrent"
+
+    # Only remove the shared binary/libraries when no OTHER rtorrent instance is
+    # still running (active or starting). brrewery uses a single account, so once
+    # this instance is stopped the count is zero.
+    - name: List active rtorrent service instances
+      ansible.builtin.shell: |
+        set -o pipefail
+        systemctl list-units 'rtorrent@*.service' --state=active,activating --no-legend --no-pager 2>/dev/null || true
+      register: rtorrent_units
+      changed_when: false
+
+    - name: Remove rtorrent and libtorrent when no instances remain
+      when: rtorrent_units.stdout_lines | length == 0
+      block:
+        - name: Find installed libtorrent artifacts
+          ansible.builtin.find:
+            paths:
+              - "{{ rtorrent_prefix }}/lib"
+              - "{{ rtorrent_prefix }}/lib/pkgconfig"
+            patterns:
+              - "libtorrent.so*"
+              - "libtorrent.a"
+              - "libtorrent.la"
+              - "libtorrent.pc"
+            # so the .so version symlinks are matched too, not just real files
+            file_type: any
+            recurse: false
+          register: rtorrent_libtorrent_files
+
+        - name: Remove rtorrent binary, libtorrent libraries and headers
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop: "{{ [rtorrent_bin, rtorrent_prefix ~ '/include/torrent']
+                    + (rtorrent_libtorrent_files.files | map(attribute='path') | list) }}"
+
+        - name: Remove rtorrent systemd template unit
+          ansible.builtin.file:
+            path: /etc/systemd/system/rtorrent@.service
+            state: absent
+          notify: Reload systemd
+
+        - name: Refresh the dynamic linker cache
+          ansible.builtin.command:
+            cmd: ldconfig
+          changed_when: false
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

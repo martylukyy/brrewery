@@ -1,0 +1,26 @@
+# Managed by brrewery — rutorrent
+location = {{ rutorrent_web_path[:-1] }} {
+    return 301 {{ rutorrent_web_path }};
+}
+
+# Served with root (not alias): {{ rutorrent_web_path }}X -> {{ rutorrent_root | dirname }}/{{ rutorrent_root | basename }}/X.
+# This avoids nginx's alias+index quirk and lets the PHP handler use the usual
+# $document_root$fastcgi_script_name.
+location ^~ {{ rutorrent_web_path }} {
+    root {{ rutorrent_root | dirname }};
+    # ruTorrent is a JS app served from index.html; its PHP lives under php/ and
+    # plugins/*/action.php (handled by the nested location below).
+    index index.html;
+
+    # ruTorrent has no authentication of its own; gate it behind HTTP Basic auth
+    # using the brrewery account credentials.
+    auth_basic "ruTorrent";
+    auth_basic_user_file {{ rutorrent_htpasswd }};
+
+    location ~ \.php$ {
+        include /etc/nginx/fastcgi_params;
+        fastcgi_pass unix:{{ rutorrent_fpm_socket }};
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_read_timeout 120s;
+    }
+}

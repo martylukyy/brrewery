@@ -1,0 +1,103 @@
+---
+- name: Require the brrewery user password for ruTorrent basic auth
+  ansible.builtin.assert:
+    that:
+      - brrewery_user_password is defined
+      - brrewery_user_password | length > 0
+    fail_msg: brrewery_user_password must be supplied for the ruTorrent install
+
+- name: Ensure the rtorrent SCGI socket exists (rtorrent must be installed and running)
+  ansible.builtin.wait_for:
+    path: "{{ rutorrent_scgi_socket }}"
+    timeout: 30
+  # ruTorrent connects to this socket; surface a clear failure if rtorrent is down.
+
+- name: Ensure the ruTorrent root directory exists
+  ansible.builtin.file:
+    path: "{{ rutorrent_root }}"
+    state: directory
+    mode: "0755"
+
+# On upgrade, share/ holds per-user UI settings; preserve it. On a fresh install
+# rutorrent_preserve_share is false so the full tree (including share/) extracts.
+- name: Download and extract the ruTorrent source
+  ansible.builtin.unarchive:
+    src: "{{ rutorrent_tarball_url }}"
+    dest: "{{ rutorrent_root }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+    exclude: "{{ ['share'] if (rutorrent_preserve_share | default(false) | bool) else [] }}"
+    owner: "{{ brrewery_user }}"
+    group: "{{ brrewery_group }}"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+
+- name: Ensure ruTorrent files are owned by the brrewery user
+  ansible.builtin.file:
+    path: "{{ rutorrent_root }}"
+    state: directory
+    owner: "{{ brrewery_user }}"
+    group: "{{ brrewery_group }}"
+    recurse: true
+
+# Point ruTorrent at rtorrent's local SCGI socket and mark it co-hosted.
+- name: Configure ruTorrent SCGI connection (unix socket)
+  ansible.builtin.replace:
+    path: "{{ rutorrent_root }}/conf/config.php"
+    regexp: "{{ item.regexp }}"
+    replace: "{{ item.replace }}"
+  loop:
+    - regexp: '^(\s*)\$scgi_port\s*=.*;'
+      replace: '\g<1>$scgi_port = 0;'
+    - regexp: '^(\s*)\$scgi_host\s*=.*;'
+      replace: '\g<1>$scgi_host = "unix://{{ rutorrent_scgi_socket }}";'
+    - regexp: '^(\s*)\$localHostedMode\s*=.*;'
+      replace: '\g<1>$localHostedMode = true;'
+  loop_control:
+    label: "{{ item.regexp }}"
+
+- name: Install the ruTorrent PHP-FPM pool
+  ansible.builtin.template:
+    src: rutorrent-fpm-pool.conf.j2
+    dest: "{{ rutorrent_fpm_pool_dir }}/{{ rutorrent_fpm_pool }}.conf"
+    mode: "0644"
+  notify: Restart php-fpm
+
+- name: Generate the ruTorrent basic-auth hash
+  ansible.builtin.command:
+    cmd: openssl passwd -apr1 -stdin
+    stdin: "{{ brrewery_user_password }}"
+  register: rutorrent_pw_hash
+  changed_when: false
+  no_log: true
+
+- name: Ensure the brrewery nginx directory exists
+  ansible.builtin.file:
+    path: /etc/nginx/brrewery
+    state: directory
+    mode: "0755"
+
+- name: Write the ruTorrent htpasswd file
+  ansible.builtin.copy:
+    dest: "{{ rutorrent_htpasswd }}"
+    content: "{{ brrewery_user }}:{{ rutorrent_pw_hash.stdout }}\n"
+    owner: root
+    group: www-data
+    mode: "0640"
+  no_log: true
+
+- name: Enable and (re)start the ruTorrent PHP-FPM service
+  ansible.builtin.systemd:
+    name: "{{ rutorrent_fpm_service }}"
+    enabled: true
+    state: started
+
+- name: Apply the new PHP-FPM pool now
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the ruTorrent PHP-FPM socket
+  ansible.builtin.wait_for:
+    path: "{{ rutorrent_fpm_socket }}"
+    timeout: 30

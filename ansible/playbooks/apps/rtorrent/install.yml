@@ -1,8 +1,72 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  roles:
+    - brrewery_user
+    - rtorrent_build
   tasks:
-    - name: rtorrent install placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for rtorrent install"
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+        rtorrent_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Check brrewery user home exists
+      ansible.builtin.stat:
+        path: "{{ brrewery_home }}"
+      register: brrewery_home_dir
+
+    - name: Assert brrewery user home exists
+      ansible.builtin.assert:
+        that:
+          - brrewery_home_dir.stat.exists
+        fail_msg: "Home directory {{ brrewery_home }} for user {{ brrewery_user }} does not exist"
+
+    - name: Ensure rtorrent state, session and download directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0750"
+      loop:
+        - "{{ rtorrent_state_dir }}"
+        - "{{ rtorrent_session_dir }}"
+        - "{{ rtorrent_download_dir }}"
+
+    # The .rtorrent.rc dialect is version-aware (rt_rc_syntax fact set by the
+    # rtorrent_build role's resolve step). Rendered via the role so the template
+    # resolves from roles/rtorrent_build/templates/.
+    - name: Write rtorrent configuration
+      ansible.builtin.include_role:
+        name: rtorrent_build
+        tasks_from: config.yml
+
+    - name: Install rtorrent systemd template unit
+      ansible.builtin.include_role:
+        name: rtorrent_build
+        tasks_from: service_unit.yml
+
+    - name: Enable and start rtorrent for brrewery user
+      ansible.builtin.systemd:
+        name: "rtorrent@{{ brrewery_user }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for the rtorrent SCGI socket to appear
+      ansible.builtin.wait_for:
+        path: "{{ rtorrent_scgi_socket }}"
+        timeout: 60
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

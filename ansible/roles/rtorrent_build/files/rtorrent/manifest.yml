@@ -1,0 +1,71 @@
+# Vendored build manifest for rtorrent (rakshasa/rtorrent + rakshasa/libtorrent).
+#
+# Each entry under `lines` describes one selectable rtorrent release line and how
+# to build it. brrewery resolves the concrete rtorrent and libtorrent versions
+# before Ansible runs (see internal/apps/rtorrent):
+#   - "latest" lines resolve the newest patch tag in the series from GitHub;
+#   - "pinned" lines use the manifest `tag`.
+# The matching libtorrent version is whatever upstream bundles in that rtorrent
+# GitHub release (read from the release assets), EXCEPT 0.9.6 which predates the
+# release-asset era and pins its libtorrent here.
+#
+# rtorrent X.Y.Z (>= 0.15) and libtorrent X.Y.Z share a version number; the older
+# lines pair as: 0.10.0->libtorrent 0.14.0, 0.9.8->0.13.8, 0.9.6->0.13.6.
+defaults:
+  # Extra CXXFLAGS for the C++11-era legacy lines (0.9.6/0.9.8 with libtorrent
+  # 0.13.x). GCC 14 turns throw-in-noexcept-destructor into an error
+  # (-Werror=terminate) and OpenSSL 3 deprecates the low-level crypto APIs these
+  # versions use; both are warnings we accept rather than fail on.
+  legacy_cxxflags: "-Wno-terminate -Wno-deprecated-declarations -Wno-error"
+
+lines:
+  - version: "0.16.x"
+    series: "0.16"
+    source: release
+    resolve: latest
+    cxx_std: "c++20"
+    rc_syntax: modern
+
+  - version: "0.15.x"
+    series: "0.15"
+    source: release
+    resolve: latest
+    cxx_std: "c++17"
+    rc_syntax: modern
+
+  - version: "0.10.0"
+    tag: "v0.10.0"
+    source: release
+    resolve: pinned
+    cxx_std: "c++14"
+    rc_syntax: modern
+
+  - version: "0.9.8"
+    tag: "v0.9.8"
+    source: release
+    resolve: pinned
+    cxx_std: "c++11"
+    rc_syntax: modern
+    legacy: true
+
+  - version: "0.9.6"
+    tag: "v0.9.6"
+    # 0.9.6 has no GitHub release/dist tarball, so build from the tag source
+    # archive (bootstrapped with autoreconf) and pin its libtorrent here.
+    source: git-archive
+    resolve: pinned
+    libtorrent_tag: "v0.13.6"
+    cxx_std: "c++11"
+    rc_syntax: legacy
+    legacy: true
+    # rtorrent 0.9.6 binds to noexcept-qualified STL methods through std::tr1,
+    # which GCC's <tr1/functional> cannot form references to. Port its tr1 usage
+    # to C++11 std:: before building.
+    replace_tr1: true
+    patches:
+      libtorrent:
+        - libtorrent-0.13.6-openssl.patch
+      rtorrent:
+        # window_file_list.cc calls std::isprint(c, locale) without including
+        # <locale>, which links cleanly only when the header is present.
+        - rtorrent-0.9.6-locale.patch

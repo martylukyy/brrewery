@@ -1,0 +1,120 @@
+---
+- name: Require rtorrent version and resolved release extra vars
+  ansible.builtin.assert:
+    that:
+      - rtorrent_version is defined
+      - rtorrent_version | length > 0
+      - rtorrent_release is defined
+      - rtorrent_release | length > 0
+      - libtorrent_release is defined
+      - libtorrent_release | length > 0
+    fail_msg: >-
+      rtorrent_version (UI line), rtorrent_release and libtorrent_release must be
+      supplied by brrewery (resolved from GitHub before Ansible runs).
+
+- name: Build candidate manifest locations
+  ansible.builtin.set_fact:
+    rt_vendor_candidates:
+      - "{{ role_path }}/files/rtorrent"
+      - /usr/share/brrewery/vendor/rtorrent
+      - /etc/brrewery/ansible/roles/rtorrent_build/files/rtorrent
+
+- name: Locate the rtorrent manifest
+  ansible.builtin.stat:
+    path: "{{ item }}/manifest.yml"
+  loop: "{{ rt_vendor_candidates }}"
+  register: rt_manifest_stat
+
+- name: Fail when no vendored manifest is found
+  ansible.builtin.assert:
+    that:
+      - rt_manifest_stat.results | selectattr('stat.exists') | list | length > 0
+    fail_msg: "rtorrent manifest.yml not found in any of: {{ rt_vendor_candidates | join(', ') }}"
+
+- name: Resolve manifest directory to the first candidate that has a manifest
+  ansible.builtin.set_fact:
+    rt_manifest_dir: "{{ rt_manifest_stat.results | selectattr('stat.exists') | map(attribute='item') | first }}"
+
+- name: Choose writable vendor root for build sources
+  ansible.builtin.set_fact:
+    rtorrent_vendor_root: >-
+      {{
+        rt_manifest_dir
+        if ('rtorrent_build/files/rtorrent' not in rt_manifest_dir)
+        else (rtorrent_vendor_root_default | default('/usr/share/brrewery/vendor/rtorrent'))
+      }}
+
+- name: Load rtorrent build manifest
+  ansible.builtin.include_vars:
+    file: "{{ rt_manifest_dir }}/manifest.yml"
+    name: rt_manifest
+
+- name: Select manifest line for the requested version
+  ansible.builtin.set_fact:
+    rt_line: "{{ rt_manifest.lines | selectattr('version', 'equalto', rtorrent_version) | list | first | default({}) }}"
+
+- name: Fail when the version line is not in the manifest
+  ansible.builtin.assert:
+    that:
+      - rt_line | length > 0
+    fail_msg: "rtorrent version {{ rtorrent_version }} is not vendored in the manifest"
+
+- name: Set resolved build facts
+  ansible.builtin.set_fact:
+    rt_source: "{{ rt_line.source }}"
+    rt_cxx_std: "{{ rt_line.cxx_std }}"
+    rt_rc_syntax: "{{ rt_line.rc_syntax }}"
+    rt_legacy: "{{ rt_line.legacy | default(false) }}"
+    rt_libtorrent_patches: "{{ (rt_line.patches | default({})).libtorrent | default([]) }}"
+    rt_rtorrent_patches: "{{ (rt_line.patches | default({})).rtorrent | default([]) }}"
+    rt_replace_tr1: "{{ rt_line.replace_tr1 | default(false) }}"
+    # rtorrent >= 0.9.7 (the modern dotted API) supports system.daemon, so it can
+    # run headless directly under systemd; 0.9.6 cannot and needs a PTY (dtach).
+    rt_daemon: "{{ rt_line.rc_syntax == 'modern' }}"
+    # Extra CXXFLAGS passed as a configure precious variable. For the legacy
+    # C++11 lines this carries optimization + the warning relaxations GCC 14 /
+    # OpenSSL 3 need; modern lines let configure pick its own flags.
+    rt_cxxflags: >-
+      {{ ('-g -O2 ' ~ (rt_manifest.defaults.legacy_cxxflags | default('')))
+         if (rt_line.legacy | default(false)) else '' }}
+
+- name: Announce resolved build profile
+  ansible.builtin.debug:
+    msg: >-
+      Building rtorrent {{ rtorrent_release }} (line {{ rtorrent_version }}) +
+      libtorrent {{ libtorrent_release }} — source={{ rt_source }},
+      C++{{ rt_cxx_std | regex_replace('^c\\+\\+', '') }}, rc={{ rt_rc_syntax }},
+      legacy={{ rt_legacy }}{{ ', extra CXXFLAGS=' ~ rt_cxxflags if rt_cxxflags | trim | length > 0 else '' }}
+
+- name: Install vendored manifest and patches into a writable vendor root
+  when: "'rtorrent_build/files/rtorrent' in rt_manifest_dir"
+  block:
+    - name: Ensure vendor root exists
+      ansible.builtin.file:
+        path: "{{ rtorrent_vendor_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy vendored manifest into the vendor root
+      ansible.builtin.copy:
+        src: "{{ role_path }}/files/rtorrent/manifest.yml"
+        dest: "{{ rtorrent_vendor_root }}/manifest.yml"
+        mode: "0644"
+
+    - name: Copy vendored patches into the vendor root
+      ansible.builtin.copy:
+        src: "{{ role_path }}/files/rtorrent/patches/"
+        dest: "{{ rtorrent_vendor_root }}/patches/"
+        mode: preserve
+
+    - name: Copy vendored autoconf macros into the vendor root
+      ansible.builtin.copy:
+        src: "{{ role_path }}/files/rtorrent/m4/"
+        dest: "{{ rtorrent_vendor_root }}/m4/"
+        mode: preserve
+
+- name: Ensure a clean scratch build root
+  ansible.builtin.file:
+    path: "{{ rtorrent_build_root }}"
+    state: directory
+    mode: "0755"

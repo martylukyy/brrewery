@@ -1,8 +1,56 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    rutorrent_root: /srv/rutorrent
+    rutorrent_fpm_pool: rutorrent
+    rutorrent_htpasswd: /etc/nginx/brrewery/rutorrent.htpasswd
   tasks:
-    - name: rutorrent remove placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for rutorrent remove"
+    - name: Remove the ruTorrent nginx location
+      ansible.builtin.file:
+        path: /etc/nginx/brrewery/apps/rutorrent.conf
+        state: absent
+      notify: Reload nginx
+
+    - name: Find the ruTorrent PHP-FPM pool configuration
+      ansible.builtin.find:
+        paths: /etc/php
+        patterns: "{{ rutorrent_fpm_pool }}.conf"
+        recurse: true
+      register: rutorrent_pool_files
+
+    - name: Remove the ruTorrent PHP-FPM pool(s)
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ rutorrent_pool_files.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      notify: Restart php-fpm
+
+    - name: Remove ruTorrent source and basic-auth file
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ rutorrent_root }}"
+        - "{{ rutorrent_htpasswd }}"
+
+    - name: Apply nginx and php-fpm changes now
+      ansible.builtin.meta: flush_handlers
+
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+
+    # Restart whichever php-fpm is installed; the pool file is already gone.
+    - name: Restart php-fpm
+      ansible.builtin.shell: |
+        set -e
+        svc=$(systemctl list-units --type=service --all --no-legend 'php*-fpm.service' | awk '{print $1}' | head -1)
+        [ -n "$svc" ] && systemctl restart "$svc" || true
+      changed_when: true

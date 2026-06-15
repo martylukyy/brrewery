@@ -1,0 +1,31 @@
+---
+# Build deps for rakshasa libtorrent + rtorrent (daemon use, no GUI):
+#   - compiler/toolchain + pkg-config
+#   - autotools (only needed for the git-archive 0.9.6 path, installed always
+#     for simplicity so the role works for any line)
+#   - libcurl, OpenSSL, zlib, ncurses: libtorrent/rtorrent link these
+#   - xmlrpc-c (libxmlrpc-core-c3-dev): rtorrent --with-xmlrpc-c, the XML-RPC
+#     backend ruTorrent talks to over SCGI
+#   - dtach: headless PTY wrapper the systemd unit runs rtorrent under
+- name: Install rtorrent/libtorrent build dependencies
+  ansible.builtin.apt:
+    name:
+      - build-essential
+      - pkg-config
+      - libtool
+      - autoconf
+      - automake
+      - m4
+      - libcurl4-openssl-dev
+      - libssl-dev
+      - zlib1g-dev
+      - libncurses-dev
+      - libxmlrpc-core-c3-dev
+      # cppunit provides the AM_PATH_CPPUNIT m4 macro the 0.9.6/0.13.6
+      # autoreconf bootstrap references (and the optional pkg-config the newer
+      # lines probe for); without it autoreconf -fi fails on git-archive sources.
+      - libcppunit-dev
+      - dtach
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

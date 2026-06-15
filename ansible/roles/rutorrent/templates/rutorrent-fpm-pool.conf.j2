@@ -1,0 +1,25 @@
+; Managed by brrewery — ruTorrent PHP-FPM pool.
+; Runs as the brrewery user so PHP can reach rtorrent's SCGI socket; nginx
+; (www-data) connects to the pool socket below.
+[{{ rutorrent_fpm_pool }}]
+user = {{ brrewery_user }}
+group = {{ brrewery_group }}
+
+listen = {{ rutorrent_fpm_socket }}
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+
+pm = dynamic
+pm.max_children = 16
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 4
+pm.max_requests = 500
+
+chdir = /
+catch_workers_output = yes
+
+; ruTorrent shells out to curl/php/mediainfo/etc. (pathToExternals), so keep a
+; usable PATH instead of php-fpm's cleared environment.
+env[PATH] = /usr/local/bin:/usr/bin:/bin

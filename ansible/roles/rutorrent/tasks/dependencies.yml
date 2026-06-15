@@ -1,0 +1,45 @@
+---
+# PHP-FPM + the extensions ruTorrent uses, plus the external CLI tools its core
+# and common plugins shell out to. php-fpm pulls the distro's default PHP.
+- name: Install ruTorrent runtime dependencies
+  ansible.builtin.apt:
+    name:
+      - php-fpm
+      - php-cli
+      - php-curl
+      - php-xml
+      - php-mbstring
+      - curl
+      - gzip
+      - unzip
+      - mediainfo
+      - apache2-utils
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# Discover the installed PHP version from its FPM pool directory so the role does
+# not hardcode a PHP minor (e.g. 8.4) and works as the distro moves forward.
+- name: Discover the installed PHP-FPM pool directory
+  ansible.builtin.find:
+    paths: /etc/php
+    patterns: pool.d
+    file_type: directory
+    recurse: true
+  register: rutorrent_fpm_pool_dirs
+
+- name: Fail when no PHP-FPM pool directory is present
+  ansible.builtin.assert:
+    that:
+      - rutorrent_fpm_pool_dirs.files | length > 0
+    fail_msg: "php-fpm is not installed (no /etc/php/*/fpm/pool.d found)"
+
+- name: Resolve the PHP version and FPM paths
+  ansible.builtin.set_fact:
+    # /etc/php/<ver>/fpm/pool.d -> <ver>
+    rutorrent_php_version: "{{ (rutorrent_fpm_pool_dirs.files | map(attribute='path') | sort | last).split('/')[3] }}"
+    rutorrent_fpm_pool_dir: "{{ rutorrent_fpm_pool_dirs.files | map(attribute='path') | sort | last }}"
+
+- name: Set the PHP-FPM service name
+  ansible.builtin.set_fact:
+    rutorrent_fpm_service: "php{{ rutorrent_php_version }}-fpm"

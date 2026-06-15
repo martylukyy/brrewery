@@ -1,0 +1,23 @@
+---
+# ruTorrent web UI (PHP) source location and upstream repo.
+rutorrent_root: /srv/rutorrent
+rutorrent_repo: Novik/ruTorrent
+rutorrent_web_path: /rutorrent/
+
+# rtorrent's SCGI unix socket (must match the rtorrent install). ruTorrent's PHP
+# connects to it directly ($scgi_port=0; $scgi_host="unix://...").
+rtorrent_state_dir: "{{ rtorrent_home }}/.local/share/rtorrent"
+rutorrent_scgi_socket: "{{ rtorrent_state_dir }}/rpc.socket"
+
+# Dedicated PHP-FPM pool. It runs as the brrewery user so it can reach rtorrent's
+# socket; nginx (www-data) connects to this pool socket.
+rutorrent_fpm_pool: rutorrent
+rutorrent_fpm_socket: /run/php/rutorrent.sock
+
+# nginx HTTP Basic auth credentials file (ruTorrent has no auth of its own).
+rutorrent_htpasswd: /etc/nginx/brrewery/rutorrent.htpasswd
+
+# Resolved at runtime (tasks/resolve.yml + dependencies.yml).
+rutorrent_version: ""
+rutorrent_tarball_url: ""
+rutorrent_php_version: ""

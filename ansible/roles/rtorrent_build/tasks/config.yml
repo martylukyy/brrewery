@@ -1,0 +1,11 @@
+---
+# Renders ~/.rtorrent.rc from the role template (run via include_role so the
+# role's templates/ dir is on the lookup path). The dialect is version-aware via
+# the rt_rc_syntax fact set in resolve.yml.
+- name: Write rtorrent configuration
+  ansible.builtin.template:
+    src: rtorrent.rc.j2
+    dest: "{{ rtorrent_rc_path }}"
+    owner: "{{ brrewery_user }}"
+    group: "{{ brrewery_group }}"
+    mode: "0640"

@@ -1,0 +1,10 @@
+---
+- name: Restart php-fpm
+  ansible.builtin.systemd:
+    name: "{{ rutorrent_fpm_service }}"
+    state: restarted
+
+- name: Reload nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded

@@ -1,0 +1,19 @@
+---
+# ruTorrent ships no compiled assets and no release tarball asset, so track the
+# latest stable release tag and fetch its source archive.
+- name: Fetch latest ruTorrent release metadata
+  ansible.builtin.uri:
+    url: "https://api.github.com/repos/{{ rutorrent_repo }}/releases/latest"
+    return_content: true
+  register: rutorrent_release
+
+- name: Resolve latest ruTorrent version and source archive URL
+  ansible.builtin.set_fact:
+    rutorrent_version: "{{ rutorrent_release.json.tag_name }}"
+    rutorrent_tarball_url: "https://github.com/{{ rutorrent_repo }}/archive/refs/tags/{{ rutorrent_release.json.tag_name }}.tar.gz"
+
+- name: Fail when the ruTorrent version could not be resolved
+  ansible.builtin.assert:
+    that:
+      - rutorrent_version | length > 0
+    fail_msg: "Could not resolve the latest ruTorrent release tag from GitHub"

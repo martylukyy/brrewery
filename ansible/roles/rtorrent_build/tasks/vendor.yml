@@ -1,0 +1,68 @@
+---
+# Downloads and extracts the libtorrent + rtorrent sources at install/upgrade
+# time. brrewery resolves rtorrent_release and libtorrent_release before Ansible
+# runs. For "release" lines we fetch the upstream dist tarballs (both are assets
+# of the rtorrent GitHub release, and ship a pre-generated ./configure). For the
+# "git-archive" line (0.9.6) we fetch the tag source archives and bootstrap with
+# autoreconf in the build step.
+- name: Ensure vendor root directory exists
+  ansible.builtin.file:
+    path: "{{ rtorrent_vendor_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Build the vendored source download plan (release dist tarballs)
+  when: rt_source == 'release'
+  ansible.builtin.set_fact:
+    rt_source_downloads:
+      - dest: "sources/libtorrent/{{ libtorrent_release }}"
+        url: "https://github.com/rakshasa/rtorrent/releases/download/v{{ rtorrent_release }}/libtorrent-{{ libtorrent_release }}.tar.gz"
+      - dest: "sources/rtorrent/{{ rtorrent_release }}"
+        url: "https://github.com/rakshasa/rtorrent/releases/download/v{{ rtorrent_release }}/rtorrent-{{ rtorrent_release }}.tar.gz"
+
+- name: Build the vendored source download plan (git tag archives)
+  when: rt_source == 'git-archive'
+  ansible.builtin.set_fact:
+    rt_source_downloads:
+      - dest: "sources/libtorrent/{{ libtorrent_release }}"
+        url: "https://github.com/rakshasa/libtorrent/archive/refs/tags/v{{ libtorrent_release }}.tar.gz"
+      - dest: "sources/rtorrent/{{ rtorrent_release }}"
+        url: "https://github.com/rakshasa/rtorrent/archive/refs/tags/v{{ rtorrent_release }}.tar.gz"
+
+# A source counts as present only if its directory exists AND is non-empty, so an
+# empty leftover from an interrupted run is re-downloaded rather than skipped.
+- name: Check which vendored sources are already present and populated
+  ansible.builtin.find:
+    paths: "{{ rtorrent_vendor_root }}/{{ item.dest }}"
+    file_type: any
+    hidden: true
+    recurse: false
+  loop: "{{ rt_source_downloads }}"
+  register: rt_source_present
+  loop_control:
+    label: "{{ item.dest }}"
+
+- name: Create destination directories for missing or incomplete vendored sources
+  ansible.builtin.file:
+    path: "{{ rtorrent_vendor_root }}/{{ item.item.dest }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ rt_source_present.results }}"
+  when: item.matched | int == 0
+  loop_control:
+    label: "{{ item.item.dest }}"
+
+- name: Download and extract missing or incomplete vendored sources
+  ansible.builtin.unarchive:
+    src: "{{ item.item.url }}"
+    dest: "{{ rtorrent_vendor_root }}/{{ item.item.dest }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+  loop: "{{ rt_source_present.results }}"
+  when: item.matched | int == 0
+  loop_control:
+    label: "{{ item.item.dest }}"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs

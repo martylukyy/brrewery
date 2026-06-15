@@ -1,0 +1,99 @@
+---
+# Build the rtorrent binary against the libtorrent installed in the previous
+# step, with the XML-RPC backend (--with-xmlrpc-c) ruTorrent drives over SCGI.
+- name: Reset the rtorrent scratch source tree
+  ansible.builtin.file:
+    path: "{{ rtorrent_build_root }}/rtorrent"
+    state: absent
+
+- name: Stage rtorrent source into the build root
+  ansible.builtin.command:
+    cmd: cp -a "{{ rtorrent_vendor_root }}/sources/rtorrent/{{ rtorrent_release }}" "{{ rtorrent_build_root }}/rtorrent"
+    creates: "{{ rtorrent_build_root }}/rtorrent"
+
+- name: Apply vendored rtorrent patches
+  ansible.builtin.command:
+    cmd: patch -p1 --forward -i "{{ rtorrent_vendor_root }}/patches/{{ item }}"
+    chdir: "{{ rtorrent_build_root }}/rtorrent"
+  register: rt_rt_patch
+  changed_when: rt_rt_patch.rc == 0
+  failed_when: rt_rt_patch.rc > 1
+  loop: "{{ rt_rtorrent_patches }}"
+
+# rtorrent 0.9.6 uses std::tr1::bind/function/mem_fn. GCC's <tr1/functional>
+# cannot form references to the noexcept-qualified STL methods it binds to (e.g.
+# std::vector::size), so port the tr1 usage to the equivalent C++11 std:: names.
+- name: Port rtorrent std::tr1 usage to C++11 std (legacy lines on modern libstdc++)
+  ansible.builtin.shell:
+    cmd: >-
+      find src rak -type f \( -name '*.cc' -o -name '*.h' \) -print0
+      | xargs -0 --no-run-if-empty sed -i
+      -e 's@#include <tr1/\([A-Za-z_]*\)>@#include <\1>@g'
+      -e 's@using namespace std::tr1@using namespace std@g'
+      -e 's@std::tr1::@std::@g'
+    chdir: "{{ rtorrent_build_root }}/rtorrent"
+  when: rt_replace_tr1 | default(false) | bool
+
+- name: Bootstrap rtorrent autotools (git-archive sources only)
+  ansible.builtin.command:
+    cmd: autoreconf -fi
+    chdir: "{{ rtorrent_build_root }}/rtorrent"
+  environment:
+    ACLOCAL_PATH: "{{ rtorrent_vendor_root }}/m4"
+  when: rt_source == 'git-archive'
+
+# PKG_CONFIG_PATH points configure at the libtorrent.pc just installed under the
+# prefix (PKG_CHECK_MODULES libtorrent >= <release>).
+- name: Configure rtorrent
+  ansible.builtin.shell:
+    cmd: >-
+      ./configure --prefix={{ rtorrent_prefix }} --with-xmlrpc-c
+      {{ ('CXXFLAGS=' ~ rt_cxxflags) | quote if (rt_cxxflags | trim | length > 0) else '' }}
+    chdir: "{{ rtorrent_build_root }}/rtorrent"
+  environment:
+    PKG_CONFIG_PATH: "{{ rtorrent_prefix }}/lib/pkgconfig"
+
+- name: Build rtorrent
+  ansible.builtin.command:
+    cmd: make -j{{ rtorrent_build_jobs }}
+    chdir: "{{ rtorrent_build_root }}/rtorrent"
+
+- name: Install rtorrent
+  ansible.builtin.command:
+    cmd: make install
+    chdir: "{{ rtorrent_build_root }}/rtorrent"
+
+- name: Refresh the dynamic linker cache
+  ansible.builtin.command:
+    cmd: ldconfig
+  changed_when: false
+
+- name: Verify the rtorrent binary was produced
+  ansible.builtin.stat:
+    path: "{{ rtorrent_bin }}"
+  register: rt_installed_bin
+
+- name: Fail when rtorrent was not produced
+  ansible.builtin.assert:
+    that:
+      - rt_installed_bin.stat.exists
+    fail_msg: "rtorrent build did not produce {{ rtorrent_bin }}"
+
+# rtorrent has no --version; -h prints the help banner including the version.
+# It needs a TTY and exits non-zero for -h, so just confirm it runs and links
+# libtorrent. Never fail the build on this informational check.
+- name: Record the installed rtorrent version banner
+  ansible.builtin.command:
+    cmd: "{{ rtorrent_bin }} -h"
+  register: rt_version_banner
+  changed_when: false
+  failed_when: false
+
+- name: Announce the installed rtorrent
+  ansible.builtin.debug:
+    msg: "{{ (rt_version_banner.stdout_lines | default([]))[0:2] | default(['(no banner)']) }}"
+
+- name: Clean the scratch build root
+  ansible.builtin.file:
+    path: "{{ rtorrent_build_root }}"
+    state: absent

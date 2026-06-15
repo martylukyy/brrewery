@@ -1,0 +1,34 @@
+[Unit]
+Description=rTorrent BitTorrent client for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+# No WorkingDirectory: rtorrent uses absolute paths from ~/.rtorrent.rc, and the
+# service account home may be mode 0700 (systemd's CHDIR step would fail). It
+# defaults to / which is always accessible.
+{% if rt_daemon | bool %}
+# rtorrent >= 0.9.7 runs headless in daemon mode: no controlling terminal, and a
+# SIGINT shutdown exits 0 (clean stop, auto-restart on real crashes preserved).
+# It reads ~/.rtorrent.rc (HOME is set by systemd from the account).
+ExecStart={{ rtorrent_bin }} -o system.daemon.set=true
+{% else %}
+# 0.9.6 has no daemon mode, so run it under dtach which provides a PTY (rtorrent
+# initialises ncurses). dtach exits 1 when SIGINT terminates rtorrent, so treat
+# that as a clean stop. TERM is required for ncurses' setupterm().
+Environment=TERM=xterm
+RuntimeDirectory=rtorrent
+ExecStart=/usr/bin/dtach -N /run/rtorrent/%i.dtach {{ rtorrent_bin }}
+SuccessExitStatus=1 SIGINT SIGTERM
+{% endif %}
+# rtorrent saves its session and shuts down cleanly on SIGINT. KillMode defaults
+# to control-group, so the signal reaches rtorrent directly.
+KillSignal=SIGINT
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

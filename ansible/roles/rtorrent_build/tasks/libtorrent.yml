@@ -1,0 +1,63 @@
+---
+# Build rakshasa libtorrent (the C++ library rtorrent links against), installed
+# as a shared lib under {{ rtorrent_prefix }}. Each run stages a clean copy of the
+# vendored source so configure/patch always start from a pristine tree.
+- name: Reset the libtorrent scratch source tree
+  ansible.builtin.file:
+    path: "{{ rtorrent_build_root }}/libtorrent"
+    state: absent
+
+- name: Stage libtorrent source into the build root
+  ansible.builtin.command:
+    cmd: cp -a "{{ rtorrent_vendor_root }}/sources/libtorrent/{{ libtorrent_release }}" "{{ rtorrent_build_root }}/libtorrent"
+    creates: "{{ rtorrent_build_root }}/libtorrent"
+
+- name: Apply vendored libtorrent patches
+  ansible.builtin.command:
+    cmd: patch -p1 --forward -i "{{ rtorrent_vendor_root }}/patches/{{ item }}"
+    chdir: "{{ rtorrent_build_root }}/libtorrent"
+  register: rt_lt_patch
+  changed_when: rt_lt_patch.rc == 0
+  failed_when: rt_lt_patch.rc > 1
+  loop: "{{ rt_libtorrent_patches }}"
+
+# Dist tarballs (release lines) ship ./configure; tag archives (0.9.6) do not.
+# ACLOCAL_PATH adds the vendored cppunit.m4 shim so the classic AM_PATH_CPPUNIT
+# macro resolves on modern distros that dropped it.
+- name: Bootstrap libtorrent autotools (git-archive sources only)
+  ansible.builtin.command:
+    cmd: autoreconf -fi
+    chdir: "{{ rtorrent_build_root }}/libtorrent"
+  environment:
+    ACLOCAL_PATH: "{{ rtorrent_vendor_root }}/m4"
+  when: rt_source == 'git-archive'
+
+- name: Configure libtorrent
+  ansible.builtin.shell:
+    cmd: >-
+      ./configure --prefix={{ rtorrent_prefix }}
+      {{ ('CXXFLAGS=' ~ rt_cxxflags) | quote if (rt_cxxflags | trim | length > 0) else '' }}
+    chdir: "{{ rtorrent_build_root }}/libtorrent"
+
+- name: Build libtorrent
+  ansible.builtin.command:
+    cmd: make -j{{ rtorrent_build_jobs }}
+    chdir: "{{ rtorrent_build_root }}/libtorrent"
+
+- name: Install libtorrent
+  ansible.builtin.command:
+    cmd: make install
+    chdir: "{{ rtorrent_build_root }}/libtorrent"
+
+- name: Ensure /usr/local/lib is on the dynamic linker path
+  ansible.builtin.copy:
+    dest: /etc/ld.so.conf.d/brrewery-vendored.conf
+    mode: "0644"
+    content: |
+      # Managed by brrewery — vendored libraries under /usr/local
+      {{ rtorrent_prefix }}/lib
+
+- name: Refresh the dynamic linker cache
+  ansible.builtin.command:
+    cmd: ldconfig
+  changed_when: false

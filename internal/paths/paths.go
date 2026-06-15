@@ -28,6 +28,7 @@ const (
 	TLSKeyPath                    = "/etc/ssl/brrewery/privkey.pem"
 
 	qbittorrentBuildFilesDir = "roles/qbittorrent_build/files/qbittorrent"
+	rtorrentBuildFilesDir    = "roles/rtorrent_build/files/rtorrent"
 )
 
 // ListenAddress returns the HTTP listen address for the API server.
@@ -110,6 +111,43 @@ func qbittorrentManifestCandidates() []string {
 }
 
 func isVendorQBittorrentRoot(path string) bool {
+	info, err := os.Stat(filepath.Join(path, "manifest.yml"))
+	return err == nil && !info.IsDir()
+}
+
+// ResolveVendorRtorrentRoot returns the rtorrent build manifest and patches
+// tree. In development this is ansible/roles/rtorrent_build/files/rtorrent; on
+// deployed hosts it falls back to /usr/share/brrewery/vendor/rtorrent (where the
+// manifest/patches are copied from the role at install time).
+func ResolveVendorRtorrentRoot() string {
+	if env := strings.TrimSpace(os.Getenv("BRREWERY_RTORRENT_VENDOR_ROOT")); env != "" {
+		return env
+	}
+
+	for _, candidate := range rtorrentManifestCandidates() {
+		if isVendorManifestRoot(candidate) {
+			return absPath(candidate)
+		}
+	}
+
+	return filepath.Join(VendorRoot, "rtorrent")
+}
+
+func rtorrentManifestCandidates() []string {
+	candidates := make([]string, 0, 5)
+	if root := resolveRepoRoot(); root != "" {
+		candidates = append(candidates, filepath.Join(root, "ansible", rtorrentBuildFilesDir))
+	}
+	candidates = append(candidates,
+		filepath.Join(ResolveAnsibleRoot(), rtorrentBuildFilesDir),
+		filepath.Join("ansible", rtorrentBuildFilesDir),
+		filepath.Join("/etc/brrewery/ansible", rtorrentBuildFilesDir),
+		filepath.Join(VendorRoot, "rtorrent"),
+	)
+	return candidates
+}
+
+func isVendorManifestRoot(path string) bool {
 	info, err := os.Stat(filepath.Join(path, "manifest.yml"))
 	return err == nil && !info.IsDir()
 }

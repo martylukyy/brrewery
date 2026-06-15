@@ -1,0 +1,10 @@
+--- a/src/display/window_file_list.cc
++++ b/src/display/window_file_list.cc
+@@ -37,6 +37,7 @@
+ #include "config.h"
+ 
+ #include <stdio.h>
++#include <locale>
+ #include <torrent/path.h>
+ #include <torrent/data/file.h>
+ #include <torrent/data/file_list.h>

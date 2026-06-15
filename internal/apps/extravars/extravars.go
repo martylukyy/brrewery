@@ -29,6 +29,20 @@ const (
 	QbittorrentWebUIPasswordHash = "qbittorrent_webui_password_hash"
 )
 
+const (
+	// RtorrentVersion is the release line chosen in the UI (e.g. "0.16.x", "0.9.6").
+	RtorrentVersion = "rtorrent_version"
+	// RtorrentRelease is the concrete rtorrent version resolved by brrewery before
+	// Ansible runs (e.g. "0.16.14"). For ".x" lines it is the newest patch upstream
+	// published; for pinned lines it is the manifest tag without the leading "v".
+	RtorrentRelease = "rtorrent_release"
+	// LibtorrentRelease is the matching rakshasa libtorrent version brrewery resolves
+	// for the chosen rtorrent release (e.g. "0.16.14", "0.14.0", "0.13.6"). The rest
+	// of the per-line build profile (source mode, C++ standard, rc dialect, patches)
+	// is read by the rtorrent_build role from the vendored manifest, not passed here.
+	LibtorrentRelease = "libtorrent_release"
+)
+
 // BecomePassword is the sudo password used to escalate privileges for app
 // operations when brrewery runs unprivileged. The Ansible runner passes it via
 // --become-password-file and never places it in the extra-vars JSON or argv.

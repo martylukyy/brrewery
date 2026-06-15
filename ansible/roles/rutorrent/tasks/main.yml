@@ -1,0 +1,12 @@
+---
+- name: Resolve latest ruTorrent release
+  ansible.builtin.import_tasks: resolve.yml
+
+- name: Install ruTorrent dependencies (PHP-FPM + tools)
+  ansible.builtin.import_tasks: dependencies.yml
+
+- name: Install ruTorrent source and configuration
+  ansible.builtin.import_tasks: install.yml
+
+- name: Configure the nginx site for ruTorrent
+  ansible.builtin.import_tasks: nginx.yml

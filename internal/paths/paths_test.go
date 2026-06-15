@@ -36,3 +36,8 @@ func TestResolveVendorQBittorrentRootFromEnv(t *testing.T) {
 	t.Setenv("BRREWERY_QBITTORRENT_VENDOR_ROOT", "/tmp/custom-qbt-vendor")
 	assert.Equal(t, "/tmp/custom-qbt-vendor", paths.ResolveVendorQBittorrentRoot())
 }
+
+func TestResolveVendorRtorrentRootFromEnv(t *testing.T) {
+	t.Setenv("BRREWERY_RTORRENT_VENDOR_ROOT", "/tmp/custom-rtorrent-vendor")
+	assert.Equal(t, "/tmp/custom-rtorrent-vendor", paths.ResolveVendorRtorrentRoot())
+}

@@ -1,0 +1,17 @@
+---
+- name: Resolve rtorrent build profile from the manifest
+  ansible.builtin.import_tasks: resolve.yml
+
+- name: Install build dependencies
+  ansible.builtin.import_tasks: dependencies.yml
+
+- name: Vendor rtorrent and libtorrent sources
+  ansible.builtin.import_tasks: vendor.yml
+
+# libtorrent must be built and installed first: rtorrent's configure resolves it
+# via pkg-config (PKG_CHECK_MODULES libtorrent >= <release>).
+- name: Build and install libtorrent
+  ansible.builtin.import_tasks: libtorrent.yml
+
+- name: Build and install rtorrent
+  ansible.builtin.import_tasks: rtorrent.yml

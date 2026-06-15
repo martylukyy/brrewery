@@ -3,6 +3,10 @@ name: ruTorrent
 description: Web UI for rTorrent
 category: download
 web_path: /rutorrent/
+# Install needs sudo and sets up nginx HTTP Basic auth from the account
+# password. ruTorrent itself runs under a shared PHP-FPM pool, so it exposes no
+# controllable systemd service of its own (no start/stop toggle).
+requires_account_password: true
 dependencies:
   - rtorrent
 detection:

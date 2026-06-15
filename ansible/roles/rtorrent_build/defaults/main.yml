@@ -1,0 +1,30 @@
+---
+# Install prefix for both libtorrent (shared lib) and the rtorrent binary.
+rtorrent_prefix: /usr/local
+rtorrent_bin: /usr/local/bin/rtorrent
+
+# Writable trees: the vendored manifest/patches + downloaded source cache, and
+# the scratch directory used for out-of-tree-ish builds.
+rtorrent_vendor_root: /usr/share/brrewery/vendor/rtorrent
+rtorrent_vendor_root_default: /usr/share/brrewery/vendor/rtorrent
+rtorrent_build_root: /tmp/brrewery-rtorrent-build
+
+# Parallelism for the compile steps.
+rtorrent_build_jobs: "{{ ansible_processor_vcpus | default(ansible_processor_count) | default(2) }}"
+
+# Per-user runtime layout (the install playbook sets rtorrent_home from the
+# brrewery user). The SCGI socket is what ruTorrent connects to.
+rtorrent_state_dir: "{{ rtorrent_home }}/.local/share/rtorrent"
+rtorrent_session_dir: "{{ rtorrent_state_dir }}/session"
+rtorrent_download_dir: "{{ rtorrent_home }}/Downloads/rtorrent"
+rtorrent_scgi_socket: "{{ rtorrent_state_dir }}/rpc.socket"
+rtorrent_rc_path: "{{ rtorrent_home }}/.rtorrent.rc"
+# Single fixed listen port keeps firewalling predictable; widen if desired.
+rtorrent_port_range: "50000-50000"
+
+# Supplied by brrewery before Ansible runs (see internal/apps/rtorrent):
+# rtorrent_version is the UI line (e.g. "0.16.x"); rtorrent_release and
+# libtorrent_release are the concrete resolved versions.
+rtorrent_version: ""
+rtorrent_release: ""
+libtorrent_release: ""

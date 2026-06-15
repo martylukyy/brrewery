@@ -1,0 +1,5 @@
+---
+dependencies: []
+galaxy_info:
+  role_name: rtorrent_build
+  description: Build rtorrent + matching rakshasa libtorrent from source.
