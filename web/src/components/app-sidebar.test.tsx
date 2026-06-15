@@ -63,6 +63,16 @@ describe("AppSidebar", () => {
     expect(screen.getByText("rTorrent")).toBeInTheDocument();
   });
 
+  it("sorts installed apps alphabetically by name", () => {
+    renderSidebar();
+
+    const names = screen
+      .getAllByRole("listitem")
+      .map((item) => item.textContent?.trim())
+      .filter((name): name is string => name === "Sonarr" || name === "rTorrent");
+    expect(names).toEqual(["rTorrent", "Sonarr"]);
+  });
+
   it("opens installed apps in a new tab", () => {
     renderSidebar();
 

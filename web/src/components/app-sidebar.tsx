@@ -43,7 +43,9 @@ export function AppSidebar({
   onManageClick,
   onLogout,
 }: Props) {
-  const installed = apps.filter((app) => app.installed);
+  const installed = apps
+    .filter((app) => app.installed)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   const userLabel = user ?? "Signed in";
   const userInitials = user ? initials(user) : null;
 
