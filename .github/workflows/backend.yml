@@ -1,0 +1,42 @@
+name: Backend
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      # internal/web embeds the frontend bundle via `//go:embed all:dist`.
+      # That directory is gitignored and produced by the frontend build, so we
+      # drop in a placeholder to let the Go packages compile here without
+      # rebuilding the SPA (the real bundle is covered by the frontend workflow).
+      - name: Create placeholder web assets
+        run: |
+          mkdir -p internal/web/dist
+          echo '<!doctype html>' > internal/web/dist/index.html
+
+      - name: Build backend
+        run: make backend
+
+      - name: Test
+        run: make test
+
+      - name: OpenAPI validation
+        run: make test-openapi
