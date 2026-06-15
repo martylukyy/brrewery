@@ -92,7 +92,7 @@ export function AppSidebar({
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {isLoading ? (
                 [0, 1, 2, 3].map((i) => (
                   <SidebarMenuItem key={i}>
