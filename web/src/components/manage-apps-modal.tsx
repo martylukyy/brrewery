@@ -47,7 +47,10 @@ export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Prop
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3/4">
+      <DialogContent
+        className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-[40vw]"
+        onInteractOutside={(event) => event.preventDefault()}
+      >
         <DialogHeader className="gap-1 border-b border-border px-5 py-4">
           <DialogTitle className="text-base">Manage server</DialogTitle>
           <DialogDescription>

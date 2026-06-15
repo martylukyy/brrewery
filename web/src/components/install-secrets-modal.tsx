@@ -11,18 +11,26 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError, verifyPassword, type AppStatus } from "@/lib/api";
+import { ApiError, verifyPassword, type AppStatus, type JobAction } from "@/lib/api";
 import { requiredSecrets } from "@/lib/install-secrets";
 
 type Props = {
+  action: JobAction;
   appIds: string[];
   apps: AppStatus[];
   onClose: () => void;
   onConfirm: (extraVars: Record<string, string>) => void;
 };
 
-export function InstallSecretsModal({ appIds, apps, onClose, onConfirm }: Props) {
-  const secrets = useMemo(() => requiredSecrets(apps, appIds), [appIds, apps]);
+const ACTION_COPY: Record<JobAction, { title: string; verb: string; submit: string }> = {
+  install: { title: "Install credentials", verb: "install", submit: "Continue install" },
+  upgrade: { title: "Confirm your password", verb: "upgrade", submit: "Continue upgrade" },
+  remove: { title: "Confirm your password", verb: "remove", submit: "Continue remove" },
+};
+
+export function InstallSecretsModal({ action, appIds, apps, onClose, onConfirm }: Props) {
+  const secrets = useMemo(() => requiredSecrets(apps, appIds, action), [action, appIds, apps]);
+  const copy = ACTION_COPY[action];
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(secrets.map((secret) => [secret.key, ""])),
   );
@@ -74,9 +82,9 @@ export function InstallSecretsModal({ appIds, apps, onClose, onConfirm }: Props)
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-md">
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader className="gap-1 border-b border-border px-5 py-4">
-            <DialogTitle className="text-base">Install credentials</DialogTitle>
+            <DialogTitle className="text-base">{copy.title}</DialogTitle>
             <DialogDescription>
-              Enter the credentials required to install {appNames}.
+              Enter the credentials required to {copy.verb} {appNames}.
             </DialogDescription>
           </DialogHeader>
 
@@ -118,7 +126,7 @@ export function InstallSecretsModal({ appIds, apps, onClose, onConfirm }: Props)
               Cancel
             </Button>
             <Button type="submit" disabled={verifying}>
-              {verifying ? "Verifying…" : "Continue install"}
+              {verifying ? "Verifying…" : copy.submit}
             </Button>
           </DialogFooter>
         </form>

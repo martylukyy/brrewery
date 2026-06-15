@@ -18,12 +18,22 @@ const apps: AppStatus[] = [
     name: "autobrr",
     description: "",
     category: "automation",
-    install_secrets: [{
-      key: "ansible_become_password",
-      label: "Password",
-      type: "password",
-      verify_brrewery_password: true,
-    }],
+    install_secrets: [
+      {
+        key: "ansible_become_password",
+        label: "Password",
+        type: "password",
+        verify_brrewery_password: true,
+      },
+      // Synthetic app-specific secret. No catalog manifest declares one today,
+      // but the modal supports them, so this exercises the install-only path
+      // (app credentials are collected on install, skipped on upgrade/remove).
+      {
+        key: "example_app_credential",
+        label: "App credential",
+        type: "text",
+      },
+    ],
     installed: false,
     dependencies_satisfied: true,
   },
@@ -35,9 +45,10 @@ describe("InstallSecretsModal", () => {
     mockVerify.mockResolvedValue(undefined);
   });
 
-  it("renders a single account password field", () => {
+  it("renders every declared install secret for install", () => {
     render(
       <InstallSecretsModal
+        action="install"
         appIds={["autobrr"]}
         apps={apps}
         onClose={() => {}}
@@ -46,6 +57,7 @@ describe("InstallSecretsModal", () => {
     );
 
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByLabelText("App credential")).toBeInTheDocument();
   });
 
   it("verifies the password before submitting the entered credentials", async () => {
@@ -54,6 +66,7 @@ describe("InstallSecretsModal", () => {
 
     render(
       <InstallSecretsModal
+        action="install"
         appIds={["autobrr"]}
         apps={apps}
         onClose={() => {}}
@@ -62,7 +75,40 @@ describe("InstallSecretsModal", () => {
     );
 
     await user.type(screen.getByLabelText("Password"), "password123");
+    await user.type(screen.getByLabelText("App credential"), "cred-abc");
     await user.click(screen.getByRole("button", { name: "Continue install" }));
+
+    expect(mockVerify).toHaveBeenCalledWith("password123");
+    await waitFor(() =>
+      expect(onConfirm).toHaveBeenCalledWith({
+        ansible_become_password: "password123",
+        example_app_credential: "cred-abc",
+      }),
+    );
+  });
+
+  it.each([
+    ["upgrade", "Continue upgrade"] as const,
+    ["remove", "Continue remove"] as const,
+  ])("only asks for the account password to %s", async (action, submitLabel) => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+
+    render(
+      <InstallSecretsModal
+        action={action}
+        appIds={["autobrr"]}
+        apps={apps}
+        onClose={() => {}}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.queryByLabelText("App credential")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: submitLabel }));
 
     expect(mockVerify).toHaveBeenCalledWith("password123");
     await waitFor(() =>
@@ -77,6 +123,7 @@ describe("InstallSecretsModal", () => {
 
     render(
       <InstallSecretsModal
+        action="install"
         appIds={["autobrr"]}
         apps={apps}
         onClose={() => {}}
@@ -85,6 +132,7 @@ describe("InstallSecretsModal", () => {
     );
 
     await user.type(screen.getByLabelText("Password"), "wrong-password");
+    await user.type(screen.getByLabelText("App credential"), "token-abc");
     await user.click(screen.getByRole("button", { name: "Continue install" }));
 
     expect(mockVerify).toHaveBeenCalledWith("wrong-password");

@@ -95,7 +95,7 @@ describe("SysctlModal", () => {
     expect(screen.getByRole("button", { name: "Apply recommended" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Upload patch" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
   it("applies all recommended values after confirming the password", async () => {

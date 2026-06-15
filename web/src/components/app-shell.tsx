@@ -44,7 +44,7 @@ export function AppShell() {
     setJobQueueTotal(appIds.length);
     setPendingAppIds(appIds);
     setJobExtraVars({});
-    if (action === "install" && requiredSecrets(appList, appIds).length > 0) {
+    if (requiredSecrets(appList, appIds, action).length > 0) {
       setPhase("secrets");
       return;
     }
@@ -138,6 +138,7 @@ export function AppShell() {
 
       {phase === "secrets" && pendingAppIds.length > 0 && (
         <InstallSecretsModal
+          action={pendingAction}
           appIds={pendingAppIds}
           apps={appList}
           onClose={finishManageFlow}

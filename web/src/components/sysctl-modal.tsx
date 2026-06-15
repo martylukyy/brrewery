@@ -190,8 +190,8 @@ export function SysctlModal({ onClose }: Props) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        showCloseButton={false}
-        className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3/4"
+        className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-[60vw]"
+        onInteractOutside={(event) => event.preventDefault()}
       >
         <DialogHeader className="gap-1 border-b border-border px-5 py-4">
           <DialogTitle className="text-base">Tune sysctl parameters</DialogTitle>
