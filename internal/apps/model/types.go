@@ -60,8 +60,24 @@ type App struct {
 	Playbooks      PlaybookPaths   `json:"playbooks"`
 }
 
+// ServiceStatus reports the live systemd state of an installed app's
+// controllable unit(s). It is decoupled from AppStatus.Installed (which tracks
+// persistent artifacts) so an app stays listed while its service is stopped or
+// disabled. The dashboard renders a toggle from Active && Enabled.
+type ServiceStatus struct {
+	// Units are the resolved unit names this app controls ({user} expanded).
+	Units []string `json:"units"`
+	// Active is true when every unit is running (systemctl is-active).
+	Active bool `json:"active"`
+	// Enabled is true when every unit is enabled (systemctl is-enabled).
+	Enabled bool `json:"enabled"`
+}
+
 type AppStatus struct {
 	App
 	Installed             bool `json:"installed"`
 	DependenciesSatisfied bool `json:"dependencies_satisfied"`
+	// Service is present only for installed apps that expose a controllable
+	// systemd unit; apps without a service (e.g. ruTorrent) leave it nil.
+	Service *ServiceStatus `json:"service,omitempty"`
 }

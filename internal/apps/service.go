@@ -22,6 +22,7 @@ var (
 	ErrDependenciesNotMet = errors.New("app dependencies not satisfied")
 	ErrPlaybookMissing    = errors.New("playbook not found")
 	ErrInstallUserMissing = errors.New("install user is required")
+	ErrNoService          = errors.New("app has no controllable service")
 )
 
 type PlaybookRunner interface {
@@ -29,9 +30,10 @@ type PlaybookRunner interface {
 }
 
 type Service struct {
-	evaluator *detect.Evaluator
-	runner    PlaybookRunner
-	jobs      *jobs.Store
+	evaluator  *detect.Evaluator
+	runner     PlaybookRunner
+	jobs       *jobs.Store
+	controller serviceController
 }
 
 func NewService() *Service {
@@ -43,9 +45,10 @@ func NewServiceWithDeps(evaluator *detect.Evaluator, runner PlaybookRunner, stor
 		store = jobs.NewStore()
 	}
 	return &Service{
-		evaluator: evaluator,
-		runner:    runner,
-		jobs:      store,
+		evaluator:  evaluator,
+		runner:     runner,
+		jobs:       store,
+		controller: systemctlController{},
 	}
 }
 
@@ -214,12 +217,51 @@ func enrichAppVars(ctx context.Context, appID string, action model.JobAction, va
 	}
 }
 
+// SetServiceEnabled starts & enables (on) or stops & disables (off) the
+// installed app's systemd unit(s), returning the refreshed service state. The
+// caller is responsible for authenticating the operator; brrewery runs the
+// transition directly as root.
+func (s *Service) SetServiceEnabled(ctx context.Context, id, username string, on bool) (model.ServiceStatus, error) {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return model.ServiceStatus{}, ErrInstallUserMissing
+	}
+
+	app, ok := catalog.ByID(id)
+	if !ok {
+		return model.ServiceStatus{}, ErrAppNotFound
+	}
+
+	status := s.statusFor(&app, username)
+	if !status.Installed {
+		return model.ServiceStatus{}, ErrNotInstalled
+	}
+	if status.Service == nil {
+		return model.ServiceStatus{}, ErrNoService
+	}
+
+	if err := s.controller.SetEnabled(ctx, status.Service.Units, on); err != nil {
+		return model.ServiceStatus{}, err
+	}
+
+	refreshed, _ := s.evaluator.ServiceStatus(&app.Detection, username)
+	return refreshed, nil
+}
+
 func (s *Service) statusFor(app *model.App, username string) model.AppStatus {
 	installed := s.evaluator.InstalledForUser(&app.Detection, username)
 	depsOK := s.evaluator.DependenciesSatisfied(username, app.Dependencies, catalog.DetectionSpec)
-	return model.AppStatus{
+	status := model.AppStatus{
 		App:                   *app,
 		Installed:             installed,
 		DependenciesSatisfied: depsOK,
 	}
+	// Only installed apps expose a live service toggle; surfacing it for an
+	// uninstalled app would query units that aren't there yet.
+	if installed {
+		if svc, ok := s.evaluator.ServiceStatus(&app.Detection, username); ok {
+			status.Service = &svc
+		}
+	}
+	return status
 }

@@ -2,6 +2,8 @@ import { IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import {
   Sidebar,
   SidebarContent,
@@ -31,7 +33,19 @@ type Props = {
   user?: string;
   onManageClick: () => void;
   onLogout: () => void;
+  // Toggle an installed app's systemd service. `enabled` is the requested
+  // target state (true = start & enable, false = stop & disable).
+  onToggleService: (app: AppStatus, enabled: boolean) => void;
+  // The app whose service toggle is awaiting confirmation; its switch is locked
+  // until the action resolves so it can't be double-fired.
+  pendingServiceAppId?: string;
 };
+
+// serviceOn reports whether an app's service switch should read as "on" — the
+// service is both running and enabled.
+function serviceOn(app: AppStatus): boolean {
+  return Boolean(app.service?.active && app.service.enabled);
+}
 
 export function AppSidebar({
   apps,
@@ -42,6 +56,8 @@ export function AppSidebar({
   user,
   onManageClick,
   onLogout,
+  onToggleService,
+  pendingServiceAppId,
 }: Props) {
   const installed = apps
     .filter((app) => app.installed)
@@ -110,6 +126,9 @@ export function AppSidebar({
               ) : (
                 installed.map((app) => {
                   const url = appUrl(app.web_path);
+                  // Reserve room on the right so a long app name doesn't slide
+                  // under the absolutely-positioned service switch.
+                  const servicePadding = app.service ? "pr-12" : "";
 
                   return (
                     <SidebarMenuItem key={app.id}>
@@ -120,7 +139,7 @@ export function AppSidebar({
                         <SidebarMenuButton
                           asChild
                           tooltip={app.name}
-                          className="group-data-[collapsible=icon]:p-1!"
+                          className={`group-data-[collapsible=icon]:p-1! ${servicePadding}`}
                         >
                           <a href={url} target="_blank" rel="noopener noreferrer">
                             <AppIcon icon={app.icon} className="size-6 max-w-none" />
@@ -132,11 +151,18 @@ export function AppSidebar({
                         <SidebarMenuButton
                           disabled
                           tooltip={app.name}
-                          className="group-data-[collapsible=icon]:p-0!"
+                          className={`group-data-[collapsible=icon]:p-0! ${servicePadding}`}
                         >
                           <AppIcon icon={app.icon} className="size-6 max-w-none" />
                           <span>{app.name}</span>
                         </SidebarMenuButton>
+                      )}
+                      {app.service && (
+                        <ServiceSwitch
+                          app={app}
+                          pending={pendingServiceAppId === app.id}
+                          onToggle={onToggleService}
+                        />
                       )}
                     </SidebarMenuItem>
                   );
@@ -198,6 +224,41 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+// ServiceSwitch toggles an installed app's systemd service. It reads "on" when
+// the service is running & enabled (thumb right, green) and "off" when stopped
+// & disabled (thumb left, red). It sits over the right edge of the menu row and
+// is hidden when the sidebar collapses to icons. The toggle is derived from the
+// app's service state — flipping it asks the parent to confirm and apply. While
+// the transition runs in the background a spinner takes the switch's place, and
+// the switch reappears in its new position once the refreshed state arrives.
+function ServiceSwitch({
+  app,
+  pending,
+  onToggle,
+}: {
+  app: AppStatus;
+  pending: boolean;
+  onToggle: (app: AppStatus, enabled: boolean) => void;
+}) {
+  const on = serviceOn(app);
+  return (
+    <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center justify-center group-data-[collapsible=icon]:hidden">
+      {pending ? (
+        <Spinner className="text-sidebar-foreground/70" aria-label={`Updating ${app.name} service`} />
+      ) : (
+        <Switch
+          checked={on}
+          onCheckedChange={(checked) => onToggle(app, checked)}
+          aria-label={`${on ? "Stop and disable" : "Start and enable"} ${app.name}`}
+          // Green when running/enabled, red when stopped/disabled. The dark
+          // variants override the base switch's dark-mode unchecked colour.
+          className="data-checked:bg-emerald-600 dark:data-checked:bg-emerald-600 data-unchecked:bg-red-600 dark:data-unchecked:bg-red-600"
+        />
+      )}
+    </div>
   );
 }
 

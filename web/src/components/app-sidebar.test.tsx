@@ -18,6 +18,7 @@ const apps: AppStatus[] = [
     web_path: "/sonarr/",
     installed: true,
     dependencies_satisfied: true,
+    service: { units: ["sonarr@admin.service"], active: true, enabled: true },
   },
   {
     id: "radarr",
@@ -47,6 +48,7 @@ function renderSidebar(overrides: Overrides = {}) {
           apps={apps}
           onManageClick={() => {}}
           onLogout={() => {}}
+          onToggleService={() => {}}
           {...overrides}
         />
       </SidebarProvider>
@@ -106,5 +108,51 @@ describe("AppSidebar", () => {
 
     await user.click(screen.getByRole("button", { name: "Log out" }));
     expect(onLogout).toHaveBeenCalled();
+  });
+
+  it("shows a service switch only for apps that expose a service", () => {
+    renderSidebar();
+
+    // Sonarr has a running service; rTorrent has none in this fixture.
+    expect(screen.getByRole("switch", { name: "Stop and disable Sonarr" })).toBeChecked();
+    expect(screen.queryByRole("switch", { name: /rTorrent/ })).not.toBeInTheDocument();
+  });
+
+  it("requests stop & disable when toggling a running service off", async () => {
+    const user = userEvent.setup();
+    const onToggleService = vi.fn();
+
+    renderSidebar({ onToggleService });
+
+    await user.click(screen.getByRole("switch", { name: "Stop and disable Sonarr" }));
+    expect(onToggleService).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "sonarr" }),
+      false,
+    );
+  });
+
+  it("replaces the switch with a spinner while a toggle is pending", () => {
+    renderSidebar({ pendingServiceAppId: "sonarr" });
+
+    expect(screen.queryByRole("switch", { name: /Sonarr/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Updating Sonarr service" })).toBeInTheDocument();
+  });
+
+  it("reads the switch as off for a stopped service", () => {
+    renderSidebar({
+      apps: [
+        {
+          id: "deluge",
+          name: "Deluge",
+          description: "",
+          category: "download",
+          installed: true,
+          dependencies_satisfied: true,
+          service: { units: ["deluged.service"], active: false, enabled: false },
+        },
+      ],
+    });
+
+    expect(screen.getByRole("switch", { name: "Start and enable Deluge" })).not.toBeChecked();
   });
 });

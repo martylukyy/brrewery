@@ -83,6 +83,7 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/apps/{id}/install", apps.Install)
 			r.Post("/apps/{id}/upgrade", apps.Upgrade)
 			r.Post("/apps/{id}/remove", apps.Remove)
+			r.Post("/apps/{id}/service", apps.SetService)
 
 			jobsHandler := handlers.NewJobsHandler(s.apps)
 			r.Get("/jobs/{id}", jobsHandler.Get)

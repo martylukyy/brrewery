@@ -1,5 +1,6 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { Dashboard } from "@/components/dashboard";
 import { InstallOptionsModal } from "@/components/install-options-modal";
@@ -10,15 +11,29 @@ import { ManageAppsModal, type ManageAppsConfirm } from "@/components/manage-app
 import { SysctlModal } from "@/components/sysctl-modal";
 import { AppJobModal } from "@/components/app-job-modal";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ServiceToggleModal } from "@/components/service-toggle-modal";
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
-import { listApps, type JobAction } from "@/lib/api";
+import {
+  ApiError,
+  listApps,
+  setAppService,
+  verifyPassword,
+  type AppStatus,
+  type JobAction,
+} from "@/lib/api";
 
 type ManagePhase = "select" | "secrets" | "options" | "job" | "sysctl";
+
+type ServiceToggleRequest = {
+  app: AppStatus;
+  enabled: boolean;
+  password: string;
+};
 
 export function AppShell() {
   const { session, username, logout } = useAuth();
@@ -28,6 +43,9 @@ export function AppShell() {
   const [pendingAppIds, setPendingAppIds] = useState<string[]>([]);
   const [jobQueueTotal, setJobQueueTotal] = useState(0);
   const [jobExtraVars, setJobExtraVars] = useState<Record<string, string>>({});
+  const [serviceToggle, setServiceToggle] = useState<{ app: AppStatus; enabled: boolean } | null>(
+    null,
+  );
 
   const apps = useQuery({
     queryKey: ["apps"],
@@ -35,6 +53,36 @@ export function AppShell() {
   });
 
   const appList = apps.data?.apps ?? [];
+
+  // Toggling a service runs in the background after the password modal closes,
+  // so the work outlives the modal and a spinner can sit where the switch was.
+  // The password is verified against the credential endpoint first: a wrong
+  // password there is a 401 that does not sign the user out, unlike a 401 from
+  // the service endpoint which the global handler treats as an expired session.
+  const serviceMutation = useMutation({
+    mutationFn: async ({ app, enabled, password }: ServiceToggleRequest) => {
+      await verifyPassword(password);
+      await setAppService(app.id, enabled, password);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["apps"] });
+    },
+    onError: (error, { app, enabled }) => {
+      const verb = enabled ? "start" : "stop";
+      const reason =
+        error instanceof ApiError && error.status === 401
+          ? "Incorrect password."
+          : error instanceof Error
+            ? error.message
+            : "Please try again.";
+      toast.error(`Could not ${verb} ${app.name}. ${reason}`);
+    },
+  });
+  // While a toggle is in flight, the targeted app's switch is replaced by a
+  // spinner (see AppSidebar).
+  const pendingServiceAppId = serviceMutation.isPending
+    ? serviceMutation.variables?.app.id
+    : undefined;
 
   function beginAppJobs({ action, appIds }: ManageAppsConfirm) {
     if (appIds.length === 0) {
@@ -108,6 +156,8 @@ export function AppShell() {
         user={username}
         onManageClick={() => setPhase("select")}
         onLogout={() => logout.mutate()}
+        onToggleService={(app, enabled) => setServiceToggle({ app, enabled })}
+        pendingServiceAppId={pendingServiceAppId}
       />
 
       <SidebarInset className="min-h-0">
@@ -166,6 +216,19 @@ export function AppShell() {
           queueTotal={jobQueueTotal}
           onClose={finishManageFlow}
           onFinished={handleJobFinished}
+        />
+      )}
+
+      {serviceToggle && (
+        <ServiceToggleModal
+          app={serviceToggle.app}
+          enabled={serviceToggle.enabled}
+          onClose={() => setServiceToggle(null)}
+          onConfirm={(password) => {
+            const { app, enabled } = serviceToggle;
+            setServiceToggle(null);
+            serviceMutation.mutate({ app, enabled, password });
+          }}
         />
       )}
     </SidebarProvider>

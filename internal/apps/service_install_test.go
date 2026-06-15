@@ -42,6 +42,12 @@ func TestService_StartInstall(t *testing.T) {
 		t.Parallel()
 
 		svc := NewServiceWithDeps(detect.NewEvaluator(), stubRunner{}, jobs.NewStore())
+		// Detection now keys off persistent artifacts (binary + unit file), so on
+		// a host where autobrr is already installed StartInstall correctly refuses
+		// with ErrAlreadyInstalled. This test exercises the not-installed path.
+		if status, ok := svc.Get("autobrr", "admin"); ok && status.Installed {
+			t.Skip("autobrr already installed on this host")
+		}
 		job, err := svc.StartInstall(context.Background(), "autobrr", "admin", nil)
 		if err != nil {
 			if err == ErrPlaybookMissing {

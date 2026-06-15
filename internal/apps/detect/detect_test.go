@@ -39,10 +39,30 @@ func TestInstalled(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "unit active",
+			name: "unit file present",
 			spec: model.DetectionSpec{SystemdUnits: []string{"nginx.service"}},
 			eval: &Evaluator{
-				systemctlActive: func(context.Context, string) error { return nil },
+				systemctlPresent: func(context.Context, string) error { return nil },
+			},
+			want: true,
+		},
+		{
+			name: "unit file missing",
+			spec: model.DetectionSpec{SystemdUnits: []string{"nginx.service"}},
+			eval: &Evaluator{
+				systemctlPresent: func(context.Context, string) error { return errors.New("no such unit") },
+			},
+			want: false,
+		},
+		{
+			name: "stopped unit still installed",
+			spec: model.DetectionSpec{SystemdUnits: []string{"deluged.service"}},
+			eval: &Evaluator{
+				// Service is down, but the unit file is installed: the app stays
+				// detected so its toggle remains reachable.
+				systemctlPresent: func(context.Context, string) error { return nil },
+				systemctlActive:  func(context.Context, string) error { return errors.New("inactive") },
+				systemctlEnabled: func(context.Context, string) error { return errors.New("disabled") },
 			},
 			want: true,
 		},
@@ -63,18 +83,18 @@ func TestInstalled(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "user scoped unit active",
+			name: "user scoped unit present",
 			spec: model.DetectionSpec{
 				Binaries:         []string{"autobrr"},
 				SystemdUserUnits: []string{"autobrr@{user}.service"},
 			},
 			eval: &Evaluator{
 				lookPath: func(string) (string, error) { return "/usr/local/bin/autobrr", nil },
-				systemctlEnabled: func(_ context.Context, unit string) error {
+				systemctlPresent: func(_ context.Context, unit string) error {
 					if unit == "autobrr@admin.service" {
 						return nil
 					}
-					return errors.New("not enabled")
+					return errors.New("no such unit")
 				},
 			},
 			want: true,
@@ -84,7 +104,7 @@ func TestInstalled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.eval.Installed(&tt.spec)
-			if tt.name == "user scoped unit active" {
+			if tt.name == "user scoped unit present" {
 				got = tt.eval.InstalledForUser(&tt.spec, "admin")
 			}
 			assert.Equal(t, tt.want, got)
@@ -113,7 +133,7 @@ func TestInstalledForUserRequiresUsernameForUserUnits(t *testing.T) {
 
 	eval := &Evaluator{
 		lookPath:         func(string) (string, error) { return "/usr/local/bin/autobrr", nil },
-		systemctlEnabled: func(context.Context, string) error { return nil },
+		systemctlPresent: func(context.Context, string) error { return nil },
 	}
 	spec := model.DetectionSpec{
 		Binaries:         []string{"autobrr"},
@@ -122,6 +142,49 @@ func TestInstalledForUserRequiresUsernameForUserUnits(t *testing.T) {
 
 	assert.False(t, eval.InstalledForUser(&spec, ""))
 	assert.True(t, eval.InstalledForUser(&spec, "admin"))
+}
+
+func TestServiceStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no units", func(t *testing.T) {
+		t.Parallel()
+		_, ok := NewEvaluator().ServiceStatus(&model.DetectionSpec{Binaries: []string{"deluged"}}, "admin")
+		assert.False(t, ok)
+	})
+
+	t.Run("user units without username", func(t *testing.T) {
+		t.Parallel()
+		spec := &model.DetectionSpec{SystemdUserUnits: []string{"autobrr@{user}.service"}}
+		_, ok := NewEvaluator().ServiceStatus(spec, "")
+		assert.False(t, ok)
+	})
+
+	t.Run("running and enabled", func(t *testing.T) {
+		t.Parallel()
+		eval := &Evaluator{
+			systemctlActive:  func(context.Context, string) error { return nil },
+			systemctlEnabled: func(context.Context, string) error { return nil },
+		}
+		got, ok := eval.ServiceStatus(&model.DetectionSpec{SystemdUnits: []string{"deluged.service"}}, "")
+		assert.True(t, ok)
+		assert.Equal(t, []string{"deluged.service"}, got.Units)
+		assert.True(t, got.Active)
+		assert.True(t, got.Enabled)
+	})
+
+	t.Run("stopped and disabled with expanded user unit", func(t *testing.T) {
+		t.Parallel()
+		eval := &Evaluator{
+			systemctlActive:  func(context.Context, string) error { return errors.New("inactive") },
+			systemctlEnabled: func(context.Context, string) error { return errors.New("disabled") },
+		}
+		got, ok := eval.ServiceStatus(&model.DetectionSpec{SystemdUserUnits: []string{"sonarr@{user}.service"}}, "admin")
+		assert.True(t, ok)
+		assert.Equal(t, []string{"sonarr@admin.service"}, got.Units)
+		assert.False(t, got.Active)
+		assert.False(t, got.Enabled)
+	})
 }
 
 type fakeFileInfo struct{}

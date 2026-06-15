@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -95,6 +96,48 @@ func (h *AppsHandler) Install(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusAccepted, model.InstallResponse{JobID: job.ID})
 }
 
+type setServiceRequest struct {
+	Enabled  bool   `json:"enabled"`
+	Password string `json:"password"`
+}
+
+// SetService starts & enables or stops & disables an installed app's systemd
+// service. The operator's account password is required (and verified) as a
+// confirmation gate before the privileged transition runs.
+func (h *AppsHandler) SetService(w http.ResponseWriter, r *http.Request) {
+	username, ok := h.auth.Username(r.Context())
+	if !ok {
+		httputil.WriteError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+
+	var body setServiceRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		httputil.WriteError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	password := strings.TrimSpace(body.Password)
+	if password == "" {
+		httputil.WriteError(w, http.StatusBadRequest, "Account password is required")
+		return
+	}
+	if err := h.auth.VerifyPassword(username, password); err != nil {
+		httputil.WriteError(w, http.StatusUnauthorized, "Incorrect password")
+		return
+	}
+
+	status, err := h.service.SetServiceEnabled(r.Context(), id, username, body.Enabled)
+	if err != nil {
+		writeAppJobError(w, err)
+		return
+	}
+
+	httputil.WriteJSON(w, http.StatusOK, status)
+}
+
 func (h *AppsHandler) Upgrade(w http.ResponseWriter, r *http.Request) {
 	h.startAppJob(w, r, true, h.service.StartUpgrade)
 }
@@ -158,6 +201,8 @@ func writeAppJobError(w http.ResponseWriter, err error) {
 		httputil.WriteError(w, http.StatusConflict, "App already installed")
 	case errors.Is(err, appsdomain.ErrNotInstalled):
 		httputil.WriteError(w, http.StatusConflict, "App not installed")
+	case errors.Is(err, appsdomain.ErrNoService):
+		httputil.WriteError(w, http.StatusConflict, "App has no controllable service")
 	case errors.Is(err, appsdomain.ErrDependenciesNotMet):
 		httputil.WriteError(w, http.StatusConflict, "App dependencies not satisfied")
 	case errors.Is(err, appsdomain.ErrPlaybookMissing):

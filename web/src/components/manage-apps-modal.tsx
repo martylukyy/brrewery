@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { IconAdjustments, IconArrowUp, IconDownload, IconTrash } from "@tabler/icons-react";
+import { IconAdjustments, IconChevronsUp, IconDownload, IconTrash } from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
 import { Badge } from "@/components/ui/badge";
@@ -93,7 +93,6 @@ export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Prop
                     <div className="flex shrink-0 items-center gap-2 self-center">
                       <Button
                         variant="outline"
-                        size="sm"
                         aria-label={`Install ${app.name}`}
                         disabled={!installEnabled}
                         onClick={() => handleAction("install", app.id)}
@@ -103,17 +102,15 @@ export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Prop
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
                         aria-label={`Upgrade ${app.name}`}
                         disabled={!modifyEnabled}
                         onClick={() => handleAction("upgrade", app.id)}
                       >
-                        <IconArrowUp data-icon="inline-start" />
+                        <IconChevronsUp data-icon="inline-start" />
                         Upgrade
                       </Button>
                       <Button
                         variant="destructive"
-                        size="sm"
                         aria-label={`Remove ${app.name}`}
                         disabled={!modifyEnabled}
                         onClick={() => handleAction("remove", app.id)}

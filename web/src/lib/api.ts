@@ -112,6 +112,15 @@ export type InstallOption = {
   when?: InstallOptionWhen;
 };
 
+// ServiceStatus is the live systemd state of an installed app's controllable
+// unit(s). It is present only for installed apps that expose a service; the
+// sidebar toggle is "on" when both active and enabled.
+export type ServiceStatus = {
+  units: string[];
+  active: boolean;
+  enabled: boolean;
+};
+
 export type AppStatus = {
   id: string;
   name: string;
@@ -123,6 +132,7 @@ export type AppStatus = {
   install_options?: InstallOption[];
   installed: boolean;
   dependencies_satisfied: boolean;
+  service?: ServiceStatus;
 };
 
 export type AppListResponse = {
@@ -266,6 +276,16 @@ export function upgradeApp(id: string, body: AppJobRequest = {}) {
 
 export function removeApp(id: string, body: AppJobRequest = {}) {
   return startAppJob(id, "remove", body);
+}
+
+// setAppService starts & enables (enabled=true) or stops & disables
+// (enabled=false) an installed app's systemd service. The account password is
+// required as a confirmation gate. Returns the refreshed service state.
+export function setAppService(id: string, enabled: boolean, password: string) {
+  return apiFetch<ServiceStatus>(`/apps/${encodeURIComponent(id)}/service`, {
+    method: "POST",
+    body: JSON.stringify({ enabled, password }),
+  });
 }
 
 export function getJob(id: string) {

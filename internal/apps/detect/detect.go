@@ -2,6 +2,7 @@ package detect
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,7 @@ type Evaluator struct {
 	lookPath         func(string) (string, error)
 	systemctlActive  func(context.Context, string) error
 	systemctlEnabled func(context.Context, string) error
+	systemctlPresent func(context.Context, string) error
 	stat             func(string) (os.FileInfo, error)
 }
 
@@ -31,12 +33,25 @@ func NewEvaluator() *Evaluator {
 		systemctlEnabled: func(ctx context.Context, unit string) error {
 			return systemctlQuiet(ctx, "is-enabled", unit)
 		},
-		stat: os.Stat,
+		systemctlPresent: systemctlUnitPresent,
+		stat:             os.Stat,
 	}
 }
 
 func systemctlQuiet(ctx context.Context, op, unit string) error {
 	cmd := exec.CommandContext(ctx, "systemctl", op, "--quiet", unit)
+	return cmd.Run()
+}
+
+// systemctlUnitPresent reports (via a nil error) whether a unit file is
+// installed, regardless of whether it is currently active or enabled. This is
+// the persistent-artifact signal for detection: `systemctl cat` resolves the
+// unit (including the template behind an instance like sonarr@user.service) and
+// exits non-zero only when no such unit file exists.
+func systemctlUnitPresent(ctx context.Context, unit string) error {
+	cmd := exec.CommandContext(ctx, "systemctl", "cat", unit)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
 	return cmd.Run()
 }
 
@@ -54,14 +69,18 @@ func (e *Evaluator) InstalledForUser(spec *model.DetectionSpec, username string)
 	if !e.checkPaths(spec.Paths) {
 		return false
 	}
-	if len(spec.SystemdUnits) > 0 && !e.checkUnits(spec.SystemdUnits) {
+	// Installed reflects persistent artifacts, so units are detected by the unit
+	// file existing — not by being active/enabled. That keeps a stopped or
+	// disabled app listed (and its service toggle reachable). The live run state
+	// is reported separately by ServiceStatus.
+	if len(spec.SystemdUnits) > 0 && !e.checkUnitsPresent(spec.SystemdUnits) {
 		return false
 	}
 	if len(spec.SystemdUserUnits) > 0 {
 		if username == "" {
 			return false
 		}
-		if !e.checkUnitsEnabled(expandUserUnits(spec.SystemdUserUnits, username)) {
+		if !e.checkUnitsPresent(expandUserUnits(spec.SystemdUserUnits, username)) {
 			return false
 		}
 	}
@@ -112,32 +131,56 @@ func (e *Evaluator) binaryPresent(name string) bool {
 	return false
 }
 
-func (e *Evaluator) checkUnits(units []string) bool {
+func (e *Evaluator) checkUnitsPresent(units []string) bool {
 	ctx := context.Background()
 	for _, unit := range units {
 		unit = strings.TrimSpace(unit)
 		if unit == "" {
 			continue
 		}
-		if err := e.systemctlActive(ctx, unit); err != nil {
+		if err := e.systemctlPresent(ctx, unit); err != nil {
 			return false
 		}
 	}
 	return true
 }
 
-func (e *Evaluator) checkUnitsEnabled(units []string) bool {
-	ctx := context.Background()
-	for _, unit := range units {
-		unit = strings.TrimSpace(unit)
-		if unit == "" {
-			continue
-		}
-		if err := e.systemctlEnabled(ctx, unit); err != nil {
-			return false
+// ServiceStatus reports the live systemd state of the controllable units for an
+// app, with {user} instance units expanded. ok is false when the spec declares
+// no units (or declares user units without a username), meaning the app has no
+// service to toggle. A unit is Active/Enabled only when every unit is.
+func (e *Evaluator) ServiceStatus(spec *model.DetectionSpec, username string) (model.ServiceStatus, bool) {
+	if spec == nil {
+		return model.ServiceStatus{}, false
+	}
+
+	units := make([]string, 0, len(spec.SystemdUnits)+len(spec.SystemdUserUnits))
+	for _, unit := range spec.SystemdUnits {
+		if unit = strings.TrimSpace(unit); unit != "" {
+			units = append(units, unit)
 		}
 	}
-	return true
+	if len(spec.SystemdUserUnits) > 0 {
+		if username == "" {
+			return model.ServiceStatus{}, false
+		}
+		units = append(units, expandUserUnits(spec.SystemdUserUnits, username)...)
+	}
+	if len(units) == 0 {
+		return model.ServiceStatus{}, false
+	}
+
+	ctx := context.Background()
+	status := model.ServiceStatus{Units: units, Active: true, Enabled: true}
+	for _, unit := range units {
+		if e.systemctlActive(ctx, unit) != nil {
+			status.Active = false
+		}
+		if e.systemctlEnabled(ctx, unit) != nil {
+			status.Enabled = false
+		}
+	}
+	return status, true
 }
 
 func (e *Evaluator) checkPaths(paths []string) bool {

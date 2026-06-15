@@ -105,6 +105,9 @@ func TestInstallAppEndpoint(t *testing.T) {
 	if installRes.StatusCode == http.StatusInternalServerError {
 		t.Skip("autobrr playbook not available in test environment")
 	}
+	if installRes.StatusCode == http.StatusConflict {
+		t.Skip("autobrr already installed on this host")
+	}
 
 	require.Equal(t, http.StatusAccepted, installRes.StatusCode, string(body))
 
@@ -250,6 +253,9 @@ func TestQbittorrentInstallOptionValidation(t *testing.T) {
 			},
 		})
 		defer res.Body.Close()
+		if res.StatusCode == http.StatusConflict {
+			t.Skip("qbittorrent already installed on this host")
+		}
 		require.Equal(t, http.StatusAccepted, res.StatusCode)
 	})
 

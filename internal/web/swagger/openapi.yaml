@@ -184,6 +184,26 @@ components:
           $ref: '#/components/schemas/DetectionSpec'
         playbooks:
           $ref: '#/components/schemas/PlaybookPaths'
+    ServiceStatus:
+      type: object
+      required: [units, active, enabled]
+      description: >-
+        Live systemd state of an installed app's controllable unit(s). Decoupled
+        from `installed` (persistent artifacts) so an app stays listed while its
+        service is stopped or disabled. The dashboard toggle is on when both
+        `active` and `enabled` are true.
+      properties:
+        units:
+          type: array
+          description: Resolved unit names this app controls ({user} instances expanded).
+          items:
+            type: string
+        active:
+          type: boolean
+          description: True when every unit is running (systemctl is-active).
+        enabled:
+          type: boolean
+          description: True when every unit is enabled (systemctl is-enabled).
     AppStatus:
       allOf:
         - $ref: '#/components/schemas/App'
@@ -193,6 +213,9 @@ components:
               type: boolean
             dependencies_satisfied:
               type: boolean
+            service:
+              description: Present only for installed apps that expose a controllable systemd service.
+              $ref: '#/components/schemas/ServiceStatus'
     AppListResponse:
       type: object
       properties:
@@ -245,6 +268,16 @@ components:
       properties:
         job_id:
           type: string
+    SetServiceRequest:
+      type: object
+      required: [enabled, password]
+      properties:
+        enabled:
+          type: boolean
+          description: Target state — true starts & enables the service, false stops & disables it.
+        password:
+          type: string
+          description: Operator account password, verified as a confirmation gate before the transition.
     JobLogsResponse:
       type: object
       properties:
@@ -629,6 +662,54 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: App not installed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/apps/{id}/service:
+    post:
+      summary: Start & enable or stop & disable an installed app's systemd service
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetServiceRequest'
+      responses:
+        '200':
+          description: Refreshed service state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceStatus'
+        '400':
+          description: Missing password or invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized or incorrect password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: App not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: App not installed or has no controllable service
           content:
             application/json:
               schema:
