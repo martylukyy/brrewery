@@ -151,7 +151,7 @@ export function AppSidebar({
                         <SidebarMenuButton
                           disabled
                           tooltip={app.name}
-                          className={`group-data-[collapsible=icon]:p-0! ${servicePadding}`}
+                          className={`group-data-[collapsible=icon]:p-1! ${servicePadding}`}
                         >
                           <AppIcon icon={app.icon} className="size-6 max-w-none" />
                           <span>{app.name}</span>
