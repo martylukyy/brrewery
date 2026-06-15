@@ -53,12 +53,14 @@ export function AppSidebar({
       <SidebarHeader>
         {/*
           Expanded: logo + name on the left, the collapse toggle pushed to the
-          right with ml-auto. Collapsed: only the toggle remains; it grows to
-          size-8 like the app-icon buttons so it fills the rail and its icon
-          lands dead-center. (ml-auto alone right-aligns the 28px button, leaving
-          a lopsided left margin.) px-0 + transition-[padding] let it glide into
-          place as the rail width animates, instead of jumping the way a
-          justify-center / mx-auto re-center against the still-wide rail would.
+          right with ml-auto. The toggle is sized like the app-icon buttons —
+          a size-8 (32px) button with a size-6 (24px) glyph — for a consistent
+          footprint; [&_svg]:size-6! is needed because the button otherwise pins
+          its unclassed icon to size-4. Collapsed: only the toggle remains, and
+          being size-8 it fills the rail so its icon lands dead-center; ml-auto
+          is then neutralized (no free space) and it settles in place rather than
+          jumping the way a justify-center / mx-auto re-center against the
+          still-wide rail would. px-0 + transition-[padding] keep that glide.
 
           The logo + name sit in their own overflow-hidden box that collapses its
           max-width to 0 instead of using display:none. data-collapsible flips at
@@ -74,13 +76,13 @@ export function AppSidebar({
               alt=""
               // max-w-none defeats Preflight's `img { max-width: 100% }`, which
               // would otherwise clamp the logo's width to its narrow parent.
-              className="size-8 max-w-none shrink-0 object-contain"
+              className="size-6 max-w-none shrink-0 object-contain"
             />
             <span className="font-semibold whitespace-nowrap text-sidebar-foreground">
               brrewery
             </span>
           </div>
-          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:size-8!" />
+          <SidebarTrigger className="ml-auto size-8! [&_svg]:size-6!" />
         </div>
       </SidebarHeader>
 
@@ -129,7 +131,7 @@ export function AppSidebar({
                         <SidebarMenuButton
                           disabled
                           tooltip={app.name}
-                          className="group-data-[collapsible=icon]:p-1!"
+                          className="group-data-[collapsible=icon]:p-0!"
                         >
                           <AppIcon icon={app.icon} className="size-6 max-w-none" />
                           <span>{app.name}</span>
@@ -149,14 +151,22 @@ export function AppSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Manage server" onClick={onManageClick}>
-              <IconServerCog />
+            <SidebarMenuButton
+              tooltip="Manage server"
+              onClick={onManageClick}
+              className="group-data-[collapsible=icon]:p-1!"
+            >
+              <IconServerCog className="size-6!" />
               <span>Manage server</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Log out" onClick={onLogout}>
-              <IconLogout />
+            <SidebarMenuButton
+              tooltip="Log out"
+              onClick={onLogout}
+              className="group-data-[collapsible=icon]:p-1!"
+            >
+              <IconLogout className="size-6!" />
               <span>Log out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
