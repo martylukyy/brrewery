@@ -46,6 +46,7 @@ type DiskUsage struct {
 	UsedBytes      uint64  `json:"used_bytes"`
 	AvailableBytes uint64  `json:"available_bytes"`
 	UsedPercent    float64 `json:"used_percent"`
+	IODevice       string  `json:"io_device,omitempty"`
 	IOBusyPercent  float64 `json:"io_busy_percent,omitempty"`
 	ReadBytes      uint64  `json:"read_bytes"`
 	WriteBytes     uint64  `json:"write_bytes"`

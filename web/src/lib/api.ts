@@ -148,6 +148,7 @@ export type SystemDisk = {
   used_bytes: number;
   available_bytes: number;
   used_percent: number;
+  io_device?: string;
   io_busy_percent?: number;
   read_bytes: number;
   write_bytes: number;

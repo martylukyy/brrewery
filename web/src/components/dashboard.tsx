@@ -106,6 +106,13 @@ export function Dashboard() {
                 label="I/O busy"
                 value={busyPercent}
                 display={`${busyPercent.toFixed(2)}%`}
+                footer={
+                  disk.io_device ? (
+                    <p className="flex h-full items-center justify-center text-center text-xs text-muted-foreground">
+                      {disk.io_device}
+                    </p>
+                  ) : undefined
+                }
               />
               <div className="md:col-span-2 xl:col-span-2">
                 <DiskIOChart
@@ -130,7 +137,7 @@ export function Dashboard() {
 function UptimePanel({ uptimeSeconds, hostname }: { uptimeSeconds: number; hostname: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-card p-3">
-      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide">
         Uptime
       </p>
       <div className="flex flex-1 flex-col items-center justify-center py-6">

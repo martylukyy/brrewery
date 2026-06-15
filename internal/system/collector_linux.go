@@ -108,6 +108,10 @@ func (c *Collector) readMonitoredDisks(uptime float64) ([]DiskUsage, error) {
 		}
 		usage.IOBusyPercent = ioBusy
 
+		if device, err := mountIODevice(mount); err == nil {
+			usage.IODevice = device
+		}
+
 		ioCounters, err := readMountIOCounters(mount)
 		if err == nil {
 			usage.ReadBytes = ioCounters.ReadBytes

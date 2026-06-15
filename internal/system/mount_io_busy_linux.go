@@ -87,6 +87,17 @@ func mountDiskIOStatPath(mount string) (string, error) {
 	return statPath, nil
 }
 
+// mountIODevice returns the /dev/<disk> node whose whole-device I/O the busy
+// gauge tracks (the same backing disk resolved by mountDiskIOStatPath).
+func mountIODevice(mount string) (string, error) {
+	statPath, err := mountDiskIOStatPath(mount)
+	if err != nil {
+		return "", err
+	}
+	// statPath is /sys/block/<disk>/stat.
+	return filepath.Join("/dev", filepath.Base(filepath.Dir(statPath))), nil
+}
+
 func fileReadable(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil

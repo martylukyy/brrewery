@@ -26,7 +26,7 @@ export function GaugePanel({ label, value, display, footer }: Props) {
 
   return (
     <Card className="flex h-full min-h-0 flex-col gap-0 overflow-visible p-3 py-3">
-      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="shrink-0 text-center text-xs font-medium uppercase tracking-wide">
         {label}
       </p>
       <div
