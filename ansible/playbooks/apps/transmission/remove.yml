@@ -1,0 +1,73 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    transmission_prefix: /usr/local
+    transmission_bin: /usr/local/bin/transmission-daemon
+    transmission_web_assets_dir: /usr/local/share/transmission
+  roles:
+    - brrewery_user
+  tasks:
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Stop and disable Transmission for brrewery user
+      ansible.builtin.systemd:
+        name: "transmission@{{ brrewery_user }}.service"
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Remove nginx reverse proxy for Transmission
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+        tasks_from: remove
+      vars:
+        brrewery_app_id: transmission
+
+    - name: Remove Transmission user config and data
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/.config/transmission-daemon"
+        state: absent
+
+    - name: List remaining Transmission user service instances
+      ansible.builtin.shell: |
+        set -o pipefail
+        systemctl list-units 'transmission@*.service' --all --no-legend --no-pager 2>/dev/null || true
+      register: transmission_units
+      changed_when: false
+
+    - name: Remove Transmission binaries and WebUI assets when no instances remain
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ transmission_bin }}"
+        - "{{ transmission_prefix }}/bin/transmission-remote"
+        - "{{ transmission_prefix }}/bin/transmission-create"
+        - "{{ transmission_prefix }}/bin/transmission-edit"
+        - "{{ transmission_prefix }}/bin/transmission-show"
+        - "{{ transmission_web_assets_dir }}"
+      when: transmission_units.stdout_lines | length == 0
+
+    - name: Remove Transmission systemd template when no instances remain
+      ansible.builtin.file:
+        path: /etc/systemd/system/transmission@.service
+        state: absent
+      when: transmission_units.stdout_lines | length == 0
+      notify: Reload systemd
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

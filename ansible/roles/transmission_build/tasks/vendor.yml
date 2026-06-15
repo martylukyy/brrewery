@@ -1,0 +1,29 @@
+---
+- name: Ensure the vendored source directory for this version exists
+  ansible.builtin.file:
+    path: "{{ transmission_vendor_root }}/sources/{{ transmission_version }}"
+    state: directory
+    mode: "0755"
+
+# A source counts as present only if its directory exists AND is non-empty. A
+# bare stat treats an empty leftover directory (e.g. one left by a prior run
+# whose download/extraction was interrupted) as "present" and skips the
+# re-download forever, so a later build copies an empty tree and fails. `find`
+# reports matched=0 for both a missing and an empty directory, which is exactly
+# the set we must (re)download.
+- name: Check whether this version's source is already extracted
+  ansible.builtin.find:
+    paths: "{{ transmission_vendor_root }}/sources/{{ transmission_version }}"
+    file_type: any
+    hidden: true
+    recurse: false
+  register: transmission_src_present
+
+- name: Download and extract the Transmission source tarball
+  ansible.builtin.unarchive:
+    src: "{{ transmission_tarball_url }}"
+    dest: "{{ transmission_vendor_root }}/sources/{{ transmission_version }}"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+  when: transmission_src_present.matched | int == 0

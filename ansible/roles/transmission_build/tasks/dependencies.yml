@@ -1,0 +1,27 @@
+---
+# Best effort: a stale or read-only apt cache should not abort the build when
+# the existing cache already satisfies the dependencies below.
+- name: Refresh apt cache (best effort)
+  ansible.builtin.apt:
+    update_cache: true
+  failed_when: false
+
+# Daemon-only build dependencies for Debian 13 (trixie). No GTK/Qt (desktop
+# clients are disabled) and no libssl-dev (libtransmission supplies its own
+# crypto when system OpenSSL is absent on this release). The release tarball
+# bundles the remaining third-party sources, so nothing else is needed.
+- name: Install Transmission build dependencies
+  ansible.builtin.apt:
+    name:
+      - build-essential
+      - cmake
+      - ninja-build
+      - git
+      - libcurl4-openssl-dev
+      - libb64-dev
+      - libdeflate-dev
+      - libevent-dev
+      - libminiupnpc-dev
+      - libnatpmp-dev
+      - libsystemd-dev
+    state: present

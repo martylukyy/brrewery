@@ -1,0 +1,74 @@
+---
+# Stage a clean copy of the vendored source into the scratch build root so the
+# cached vendor tree stays pristine and re-runs configure against fresh sources.
+- name: Reset the Transmission scratch source tree
+  ansible.builtin.file:
+    path: "{{ transmission_build_root }}/transmission"
+    state: absent
+
+- name: Ensure the scratch build root exists
+  ansible.builtin.file:
+    path: "{{ transmission_build_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Stage Transmission source into the build root
+  ansible.builtin.command:
+    cmd: cp -a "{{ transmission_vendor_root }}/sources/{{ transmission_version }}" "{{ transmission_build_root }}/transmission"
+    creates: "{{ transmission_build_root }}/transmission"
+
+# Daemon + CLI utils only: no GTK/Qt desktop clients, no macOS app, no tests,
+# no NLS/docs. INSTALL_WEB=ON ships the WebUI assets under the prefix. WITH_SYSTEMD
+# is set explicitly (libsystemd-dev is installed) though the unit uses Type=simple.
+- name: Configure transmission-daemon (cmake + Ninja, daemon-only)
+  ansible.builtin.command:
+    cmd: >-
+      cmake -B build -G Ninja
+      -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      -DCMAKE_INSTALL_PREFIX={{ transmission_prefix }}
+      -DENABLE_DAEMON=ON
+      -DENABLE_UTILS=ON
+      -DENABLE_GTK=OFF
+      -DENABLE_QT=OFF
+      -DENABLE_MAC=OFF
+      -DENABLE_CLI=OFF
+      -DENABLE_TESTS=OFF
+      -DENABLE_NLS=OFF
+      -DINSTALL_DOC=OFF
+      -DINSTALL_WEB=ON
+      -DWITH_SYSTEMD=ON
+    chdir: "{{ transmission_build_root }}/transmission"
+    creates: "{{ transmission_build_root }}/transmission/build/build.ninja"
+
+- name: Build transmission-daemon
+  ansible.builtin.command:
+    cmd: cmake --build build --parallel {{ transmission_build_jobs }}
+    chdir: "{{ transmission_build_root }}/transmission"
+    creates: "{{ transmission_build_root }}/transmission/build/daemon/transmission-daemon"
+
+- name: Install transmission-daemon and WebUI assets
+  ansible.builtin.command:
+    cmd: cmake --install build
+    chdir: "{{ transmission_build_root }}/transmission"
+    creates: "{{ transmission_prefix }}/bin/transmission-daemon"
+
+- name: Verify transmission-daemon was installed
+  ansible.builtin.stat:
+    path: "{{ transmission_bin }}"
+  register: transmission_installed_bin
+
+- name: Fail when transmission-daemon was not produced
+  ansible.builtin.assert:
+    that:
+      - transmission_installed_bin.stat.exists
+    fail_msg: transmission-daemon build did not produce a binary
+
+- name: Refresh the dynamic linker cache
+  ansible.builtin.command:
+    cmd: ldconfig
+  changed_when: true
+
+- name: Clean the scratch build root
+  ansible.builtin.file:
+    path: "{{ transmission_build_root }}"
+    state: absent

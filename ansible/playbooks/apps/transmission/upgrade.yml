@@ -1,0 +1,35 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    transmission_rpc_port: 9091
+  roles:
+    # The build role resolves the latest release and rebuilds only when its guard
+    # finds a newer tag than the installed transmission-daemon.
+    - brrewery_user
+    - transmission_build
+  tasks:
+    # Deliberately does NOT rewrite settings.json: that would discard the user's
+    # hashed RPC password and any preferences set in the WebUI. Only restart so a
+    # freshly built binary is picked up.
+    - name: Restart Transmission for brrewery user after rebuild
+      ansible.builtin.systemd:
+        name: "transmission@{{ brrewery_user }}.service"
+        state: restarted
+        daemon_reload: true
+
+    - name: Wait for Transmission RPC to listen
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ transmission_rpc_port }}"
+        timeout: 60
+
+    - name: Ensure nginx reverse proxy for Transmission is configured
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: transmission
+        brrewery_app_web_path: /transmission/
+        brrewery_app_upstream: http://127.0.0.1:{{ transmission_rpc_port }}

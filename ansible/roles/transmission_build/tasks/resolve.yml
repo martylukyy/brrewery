@@ -1,0 +1,30 @@
+---
+# /releases/latest returns the newest NON-prerelease release, so betas (e.g.
+# 4.1.0-beta.N) are excluded and we always track the latest stable line.
+- name: Fetch latest Transmission release metadata
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/transmission/transmission/releases/latest
+    return_content: true
+  register: transmission_release
+
+- name: Resolve latest Transmission version tag
+  ansible.builtin.set_fact:
+    transmission_version: "{{ transmission_release.json.tag_name }}"
+
+# Use the UPLOADED transmission-<ver>.tar.xz asset (it bundles the third-party/
+# sources), NOT the auto-generated GitHub source archive (which omits them and
+# would need git submodule initialisation at build time).
+- name: Resolve the transmission-<ver>.tar.xz asset download URL
+  ansible.builtin.set_fact:
+    transmission_tarball_url: >-
+      {{ transmission_release.json.assets
+         | selectattr('name', 'match', '^transmission-.*\.tar\.xz$')
+         | map(attribute='browser_download_url')
+         | first }}
+
+- name: Fail when no source tarball asset was found
+  ansible.builtin.assert:
+    that:
+      - transmission_version | length > 0
+      - transmission_tarball_url | length > 0
+    fail_msg: "Could not resolve a transmission-<ver>.tar.xz asset from the latest GitHub release"

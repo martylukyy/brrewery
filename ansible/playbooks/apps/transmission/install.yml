@@ -1,0 +1,118 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    transmission_rpc_port: 9091
+  roles:
+    - brrewery_user
+    - transmission_build
+  tasks:
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Ensure brrewery user home directory exists
+      ansible.builtin.stat:
+        path: "{{ brrewery_home }}"
+      register: brrewery_home_dir
+
+    - name: Fail when brrewery user home is missing
+      ansible.builtin.fail:
+        msg: "Home directory {{ brrewery_home }} for user {{ brrewery_user }} does not exist"
+      when: not brrewery_home_dir.stat.exists
+
+    - name: Require brrewery user password for Transmission RPC authentication
+      ansible.builtin.assert:
+        that:
+          - brrewery_user_password is defined
+          - brrewery_user_password | length > 0
+        fail_msg: brrewery_user_password must be supplied for transmission install
+
+    - name: Ensure Transmission config directory exists
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/.config/transmission-daemon"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0750"
+
+    - name: Ensure Transmission download directory exists
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/Downloads/transmission"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0750"
+
+    - name: Install Transmission systemd template unit
+      ansible.builtin.include_role:
+        name: transmission_build
+        tasks_from: service_unit.yml
+
+    # settings.json MUST be written while the daemon is STOPPED: transmission-daemon
+    # rewrites settings.json on exit, so config written while it runs is lost. The
+    # plaintext rpc-password below is hashed (and re-saved with a "{...}" prefix) at
+    # the next start after being written to a stopped daemon's config.
+    - name: Stop Transmission before writing settings (daemon overwrites on exit)
+      ansible.builtin.systemd:
+        name: "transmission@{{ brrewery_user }}.service"
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Write Transmission settings.json
+      ansible.builtin.copy:
+        dest: "{{ brrewery_home }}/.config/transmission-daemon/settings.json"
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0600"
+        force: true
+        content: |
+          {
+              "rpc-enabled": true,
+              "rpc-bind-address": "127.0.0.1",
+              "rpc-port": {{ transmission_rpc_port }},
+              "rpc-url": "/transmission/",
+              "rpc-authentication-required": true,
+              "rpc-username": "{{ brrewery_user }}",
+              "rpc-password": "{{ brrewery_user_password }}",
+              "rpc-whitelist-enabled": false,
+              "rpc-host-whitelist-enabled": false,
+              "download-dir": "{{ brrewery_home }}/Downloads/transmission"
+          }
+      no_log: true
+
+    - name: Enable and start Transmission for brrewery user
+      ansible.builtin.systemd:
+        name: "transmission@{{ brrewery_user }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for Transmission RPC to listen
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ transmission_rpc_port }}"
+        timeout: 60
+
+    - name: Configure nginx reverse proxy for Transmission
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: transmission
+        brrewery_app_web_path: /transmission/
+        brrewery_app_upstream: http://127.0.0.1:{{ transmission_rpc_port }}
+        # No strip_path_prefix: the daemon already serves under /transmission/.
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

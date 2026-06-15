@@ -1,0 +1,19 @@
+[Unit]
+Description=Transmission BitTorrent daemon for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Type=simple, not notify: transmission-daemon does not implement the systemd
+# readiness protocol, so Type=notify would make systemd hang waiting for a
+# signal that never arrives. -f keeps it in the foreground for systemd.
+Type=simple
+User=%i
+ExecStart={{ transmission_bin }} -f -g /home/%i/.config/transmission-daemon --log-level=info
+# SIGHUP makes transmission-daemon reload settings.json without restarting.
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

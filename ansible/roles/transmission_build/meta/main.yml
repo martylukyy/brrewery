@@ -1,0 +1,5 @@
+---
+galaxy_info:
+  role_name: transmission_build
+  description: Compile and install transmission-daemon from the latest upstream source tarball
+dependencies: []

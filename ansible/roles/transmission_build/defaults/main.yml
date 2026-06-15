@@ -1,0 +1,22 @@
+---
+# Install prefix and the daemon binary it produces.
+transmission_prefix: /usr/local
+transmission_bin: /usr/local/bin/transmission-daemon
+
+# Web UI static assets (installed by INSTALL_WEB=ON under the prefix).
+transmission_web_assets_dir: /usr/local/share/transmission
+
+# Writable tree for the vendored source tarball (populated by tasks/vendor.yml)
+# and the scratch directory used for the out-of-tree build.
+transmission_vendor_root: /usr/share/brrewery/vendor/transmission
+transmission_build_root: /tmp/brrewery-transmission-build
+
+# RPC/WebUI port (8080 is taken by the brrewery backend, 8086 by qBittorrent).
+transmission_rpc_port: 9091
+
+# Parallelism for the compile step.
+transmission_build_jobs: "{{ ansible_processor_vcpus | default(ansible_processor_count) | default(2) }}"
+
+# Resolved at runtime by tasks/resolve.yml from the latest GitHub release.
+transmission_version: ""
+transmission_tarball_url: ""

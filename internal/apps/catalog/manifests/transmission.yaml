@@ -1,0 +1,11 @@
+id: transmission
+name: Transmission
+description: BitTorrent client
+category: download
+web_path: /transmission/
+requires_account_password: true
+detection:
+  binaries:
+    - transmission-daemon
+  systemd_user_units:
+    - "transmission@{user}.service"

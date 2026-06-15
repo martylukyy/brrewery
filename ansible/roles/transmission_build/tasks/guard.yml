@@ -1,0 +1,28 @@
+---
+# transmission-daemon --version prints e.g. "transmission-daemon 4.1.2 (...)".
+# It may write to stderr and/or exit non-zero on some builds, so capture both
+# streams and never fail on it.
+- name: Check installed transmission-daemon version
+  ansible.builtin.command:
+    cmd: "{{ transmission_bin }} --version"
+  register: transmission_installed
+  changed_when: false
+  failed_when: false
+
+# Rebuild when the binary is missing/unrunnable, or when the resolved latest
+# tag is not present in the installed version string. This makes the role
+# idempotent: upgrade re-runs only rebuild when GitHub advertises a newer tag.
+# On a fresh install the binary is absent, so .rc/.stdout/.stderr may be
+# undefined when the command module cannot exec it — default them defensively.
+- name: Decide whether a build is required
+  ansible.builtin.set_fact:
+    transmission_needs_build: >-
+      {{ (transmission_installed.rc | default(1) != 0)
+         or (((transmission_installed.stdout | default('')) ~ (transmission_installed.stderr | default('')))
+             | regex_search(transmission_version | regex_escape)) is none }}
+
+- name: Announce the build decision
+  ansible.builtin.debug:
+    msg: >-
+      Transmission latest={{ transmission_version }};
+      rebuild={{ transmission_needs_build }}

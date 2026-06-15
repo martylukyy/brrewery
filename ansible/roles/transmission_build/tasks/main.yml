@@ -1,0 +1,22 @@
+---
+# Resolve the latest stable release (tag + tarball asset URL) before anything else.
+- name: Resolve latest Transmission release
+  ansible.builtin.import_tasks: resolve.yml
+
+# Decide whether the installed daemon already matches the latest release.
+- name: Determine whether a (re)build is needed
+  ansible.builtin.import_tasks: guard.yml
+
+# Compile and install only when out of date. On upgrade re-runs where the
+# installed version already equals the latest tag, the whole block is skipped.
+- name: Build and install Transmission when out of date
+  when: transmission_needs_build | bool
+  block:
+    - name: Install build dependencies
+      ansible.builtin.import_tasks: dependencies.yml
+
+    - name: Vendor the Transmission source tarball
+      ansible.builtin.import_tasks: vendor.yml
+
+    - name: Build and install transmission-daemon
+      ansible.builtin.import_tasks: build.yml
