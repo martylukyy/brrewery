@@ -12,6 +12,7 @@ import (
 
 	appsdomain "github.com/autobrr/brrewery/internal/apps"
 	"github.com/autobrr/brrewery/internal/apps/catalog"
+	"github.com/autobrr/brrewery/internal/apps/deluge"
 	"github.com/autobrr/brrewery/internal/apps/model"
 	"github.com/autobrr/brrewery/internal/apps/qbittorrent"
 	"github.com/autobrr/brrewery/internal/apps/secrets"
@@ -83,7 +84,7 @@ func (h *AppsHandler) Install(w http.ResponseWriter, r *http.Request) {
 		writeAppJobError(w, err)
 		return
 	}
-	if !writeQbittorrentValidation(w, app.ID, body.ExtraVars) {
+	if !writeInstallOptionsValidation(w, app.ID, body.ExtraVars) {
 		return
 	}
 
@@ -165,7 +166,7 @@ func (h *AppsHandler) startAppJob(w http.ResponseWriter, r *http.Request, valida
 		}
 	}
 
-	if validateOptions && !writeQbittorrentValidation(w, id, body.ExtraVars) {
+	if validateOptions && !writeInstallOptionsValidation(w, id, body.ExtraVars) {
 		return
 	}
 
@@ -178,15 +179,28 @@ func (h *AppsHandler) startAppJob(w http.ResponseWriter, r *http.Request, valida
 	httputil.WriteJSON(w, http.StatusAccepted, model.InstallResponse{JobID: job.ID})
 }
 
-// writeQbittorrentValidation validates qBittorrent install options and reports
-// whether processing may continue. On failure it writes the HTTP error.
-func writeQbittorrentValidation(w http.ResponseWriter, appID string, extraVars map[string]string) bool {
-	err := qbittorrent.Validate(appID, extraVars)
+// writeInstallOptionsValidation validates the install options of apps that
+// compile from source (qBittorrent, Deluge) and reports whether processing may
+// continue. On failure it writes the HTTP error.
+func writeInstallOptionsValidation(w http.ResponseWriter, appID string, extraVars map[string]string) bool {
+	switch appID {
+	case qbittorrent.AppID:
+		return reportOptionsValidation(w, qbittorrent.Validate(appID, extraVars),
+			qbittorrent.ErrManifestUnavailable, "qBittorrent build manifest unavailable")
+	case deluge.AppID:
+		return reportOptionsValidation(w, deluge.Validate(appID, extraVars),
+			deluge.ErrManifestUnavailable, "Deluge build manifest unavailable")
+	default:
+		return true
+	}
+}
+
+func reportOptionsValidation(w http.ResponseWriter, err, manifestErr error, manifestMsg string) bool {
 	switch {
 	case err == nil:
 		return true
-	case errors.Is(err, qbittorrent.ErrManifestUnavailable):
-		httputil.WriteError(w, http.StatusInternalServerError, "qBittorrent build manifest unavailable")
+	case errors.Is(err, manifestErr):
+		httputil.WriteError(w, http.StatusInternalServerError, manifestMsg)
 	default:
 		httputil.WriteError(w, http.StatusBadRequest, err.Error())
 	}

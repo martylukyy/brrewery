@@ -1,8 +1,87 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    deluge_venv: /opt/deluge
+    deluge_python27_prefix: /opt/brrewery-python27
+    deluge_openssl11_prefix: /opt/brrewery-openssl11
+  roles:
+    - brrewery_user
   tasks:
-    - name: deluge remove placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for deluge remove"
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Stop and disable Deluge services for brrewery user
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      loop:
+        - "deluge-web@{{ brrewery_user }}.service"
+        - "deluged@{{ brrewery_user }}.service"
+      failed_when: false
+
+    - name: Clear any failed state for the stopped instances
+      ansible.builtin.command:
+        cmd: "systemctl reset-failed {{ item }}"
+      loop:
+        - "deluge-web@{{ brrewery_user }}.service"
+        - "deluged@{{ brrewery_user }}.service"
+      changed_when: false
+      failed_when: false
+
+    - name: Remove Deluge systemd template units
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/deluged@.service
+        - /etc/systemd/system/deluge-web@.service
+      notify: Reload systemd
+
+    - name: Remove Deluge entrypoint symlinks
+      ansible.builtin.file:
+        path: "/usr/local/bin/{{ item }}"
+        state: absent
+      loop:
+        - deluged
+        - deluge-web
+        - deluge-console
+
+    # Remove the venv and the legacy from-source toolchain prefixes. The shared
+    # Boost source tree under /opt is left in place as a reusable build cache.
+    - name: Remove the Deluge venv and legacy toolchain prefixes
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ deluge_venv }}"
+        - "{{ deluge_python27_prefix }}"
+        - "{{ deluge_openssl11_prefix }}"
+
+    - name: Remove Deluge user configuration
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}/.config/deluge"
+        state: absent
+
+    - name: Remove the nginx reverse proxy for Deluge
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+        tasks_from: remove.yml
+      vars:
+        brrewery_app_id: deluge
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

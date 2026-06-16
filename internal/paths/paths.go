@@ -29,6 +29,11 @@ const (
 
 	qbittorrentBuildFilesDir = "roles/qbittorrent_build/files/qbittorrent"
 	rtorrentBuildFilesDir    = "roles/rtorrent_build/files/rtorrent"
+	delugeBuildFilesDir      = "roles/deluge_build/files/deluge"
+
+	// etcAnsibleRoot is the deployed ansible tree under /etc, searched as a
+	// fallback for vendored build manifests.
+	etcAnsibleRoot = "/etc/brrewery/ansible"
 )
 
 // ListenAddress returns the HTTP listen address for the API server.
@@ -104,7 +109,7 @@ func qbittorrentManifestCandidates() []string {
 	candidates = append(candidates,
 		filepath.Join(ResolveAnsibleRoot(), qbittorrentBuildFilesDir),
 		filepath.Join("ansible", qbittorrentBuildFilesDir),
-		filepath.Join("/etc/brrewery/ansible", qbittorrentBuildFilesDir),
+		filepath.Join(etcAnsibleRoot, qbittorrentBuildFilesDir),
 		filepath.Join(VendorRoot, "qbittorrent"),
 	)
 	return candidates
@@ -141,8 +146,40 @@ func rtorrentManifestCandidates() []string {
 	candidates = append(candidates,
 		filepath.Join(ResolveAnsibleRoot(), rtorrentBuildFilesDir),
 		filepath.Join("ansible", rtorrentBuildFilesDir),
-		filepath.Join("/etc/brrewery/ansible", rtorrentBuildFilesDir),
+		filepath.Join(etcAnsibleRoot, rtorrentBuildFilesDir),
 		filepath.Join(VendorRoot, "rtorrent"),
+	)
+	return candidates
+}
+
+// ResolveVendorDelugeRoot returns the deluge build manifest and patches tree. In
+// development this is ansible/roles/deluge_build/files/deluge; on deployed hosts
+// it falls back to /usr/share/brrewery/vendor/deluge (where the manifest/patches
+// are copied from the role at install time).
+func ResolveVendorDelugeRoot() string {
+	if env := strings.TrimSpace(os.Getenv("BRREWERY_DELUGE_VENDOR_ROOT")); env != "" {
+		return env
+	}
+
+	for _, candidate := range delugeManifestCandidates() {
+		if isVendorManifestRoot(candidate) {
+			return absPath(candidate)
+		}
+	}
+
+	return filepath.Join(VendorRoot, "deluge")
+}
+
+func delugeManifestCandidates() []string {
+	candidates := make([]string, 0, 5)
+	if root := resolveRepoRoot(); root != "" {
+		candidates = append(candidates, filepath.Join(root, "ansible", delugeBuildFilesDir))
+	}
+	candidates = append(candidates,
+		filepath.Join(ResolveAnsibleRoot(), delugeBuildFilesDir),
+		filepath.Join("ansible", delugeBuildFilesDir),
+		filepath.Join(etcAnsibleRoot, delugeBuildFilesDir),
+		filepath.Join(VendorRoot, "deluge"),
 	)
 	return candidates
 }

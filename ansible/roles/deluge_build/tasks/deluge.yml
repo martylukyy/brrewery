@@ -1,0 +1,68 @@
+---
+- name: Reset the Deluge scratch source tree
+  ansible.builtin.file:
+    path: "{{ deluge_build_root }}/deluge"
+    state: absent
+
+- name: Clone Deluge {{ deluge_release }}
+  ansible.builtin.command:
+    cmd: >-
+      git clone --no-tags --single-branch --branch deluge-{{ deluge_release }} --depth 1
+      https://github.com/deluge-torrent/deluge.git {{ deluge_build_root }}/deluge
+    creates: "{{ deluge_build_root }}/deluge/setup.py"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+
+# Deluge 1.3's setup.py does not pull its Twisted/pyOpenSSL stack, and the last
+# Python 2 releases of those (and cryptography, which must compile against the
+# vendored OpenSSL 1.1) have to be requested explicitly. The python3 lines
+# resolve everything from Deluge's own metadata.
+- name: Install the Deluge 1.3 Python 2 dependency stack
+  ansible.builtin.command:
+    cmd: >-
+      {{ deluge_venv }}/bin/pip install
+      twisted Automat==20.2.0 zope.interface pyopenssl service_identity
+      chardet pyxdg mako
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+    CFLAGS: "-I{{ deluge_openssl11_prefix }}/include"
+    LDFLAGS: "-L{{ deluge_openssl11_prefix }}/lib -Wl,-rpath,{{ deluge_openssl11_prefix }}/lib"
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+  changed_when: true
+  when: dz_legacy | bool
+
+- name: Install Deluge from source into the venv
+  ansible.builtin.command:
+    cmd: "{{ deluge_venv }}/bin/pip install {{ deluge_build_root }}/deluge"
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+    CFLAGS: "{{ ('-I' ~ deluge_openssl11_prefix ~ '/include') if dz_legacy | bool else '' }}"
+    LDFLAGS: "{{ ('-L' ~ deluge_openssl11_prefix ~ '/lib -Wl,-rpath,' ~ deluge_openssl11_prefix ~ '/lib') if dz_legacy | bool else '' }}"
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+  changed_when: true
+
+- name: Verify deluged runs and links the built libtorrent
+  ansible.builtin.command:
+    cmd: "{{ deluge_bin }} --version"
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+  register: dz_deluged_version
+  changed_when: false
+
+- name: Fail when deluged did not report a libtorrent version
+  ansible.builtin.assert:
+    that:
+      - "'libtorrent' in dz_deluged_version.stdout"
+    fail_msg: "deluged did not start cleanly: {{ dz_deluged_version.stdout }} {{ dz_deluged_version.stderr }}"
+
+- name: Announce the installed Deluge
+  ansible.builtin.debug:
+    msg: "{{ dz_deluged_version.stdout_lines }}"
+
+- name: Clean the scratch build root
+  ansible.builtin.file:
+    path: "{{ deluge_build_root }}"
+    state: absent

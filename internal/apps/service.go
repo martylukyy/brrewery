@@ -8,6 +8,7 @@ import (
 
 	"github.com/autobrr/brrewery/internal/apps/ansible"
 	"github.com/autobrr/brrewery/internal/apps/catalog"
+	"github.com/autobrr/brrewery/internal/apps/deluge"
 	"github.com/autobrr/brrewery/internal/apps/detect"
 	"github.com/autobrr/brrewery/internal/apps/extravars"
 	"github.com/autobrr/brrewery/internal/apps/jobs"
@@ -215,6 +216,8 @@ func enrichAppVars(ctx context.Context, appID string, action model.JobAction, va
 		return qbittorrent.EnrichAnsibleVars(ctx, vars, nil, nil, nil, nil, nil)
 	case rtorrent.AppID:
 		return rtorrent.EnrichAnsibleVars(ctx, vars, nil)
+	case deluge.AppID:
+		return deluge.EnrichAnsibleVars(ctx, vars, nil)
 	default:
 		return nil
 	}

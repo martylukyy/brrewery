@@ -1,0 +1,89 @@
+# Vendored build manifest for Deluge (deluge-torrent/deluge).
+#
+# Deluge is a Python application; the only thing compiled from source is its
+# libtorrent-rasterbar (arvidn/libtorrent) dependency, built WITH Python bindings
+# and statically linked, then dropped into a self-contained virtualenv alongside
+# Deluge installed from its GitHub source tag.
+#
+# Each entry under `lines` describes one selectable Deluge release line and how
+# to build it. brrewery resolves the concrete Deluge and libtorrent versions
+# before Ansible runs (see internal/apps/deluge):
+#   - the Deluge release is the newest deluge-<series>.* tag on GitHub;
+#   - the libtorrent release is the newest tag of the chosen branch
+#     (RC_1_2 -> v1.2.*, RC_2_0 -> v2.0.*, RC_1_1 -> v1.1.*).
+# The rest of the per-line build profile (Python runtime, C++ standard, the
+# setuptools pin, the legacy OpenSSL 1.1 toolchain) is read by the deluge_build
+# role from this manifest directly.
+defaults:
+  # Host-tuned but ISA-portable: -mtune=native optimizes scheduling for the build
+  # host without emitting instructions beyond the x86-64 baseline. Do NOT use
+  # -march=native — it bakes the host's newest features into the binary and makes
+  # libtorrent SIGILL at runtime on any CPU lacking them. Mirrors the qBittorrent
+  # libtorrent build (this is the tuning knob shared with qBittorrent).
+  compiler_flags: "-O3 -mtune=native"
+  # Boost source built once and reused for every libtorrent build (the python
+  # bindings link Boost.Python statically out of this tree). 1.86 is the newest
+  # Boost that still ships boost::asio::io_service, which libtorrent RC_1_2/RC_1_1
+  # consume; 1.87 removed it.
+  boost: "1_86_0"
+  # Debian's system libcrypto.a (static) references zstd/zlib symbols (OpenSSL 3
+  # built with compression) that b2 does not link. Append the runtime sonames at
+  # the end of the link so the archive's references resolve. Harmless when the
+  # vendored OpenSSL 1.1 (legacy line) is used instead, but only emitted for the
+  # python3 lines that link the system OpenSSL.
+  libtorrent_link_libs: "-l:libzstd.so.1 -l:libz.so.1"
+  # Legacy OpenSSL + CPython toolchain built from source only for the 1.3 line
+  # (Python 2.7 was removed from Debian; its _ssl needs OpenSSL <= 1.1).
+  openssl11_version: "1.1.1w"
+  python27_version: "2.7.18"
+
+lines:
+  - version: "2.2.x"
+    series: "2.2"
+    python: python3
+    cxx_std: "c++17"
+    # setuptools >= 81 dropped pkg_resources, which Deluge < 2.2 imports; pin it
+    # for every python3 line (no-op for 2.2, which uses importlib.metadata).
+    setuptools: "<81"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        - RC_1_2
+        - RC_2_0
+
+  - version: "2.1.x"
+    series: "2.1"
+    python: python3
+    cxx_std: "c++17"
+    setuptools: "<81"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        - RC_1_2
+        - RC_2_0
+
+  - version: "2.0.x"
+    series: "2.0"
+    python: python3
+    cxx_std: "c++17"
+    setuptools: "<81"
+    libtorrent:
+      default: RC_1_2
+      branches:
+        - RC_1_2
+        - RC_2_0
+
+  - version: "1.3.x"
+    series: "1.3"
+    # Deluge 1.3 is Python 2 only. Debian 13 dropped Python 2.7, so the role
+    # builds CPython 2.7 + OpenSSL 1.1 from source for this line (see python27.yml)
+    # and pairs it with libtorrent RC_1_1 (the last branch with Python 2 bindings).
+    python: python2.7
+    cxx_std: "c++14"
+    # Last setuptools that supports Python 2.7.
+    setuptools: "<45"
+    legacy: true
+    libtorrent:
+      default: RC_1_1
+      branches:
+        - RC_1_1

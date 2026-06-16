@@ -1,0 +1,88 @@
+---
+# Deluge 1.3 is Python 2 only. Debian 13 removed Python 2.7 and ships OpenSSL 3
+# (whose API Python 2.7's _ssl cannot build against), so build both from source:
+# OpenSSL 1.1.1 first, then a shared CPython 2.7 linked against it (so pip can
+# reach PyPI over HTTPS), then pip itself. All steps are guarded with `creates:`
+# so reinstalls/upgrades reuse the prepared toolchain.
+- name: Install Python 2.7 build dependencies
+  ansible.builtin.apt:
+    name:
+      - libffi-dev
+      - libbz2-dev
+      - libreadline-dev
+      - libsqlite3-dev
+      - libncurses-dev
+      - libgdbm-dev
+      - liblzma-dev
+      - uuid-dev
+      # Deluge 1.3's setup.py runs intltool-merge for its .desktop/translations.
+      - intltool
+      - gettext
+    state: present
+
+- name: Download OpenSSL 1.1 source
+  ansible.builtin.unarchive:
+    src: "https://github.com/openssl/openssl/releases/download/OpenSSL_{{ dz_openssl11_version | replace('.', '_') }}/openssl-{{ dz_openssl11_version }}.tar.gz"
+    dest: "{{ deluge_build_root }}"
+    remote_src: true
+    creates: "{{ deluge_build_root }}/openssl-{{ dz_openssl11_version }}/config"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+
+- name: Build and install OpenSSL 1.1
+  ansible.builtin.shell:
+    cmd: >-
+      ./config --prefix={{ deluge_openssl11_prefix }} --openssldir={{ deluge_openssl11_prefix }} shared
+      && make -j{{ deluge_build_jobs }}
+      && make install_sw
+    chdir: "{{ deluge_build_root }}/openssl-{{ dz_openssl11_version }}"
+    creates: "{{ deluge_openssl11_prefix }}/bin/openssl"
+
+- name: Download Python 2.7 source
+  ansible.builtin.unarchive:
+    src: "https://www.python.org/ftp/python/{{ dz_python27_version }}/Python-{{ dz_python27_version }}.tgz"
+    dest: "{{ deluge_build_root }}"
+    remote_src: true
+    creates: "{{ deluge_build_root }}/Python-{{ dz_python27_version }}/configure"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+
+- name: Build and install Python 2.7 (shared, against OpenSSL 1.1)
+  ansible.builtin.shell:
+    cmd: >-
+      ./configure --prefix={{ deluge_python27_prefix }} --enable-shared --enable-unicode=ucs4
+      && make -j{{ deluge_build_jobs }}
+      && make install
+    chdir: "{{ deluge_build_root }}/Python-{{ dz_python27_version }}"
+    creates: "{{ deluge_python27_prefix }}/bin/python2.7"
+  environment:
+    CPPFLAGS: "-I{{ deluge_openssl11_prefix }}/include"
+    LDFLAGS: "-L{{ deluge_openssl11_prefix }}/lib -Wl,-rpath,{{ deluge_openssl11_prefix }}/lib -Wl,-rpath,{{ deluge_python27_prefix }}/lib"
+
+- name: Verify Python 2.7 has a working ssl module
+  ansible.builtin.command:
+    cmd: "{{ deluge_python27_prefix }}/bin/python2.7 -c 'import ssl; print(ssl.OPENSSL_VERSION)'"
+  environment:
+    LD_LIBRARY_PATH: "{{ deluge_python27_prefix }}/lib:{{ deluge_openssl11_prefix }}/lib"
+  register: dz_py27_ssl
+  changed_when: false
+
+- name: Download get-pip for Python 2.7
+  ansible.builtin.get_url:
+    url: https://bootstrap.pypa.io/pip/2.7/get-pip.py
+    dest: "{{ deluge_build_root }}/get-pip27.py"
+    mode: "0644"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+
+- name: Install pip for Python 2.7
+  ansible.builtin.command:
+    cmd: "{{ deluge_python27_prefix }}/bin/python2.7 {{ deluge_build_root }}/get-pip27.py"
+    creates: "{{ deluge_python27_prefix }}/bin/pip"
+  environment:
+    LD_LIBRARY_PATH: "{{ deluge_python27_prefix }}/lib:{{ deluge_openssl11_prefix }}/lib"
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs

@@ -1,0 +1,131 @@
+---
+- name: Require deluge version and resolved release extra vars
+  ansible.builtin.assert:
+    that:
+      - deluge_version is defined
+      - deluge_version | length > 0
+      - deluge_release is defined
+      - deluge_release | length > 0
+    fail_msg: >-
+      deluge_version (UI line) and deluge_release (resolved Deluge tag) must be
+      supplied by brrewery (resolved from GitHub before Ansible runs).
+
+- name: Build candidate manifest locations
+  ansible.builtin.set_fact:
+    dz_vendor_candidates:
+      - "{{ role_path }}/files/deluge"
+      - /usr/share/brrewery/vendor/deluge
+      - /etc/brrewery/ansible/roles/deluge_build/files/deluge
+
+- name: Locate the deluge manifest
+  ansible.builtin.stat:
+    path: "{{ item }}/manifest.yml"
+  loop: "{{ dz_vendor_candidates }}"
+  register: dz_manifest_stat
+
+- name: Fail when no vendored manifest is found
+  ansible.builtin.assert:
+    that:
+      - dz_manifest_stat.results | selectattr('stat.exists') | list | length > 0
+    fail_msg: "deluge manifest.yml not found in any of: {{ dz_vendor_candidates | join(', ') }}"
+
+- name: Resolve manifest directory to the first candidate that has a manifest
+  ansible.builtin.set_fact:
+    dz_manifest_dir: "{{ dz_manifest_stat.results | selectattr('stat.exists') | map(attribute='item') | first }}"
+
+- name: Choose writable vendor root for build sources
+  ansible.builtin.set_fact:
+    deluge_vendor_root: >-
+      {{
+        dz_manifest_dir
+        if ('deluge_build/files/deluge' not in dz_manifest_dir)
+        else (deluge_vendor_root_default | default('/usr/share/brrewery/vendor/deluge'))
+      }}
+
+- name: Load deluge build manifest
+  ansible.builtin.include_vars:
+    file: "{{ dz_manifest_dir }}/manifest.yml"
+    name: dz_manifest
+
+- name: Select manifest line for the requested version
+  ansible.builtin.set_fact:
+    dz_line: "{{ dz_manifest.lines | selectattr('version', 'equalto', deluge_version) | list | first | default({}) }}"
+
+- name: Fail when the version line is not in the manifest
+  ansible.builtin.assert:
+    that:
+      - dz_line | length > 0
+    fail_msg: "deluge version {{ deluge_version }} is not vendored in the manifest"
+
+- name: Resolve the libtorrent branch (extra var, else line default)
+  ansible.builtin.set_fact:
+    dz_libtorrent_branch: >-
+      {{ libtorrent_branch
+         if (libtorrent_branch is defined and libtorrent_branch | length > 0)
+         else dz_line.libtorrent.default }}
+
+- name: Fail when the libtorrent branch is not allowed for the line
+  ansible.builtin.assert:
+    that:
+      - dz_libtorrent_branch in dz_line.libtorrent.branches
+    fail_msg: >-
+      libtorrent branch {{ dz_libtorrent_branch }} is not supported for Deluge
+      {{ deluge_version }} (allowed: {{ dz_line.libtorrent.branches | join(', ') }})
+
+- name: Set resolved build facts
+  ansible.builtin.set_fact:
+    dz_python: "{{ dz_line.python }}"
+    dz_cxx_std: "{{ dz_line.cxx_std }}"
+    dz_setuptools: "{{ dz_line.setuptools | default('') }}"
+    dz_legacy: "{{ dz_line.legacy | default(false) }}"
+    dz_compiler_flags: "{{ dz_manifest.defaults.compiler_flags }}"
+    dz_boost: "{{ dz_manifest.defaults.boost }}"
+    dz_link_libs: "{{ dz_manifest.defaults.libtorrent_link_libs }}"
+    dz_openssl11_version: "{{ dz_manifest.defaults.openssl11_version }}"
+    dz_python27_version: "{{ dz_manifest.defaults.python27_version }}"
+    # RC_1_1 (the 1.3 line) needs the vendored Jamfile + source compatibility
+    # patches to build with a modern toolchain; the modern branches do not.
+    dz_libtorrent_patches: "{{ ['libtorrent-RC_1_1-Jamfile.patch'] if dz_libtorrent_branch == 'RC_1_1' else [] }}"
+    # deluge-web foreground flag for the systemd unit: 2.x uses -d
+    # (do-not-daemonize); 1.3's deluge-web runs in the foreground by default and
+    # has no such flag.
+    dz_web_fg: "{{ '' if (dz_line.legacy | default(false)) else '-d' }}"
+
+- name: Expose the legacy flag for the orchestrator
+  ansible.builtin.set_fact:
+    deluge_legacy: "{{ dz_legacy }}"
+
+- name: Announce resolved build profile
+  ansible.builtin.debug:
+    msg: >-
+      Building Deluge {{ deluge_release }} (line {{ deluge_version }}) on
+      {{ dz_python }} + libtorrent {{ libtorrent_release | default('(branch ' ~ dz_libtorrent_branch ~ ')') }}
+      [{{ dz_libtorrent_branch }}], C++{{ dz_cxx_std | regex_replace('^c\\+\\+', '') }},
+      flags={{ dz_compiler_flags }}{{ ', legacy py2.7 toolchain' if dz_legacy | bool else '' }}
+
+- name: Install vendored manifest and patches into a writable vendor root
+  when: "'deluge_build/files/deluge' in dz_manifest_dir"
+  block:
+    - name: Ensure vendor root exists
+      ansible.builtin.file:
+        path: "{{ deluge_vendor_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy vendored manifest into the vendor root
+      ansible.builtin.copy:
+        src: "{{ role_path }}/files/deluge/manifest.yml"
+        dest: "{{ deluge_vendor_root }}/manifest.yml"
+        mode: "0644"
+
+    - name: Copy vendored patches into the vendor root
+      ansible.builtin.copy:
+        src: "{{ role_path }}/files/deluge/patches/"
+        dest: "{{ deluge_vendor_root }}/patches/"
+        mode: preserve
+
+- name: Ensure a clean scratch build root
+  ansible.builtin.file:
+    path: "{{ deluge_build_root }}"
+    state: directory
+    mode: "0755"

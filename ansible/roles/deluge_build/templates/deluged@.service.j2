@@ -1,0 +1,24 @@
+[Unit]
+Description=Deluge BitTorrent daemon for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+# Deluge runs from a self-contained virtualenv. The legacy (1.3) line links the
+# vendored Python 2.7 + OpenSSL 1.1 shared libraries, which are not on the
+# default loader path; the modern lines need nothing extra (dz_legacy_ld empty).
+{% if dz_legacy_ld | length > 0 %}
+Environment=LD_LIBRARY_PATH={{ dz_legacy_ld }}
+{% endif %}
+# -d keeps the daemon in the foreground so systemd supervises it directly. No -c:
+# deluged uses ~/.config/deluge, and systemd sets HOME from User=%i. (%h must NOT
+# be used here — in a system unit it resolves to the manager's home, /root, not
+# the instance user's.)
+ExecStart={{ deluge_bin }} -d
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

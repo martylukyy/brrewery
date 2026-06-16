@@ -1,0 +1,29 @@
+---
+# One Boost source tree is downloaded, bootstrapped and reused for every
+# libtorrent build. Only the b2 engine is built here; the python bindings build
+# compiles Boost.Python statically out of this source tree on demand.
+- name: Check for a prepared Boost tree
+  ansible.builtin.stat:
+    path: "{{ deluge_boost_root }}/boost_{{ dz_boost }}/b2"
+  register: dz_boost_prepared
+
+- name: Download and extract Boost source
+  ansible.builtin.unarchive:
+    src: "https://archives.boost.io/release/{{ dz_boost | replace('_', '.') }}/source/boost_{{ dz_boost }}.tar.gz"
+    dest: "{{ deluge_boost_root }}"
+    remote_src: true
+    creates: "{{ deluge_boost_root }}/boost_{{ dz_boost }}/bootstrap.sh"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+  when: not dz_boost_prepared.stat.exists
+
+- name: Bootstrap Boost (build the b2 engine)
+  ansible.builtin.command:
+    cmd: ./bootstrap.sh --with-libraries=system
+    chdir: "{{ deluge_boost_root }}/boost_{{ dz_boost }}"
+    creates: "{{ deluge_boost_root }}/boost_{{ dz_boost }}/b2"
+
+- name: Set Boost root fact
+  ansible.builtin.set_fact:
+    dz_boost_root_path: "{{ deluge_boost_root }}/boost_{{ dz_boost }}"

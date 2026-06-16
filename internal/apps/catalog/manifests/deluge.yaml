@@ -1,10 +1,19 @@
+# Deluge is compiled from source: its libtorrent dependency is built with Python
+# bindings and tuned like qBittorrent, then Deluge is installed into a
+# self-contained virtualenv. The install options (version + libtorrent branch)
+# are computed at runtime from the vendored build manifest, so they are
+# registered as a provider in the deluge package rather than declared here.
 id: deluge
 name: Deluge
 description: BitTorrent client
 category: download
 web_path: /deluge/
+# Install builds from source and writes per-user systemd units, which needs sudo:
+# this adds the shared account-password prompt (reused as the become password and
+# as the Deluge WebUI password).
+requires_account_password: true
 detection:
   binaries:
     - deluged
-  systemd_units:
-    - deluged.service
+  systemd_user_units:
+    - "deluged@{user}.service"

@@ -1,0 +1,45 @@
+---
+# Deluge installs into a self-contained virtualenv that holds both Deluge and
+# the from-source libtorrent python module, so install is "create one tree" and
+# remove is "delete one tree".
+deluge_venv: /opt/deluge
+deluge_bin: /opt/deluge/bin/deluged
+deluge_web_bin: /opt/deluge/bin/deluge-web
+
+# Writable trees: the vendored manifest/patches + downloaded source cache, and
+# the scratch build directory.
+deluge_vendor_root: /usr/share/brrewery/vendor/deluge
+deluge_vendor_root_default: /usr/share/brrewery/vendor/deluge
+deluge_build_root: /tmp/brrewery-deluge-build
+
+# One Boost source tree is staged and reused for every libtorrent build (the
+# python bindings link Boost.Python statically out of it).
+deluge_boost_root: /opt
+
+# Legacy toolchain prefixes, built from source only for the Python 2 (1.3) line.
+deluge_python27_prefix: /opt/brrewery-python27
+deluge_openssl11_prefix: /opt/brrewery-openssl11
+
+# Parallelism for the compile steps.
+deluge_build_jobs: "{{ ansible_processor_vcpus | default(ansible_processor_count) | default(2) }}"
+
+# Per-user runtime layout (the install playbook sets deluge_home from the
+# brrewery user). deluged exposes an RPC port for clients; deluge-web serves the
+# WebUI that nginx reverse-proxies at /deluge/.
+deluge_config_dir: "{{ deluge_home }}/.config/deluge"
+deluge_download_dir: "{{ deluge_home }}/Downloads/deluge"
+deluge_daemon_port: 58846
+deluge_web_port: 8112
+# Base path deluge-web runs under (nginx reverse-proxies it here); deluge-web is
+# told this via -b so its asset URLs are correct behind the proxy.
+deluge_web_base: /deluge/
+
+# Supplied by brrewery before Ansible runs (see internal/apps/deluge):
+# deluge_version is the UI line (e.g. "2.2.x"); deluge_release is the concrete
+# resolved Deluge tag version (e.g. "2.2.0"); libtorrent_branch is the chosen
+# libtorrent line (RC_1_2/RC_2_0/RC_1_1); libtorrent_release is the resolved
+# libtorrent version (informational — the build clones the branch head).
+deluge_version: ""
+deluge_release: ""
+libtorrent_branch: ""
+libtorrent_release: ""

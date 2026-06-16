@@ -1,8 +1,44 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  roles:
+    # The build role rebuilds the venv for the selected line's resolved version.
+    # brrewery passes deluge_version/deluge_release/libtorrent_branch as for install.
+    - brrewery_user
+    - deluge_build
   tasks:
-    - name: deluge upgrade placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for deluge upgrade"
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set Deluge home fact
+      ansible.builtin.set_fact:
+        deluge_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    # The build role removed and recreated the venv; the systemd units and
+    # symlinks point at fixed paths, so just restart to pick up the rebuild.
+    # Deliberately does not touch ~/.config/deluge so torrents/settings survive.
+    - name: Restart Deluge services after rebuild
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: restarted
+        daemon_reload: true
+      loop:
+        - "deluged@{{ brrewery_user }}.service"
+        - "deluge-web@{{ brrewery_user }}.service"
+
+    - name: Wait for the Deluge daemon RPC port to listen
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ deluge_daemon_port }}"
+        timeout: 60
+
+    - name: Wait for the Deluge WebUI to listen
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ deluge_web_port }}"
+        timeout: 60

@@ -1,0 +1,7 @@
+---
+dependencies: []
+galaxy_info:
+  role_name: deluge_build
+  description: >-
+    Build libtorrent-rasterbar (with Python bindings, tuned like qBittorrent) and
+    install Deluge from source into a self-contained virtualenv.

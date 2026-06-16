@@ -1,0 +1,82 @@
+---
+# Resolve the interpreter that builds the bindings and runs Deluge: the system
+# python3 for the modern lines, the vendored python2.7 for the legacy line. The
+# legacy interpreter (and its OpenSSL 1.1) must be on LD_LIBRARY_PATH for every
+# step that runs it; dz_legacy_ld carries that (empty for python3).
+- name: Set interpreter facts (python3 lines)
+  ansible.builtin.set_fact:
+    dz_python_interp: /usr/bin/python3
+    dz_python_home: /usr
+    dz_legacy_ld: ""
+  when: not dz_legacy | bool
+
+- name: Set interpreter facts (python2.7 legacy line)
+  ansible.builtin.set_fact:
+    dz_python_interp: "{{ deluge_python27_prefix }}/bin/python2.7"
+    dz_python_home: "{{ deluge_python27_prefix }}"
+    dz_python_major: "2.7"
+    dz_legacy_ld: "{{ deluge_python27_prefix }}/lib:{{ deluge_openssl11_prefix }}/lib"
+  when: dz_legacy | bool
+
+- name: Resolve python3 minor version
+  ansible.builtin.command:
+    cmd: "{{ dz_python_interp }} -c 'import sys; sys.stdout.write(\"%d.%d\" % sys.version_info[:2])'"
+  register: dz_py3_ver
+  changed_when: false
+  when: not dz_legacy | bool
+
+- name: Set python3 major.minor fact
+  ansible.builtin.set_fact:
+    dz_python_major: "{{ dz_py3_ver.stdout }}"
+  when: not dz_legacy | bool
+
+- name: Compose python include/lib paths and venv site-packages
+  ansible.builtin.set_fact:
+    dz_python_include: "{{ dz_python_home }}/include/python{{ dz_python_major }}"
+    dz_python_lib: "{{ dz_python_home }}/lib/python{{ dz_python_major }}"
+    dz_venv_site: "{{ deluge_venv }}/lib/python{{ dz_python_major }}/site-packages"
+
+# Rebuild the venv from scratch on every install/upgrade so a version change
+# never leaves stale packages behind. libtorrent.yml and deluge.yml then populate
+# the fresh tree.
+- name: Remove any existing Deluge venv
+  ansible.builtin.file:
+    path: "{{ deluge_venv }}"
+    state: absent
+
+- name: Create the Deluge virtualenv (python3)
+  ansible.builtin.command:
+    cmd: "{{ dz_python_interp }} -m venv {{ deluge_venv }}"
+    creates: "{{ deluge_venv }}/bin/python"
+  when: not dz_legacy | bool
+
+- name: Install virtualenv into Python 2.7 (legacy line)
+  ansible.builtin.command:
+    cmd: "{{ dz_python_interp }} -m pip install virtualenv"
+    creates: "{{ deluge_python27_prefix }}/bin/virtualenv"
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+  when: dz_legacy | bool
+
+- name: Create the Deluge virtualenv (python2.7)
+  ansible.builtin.command:
+    cmd: "{{ dz_python_interp }} -m virtualenv {{ deluge_venv }}"
+    creates: "{{ deluge_venv }}/bin/python"
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+  when: dz_legacy | bool
+
+# Pin setuptools to a version that still ships pkg_resources (Deluge < 2.2 imports
+# it; setuptools >= 81 dropped it) — and on the legacy line, the last version that
+# supports Python 2.7. Do NOT upgrade pip: the seeded pip 20.3.4 is the last that
+# runs on Python 2.7, and the python3 venv's pip is already current enough.
+- name: Install wheel and pin setuptools in the venv
+  ansible.builtin.command:
+    cmd: "{{ deluge_venv }}/bin/pip install wheel setuptools{{ dz_setuptools }}"
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+  changed_when: true

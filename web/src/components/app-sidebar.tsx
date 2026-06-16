@@ -111,8 +111,13 @@ function sidebarEntries(apps: AppStatus[]): SidebarEntry[] {
     });
   }
 
+  // Sort by name, ignoring parentheses so a name like "r(u)Torrent" sorts on
+  // its next available letter ("ruTorrent") rather than on "(".
+  const sortKey = (name: string) => name.replace(/[()]/g, "");
   return entries.sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    sortKey(a.name).localeCompare(sortKey(b.name), undefined, {
+      sensitivity: "base",
+    }),
   );
 }
 

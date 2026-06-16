@@ -30,6 +30,16 @@ const (
 )
 
 const (
+	// DelugeVersion is the release line chosen in the UI (e.g. "2.2.x", "1.3.x").
+	DelugeVersion = "deluge_version"
+	// DelugeRelease is the concrete Deluge version brrewery resolves for the line
+	// before Ansible runs (e.g. "2.2.0"); the deluge_build role clones the
+	// matching deluge-<release> tag. The chosen libtorrent line is carried by the
+	// shared LibtorrentBranch key (RC_1_2/RC_2_0, or RC_1_1 for the 1.3 line).
+	DelugeRelease = "deluge_release"
+)
+
+const (
 	// RtorrentVersion is the release line chosen in the UI (e.g. "0.16.x", "0.9.6").
 	RtorrentVersion = "rtorrent_version"
 	// RtorrentRelease is the concrete rtorrent version resolved by brrewery before

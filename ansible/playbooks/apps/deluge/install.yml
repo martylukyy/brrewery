@@ -1,8 +1,88 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  roles:
+    - brrewery_user
+    - deluge_build
   tasks:
-    - name: deluge install placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for deluge install"
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory facts
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+        deluge_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Check brrewery user home exists
+      ansible.builtin.stat:
+        path: "{{ brrewery_home }}"
+      register: brrewery_home_dir
+
+    - name: Assert brrewery user home exists
+      ansible.builtin.assert:
+        that:
+          - brrewery_home_dir.stat.exists
+        fail_msg: "Home directory {{ brrewery_home }} for user {{ brrewery_user }} does not exist"
+
+    - name: Ensure Deluge config and download directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0750"
+      loop:
+        - "{{ deluge_config_dir }}"
+        - "{{ deluge_download_dir }}"
+
+    - name: Install Deluge systemd template units
+      ansible.builtin.include_role:
+        name: deluge_build
+        tasks_from: service_unit.yml
+
+    - name: Enable and start the Deluge daemon for brrewery user
+      ansible.builtin.systemd:
+        name: "deluged@{{ brrewery_user }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for the Deluge daemon RPC port to listen
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ deluge_daemon_port }}"
+        timeout: 60
+
+    - name: Enable and start the Deluge WebUI for brrewery user
+      ansible.builtin.systemd:
+        name: "deluge-web@{{ brrewery_user }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for the Deluge WebUI to listen
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ deluge_web_port }}"
+        timeout: 60
+
+    - name: Configure nginx reverse proxy for Deluge
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: deluge
+        brrewery_app_web_path: "{{ deluge_web_base }}"
+        brrewery_app_upstream: "http://127.0.0.1:{{ deluge_web_port }}"
+        # deluge-web is told its base path with -b, so it serves the full
+        # {{ deluge_web_base }} URI directly; do not strip the prefix.
+        brrewery_app_strip_path_prefix: false
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
