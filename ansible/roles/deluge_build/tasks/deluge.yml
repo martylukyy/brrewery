@@ -33,9 +33,20 @@
   changed_when: true
   when: dz_legacy | bool
 
+# Deluge's generate_ssl_keys() (deluge/crypto_utils.py) self-signs the daemon
+# cert with OpenSSL.crypto.X509Req — still true on every release tag and on
+# develop. pyOpenSSL 26.3.0 (2026-06-12) removed X509Req, so an unpinned resolve
+# now installs it and deluged aborts at startup with "module 'OpenSSL.crypto'
+# has no attribute 'X509Req'". Pin below 26.3 (26.2.0 is the last release that
+# still ships X509Req and keeps python3.13 / cryptography wheels) as a sibling
+# requirement, so the bound is enforced in the same resolution pass that pulls
+# pyOpenSSL transitively from Deluge's metadata. python3 lines only; the legacy
+# py2.7 line resolves a much older pyOpenSSL on its own.
 - name: Install Deluge from source into the venv
   ansible.builtin.command:
-    cmd: "{{ deluge_venv }}/bin/pip install {{ deluge_build_root }}/deluge"
+    cmd: >-
+      {{ deluge_venv }}/bin/pip install {{ deluge_build_root }}/deluge
+      {{ "'pyOpenSSL<26.3'" if not dz_legacy | bool else '' }}
   environment:
     LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
     CFLAGS: "{{ ('-I' ~ deluge_openssl11_prefix ~ '/include') if dz_legacy | bool else '' }}"
@@ -43,6 +54,34 @@
     SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
     SSL_CERT_DIR: /etc/ssl/certs
   changed_when: true
+
+# Python 3.13 removed the stdlib cgi module (PEP 594), which Deluge < 2.2 imports
+# at deluge/httpdownloader.py (on the deluged startup chain via core.py) and uses
+# as cgi.parse_header(). Probe the built venv interpreter: when `import cgi` fails
+# it is a Python with no stdlib cgi, so install the legacy-cgi fork (ships cgi.py
+# with parse_header). The probe is the gate, not a version hardcode: 2.2.x dropped
+# the import (replaced with email.message) so the probe passes and this is skipped,
+# and it is a no-op on Python <= 3.12 (stdlib cgi precedes site-packages on
+# sys.path). Skipped on the py2.7 legacy line (cgi present; legacy-cgi needs py3).
+- name: Probe whether the venv interpreter still ships the stdlib cgi module
+  ansible.builtin.command:
+    cmd: "{{ deluge_venv }}/bin/python -c 'import cgi'"
+  register: dz_cgi_probe
+  changed_when: false
+  failed_when: false
+  when: not dz_legacy | bool
+
+- name: Shim the removed stdlib cgi module with legacy-cgi (Python >= 3.13)
+  ansible.builtin.command:
+    cmd: "{{ deluge_venv }}/bin/pip install legacy-cgi"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+  changed_when: true
+  when:
+    - not dz_legacy | bool
+    - dz_cgi_probe.rc is defined
+    - dz_cgi_probe.rc != 0
 
 - name: Verify deluged runs and links the built libtorrent
   ansible.builtin.command:
@@ -57,6 +96,22 @@
     that:
       - "'libtorrent' in dz_deluged_version.stdout"
     fail_msg: "deluged did not start cleanly: {{ dz_deluged_version.stdout }} {{ dz_deluged_version.stderr }}"
+
+# `deluged --version` only imports deluge.common and exits 0 even when the daemon
+# cannot start — it never pulls in the deluge.core.core -> httpdownloader chain
+# (that happens lazily when start_daemon() builds Core). Import that chain here so
+# a missing runtime module (cgi today, or any future removed stdlib) fails the
+# BUILD with a clear error, instead of crashing deluged at startup and surfacing
+# one playbook away as the RPC-port wait_for timeout in install.yml.
+- name: Verify the deluged startup import chain (catches missing runtime modules)
+  ansible.builtin.command:
+    cmd: >-
+      {{ deluge_venv }}/bin/python -c
+      "import deluge.core.daemon_entry, deluge.core.daemon, deluge.core.core, deluge.httpdownloader"
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+  changed_when: false
+  when: not dz_legacy | bool
 
 - name: Announce the installed Deluge
   ansible.builtin.debug:

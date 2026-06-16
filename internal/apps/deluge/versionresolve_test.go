@@ -64,18 +64,31 @@ func TestResolveLatestNoMatchFails(t *testing.T) {
 
 func TestEnrichAnsibleVarsDefaultsBranch(t *testing.T) {
 	r := fakeGitHub(t, sampleDelugeTags)
-	vars := map[string]string{extravars.DelugeVersion: "2.2.x"}
+	vars := map[string]string{
+		extravars.DelugeVersion:        "2.2.x",
+		extravars.BrreweryUserPassword: "s3cret",
+	}
 	require.NoError(t, EnrichAnsibleVars(context.Background(), vars, r))
 	assert.Equal(t, "2.2.x", vars[extravars.DelugeVersion])
 	assert.Equal(t, "2.2.0", vars[extravars.DelugeRelease])
 	assert.Equal(t, BranchRC12, vars[extravars.LibtorrentBranch])
+
+	// The WebUI credential is hashed in and the plaintext password is dropped so
+	// it never reaches Ansible. The salt/digest must verify under Deluge's scheme.
+	assert.Len(t, vars[extravars.DelugeWebUIPasswordSalt], 40)
+	assert.Equal(t,
+		delugePwdSha1(vars[extravars.DelugeWebUIPasswordSalt], "s3cret"),
+		vars[extravars.DelugeWebUIPasswordSha1])
+	_, ok := vars[extravars.BrreweryUserPassword]
+	assert.False(t, ok, "plaintext brrewery_user_password must be deleted")
 }
 
 func TestEnrichAnsibleVarsHonorsBranch(t *testing.T) {
 	r := fakeGitHub(t, sampleDelugeTags)
 	vars := map[string]string{
-		extravars.DelugeVersion:    "2.1.x",
-		extravars.LibtorrentBranch: BranchRC20,
+		extravars.DelugeVersion:        "2.1.x",
+		extravars.LibtorrentBranch:     BranchRC20,
+		extravars.BrreweryUserPassword: "s3cret",
 	}
 	require.NoError(t, EnrichAnsibleVars(context.Background(), vars, r))
 	assert.Equal(t, "2.1.1", vars[extravars.DelugeRelease])
@@ -84,10 +97,20 @@ func TestEnrichAnsibleVarsHonorsBranch(t *testing.T) {
 
 func TestEnrichAnsibleVarsLegacyForcesRC11(t *testing.T) {
 	r := fakeGitHub(t, sampleDelugeTags)
-	vars := map[string]string{extravars.DelugeVersion: "1.3.x"}
+	vars := map[string]string{
+		extravars.DelugeVersion:        "1.3.x",
+		extravars.BrreweryUserPassword: "s3cret",
+	}
 	require.NoError(t, EnrichAnsibleVars(context.Background(), vars, r))
 	assert.Equal(t, "1.3.15", vars[extravars.DelugeRelease])
 	assert.Equal(t, BranchRC11, vars[extravars.LibtorrentBranch])
+}
+
+func TestEnrichAnsibleVarsRequiresPassword(t *testing.T) {
+	r := fakeGitHub(t, sampleDelugeTags)
+	vars := map[string]string{extravars.DelugeVersion: "2.2.x"}
+	err := EnrichAnsibleVars(context.Background(), vars, r)
+	require.Error(t, err, "enrich must require brrewery_user_password for the WebUI credential")
 }
 
 func TestEnrichAnsibleVarsRejectsBadBranch(t *testing.T) {

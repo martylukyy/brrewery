@@ -37,6 +37,13 @@ const (
 	// matching deluge-<release> tag. The chosen libtorrent line is carried by the
 	// shared LibtorrentBranch key (RC_1_2/RC_2_0, or RC_1_1 for the 1.3 line).
 	DelugeRelease = "deluge_release"
+	// DelugeWebUIPasswordSalt and DelugeWebUIPasswordSha1 carry the Deluge WebUI
+	// login credential, computed in Go from brrewery_user_password before the
+	// playbook runs (the plaintext is then dropped so it never reaches Ansible).
+	// Deluge's web.conf stores pwd_sha1 = sha1(pwd_salt + password) with the salt
+	// as a 40-char hex string; the install playbook writes both into web.conf.
+	DelugeWebUIPasswordSalt = "deluge_webui_password_salt"
+	DelugeWebUIPasswordSha1 = "deluge_webui_password_sha1"
 )
 
 const (

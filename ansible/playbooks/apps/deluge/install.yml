@@ -58,6 +58,52 @@
         port: "{{ deluge_daemon_port }}"
         timeout: 60
 
+    - name: Require the resolved Deluge WebUI password hash
+      ansible.builtin.assert:
+        that:
+          - deluge_webui_password_salt is defined
+          - deluge_webui_password_salt | length > 0
+          - deluge_webui_password_sha1 is defined
+          - deluge_webui_password_sha1 | length > 0
+        fail_msg: >-
+          deluge_webui_password_salt/deluge_webui_password_sha1 must be supplied
+          (brrewery hashes brrewery_user_password before the playbook runs)
+
+    # deluge-web caches web.conf in memory and rewrites it on save, so a running
+    # instance (e.g. a re-install) would clobber the password we write below.
+    - name: Stop the Deluge WebUI before writing its password
+      ansible.builtin.systemd:
+        name: "deluge-web@{{ brrewery_user }}.service"
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    # Deluge's WebUI login password lives in web.conf as pwd_sha1 = sha1(pwd_salt
+    # + password); brrewery computes both in Go (see internal/apps/deluge) so the
+    # plaintext never reaches Ansible. web.conf is written as a single JSON object:
+    # deluge-web loads a header-less config and merges its own defaults under it,
+    # so the rest of the WebUI settings stay at their defaults. Do NOT prepend a
+    # {"file": 1, ...} version header — that triggers Deluge's 1->2 config
+    # migration, which rewrites the file. deluge-web reads this on next start.
+    #
+    # first_login=false suppresses the WebUI's "Change Default Password" dialog,
+    # which deluge-web (ConnectionManager.js onLogin) shows whenever the
+    # first_login flag is set — it never checks whether the password is still the
+    # default, so without this the user is prompted despite the password we set.
+    - name: Set the Deluge WebUI password in web.conf
+      ansible.builtin.copy:
+        dest: "{{ deluge_config_dir }}/web.conf"
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0600"
+        force: true
+        content: |
+          {
+              "pwd_salt": "{{ deluge_webui_password_salt }}",
+              "pwd_sha1": "{{ deluge_webui_password_sha1 }}",
+              "first_login": false
+          }
+
     - name: Enable and start the Deluge WebUI for brrewery user
       ansible.builtin.systemd:
         name: "deluge-web@{{ brrewery_user }}.service"
