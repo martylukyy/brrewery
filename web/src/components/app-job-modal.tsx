@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { IconAlertTriangle, IconCheck, IconCopy, IconLoader2 } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconCopy } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -221,9 +222,7 @@ export function AppJobModal({
       ? IconCheck
       : isError || status === "failed"
         ? IconAlertTriangle
-        : IconLoader2;
-  const statusIconClassName =
-    status === "succeeded" || isError || status === "failed" ? undefined : "animate-spin";
+        : Spinner;
 
   return (
     <Dialog open onOpenChange={(open) => !open && handleClose()}>
@@ -241,7 +240,7 @@ export function AppJobModal({
           <div className="flex items-center gap-2">
             <DialogTitle className="min-w-0 truncate text-base">{title}</DialogTitle>
             <Badge variant={statusVariant}>
-              <StatusIcon data-icon="inline-start" className={statusIconClassName} />
+              <StatusIcon data-icon="inline-start" />
               {statusLabel}
             </Badge>
           </div>
