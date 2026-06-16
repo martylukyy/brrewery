@@ -47,6 +47,75 @@ function serviceOn(app: AppStatus): boolean {
   return Boolean(app.service?.active && app.service.enabled);
 }
 
+// IDs of the two download apps the sidebar collapses into a single row.
+// rTorrent is the BitTorrent client (a start/stop service with no web UI of its
+// own); ruTorrent is its web UI (a link, but no controllable service of its
+// own). When both are installed they're shown as one "r(u)Torrent" entry whose
+// switch starts/stops rTorrent and whose link opens ruTorrent.
+const RTORRENT_ID = "rtorrent";
+const RUTORRENT_ID = "rutorrent";
+const COMBINED_NAME = "r(u)Torrent";
+
+// SidebarEntry is one rendered menu row. It decouples the link target
+// (webPath/icon) from the app whose service the switch controls, so the
+// combined r(u)Torrent row can link to ruTorrent while toggling rTorrent.
+type SidebarEntry = {
+  // React key; the switch's pending/target state derives from serviceApp.
+  key: string;
+  name: string;
+  icon?: string;
+  webPath?: string;
+  // The app whose systemd service the switch toggles, when one is exposed.
+  serviceApp?: AppStatus;
+};
+
+// sidebarEntries turns the installed apps into display rows, sorted by name.
+// Each app maps to its own row, except rTorrent + ruTorrent, which collapse
+// into a single combined row when both are installed.
+function sidebarEntries(apps: AppStatus[]): SidebarEntry[] {
+  const installed = apps.filter((app) => app.installed);
+  const rtorrent = installed.find((app) => app.id === RTORRENT_ID);
+  const rutorrent = installed.find((app) => app.id === RUTORRENT_ID);
+  const combine = Boolean(rtorrent && rutorrent);
+
+  const entries: SidebarEntry[] = [];
+  for (const app of installed) {
+    // When combining, the pair is emitted once below — skip them individually
+    // here so they aren't also listed on their own.
+    if (combine && (app.id === RTORRENT_ID || app.id === RUTORRENT_ID)) {
+      continue;
+    }
+    entries.push({
+      key: app.id,
+      name: app.name,
+      icon: app.icon,
+      webPath: app.web_path,
+      serviceApp: app.service ? app : undefined,
+    });
+  }
+
+  if (combine && rtorrent && rutorrent) {
+    entries.push({
+      key: `${RTORRENT_ID}+${RUTORRENT_ID}`,
+      name: COMBINED_NAME,
+      // Both apps ship the same ruTorrent icon; fall back across them so the
+      // row keeps an icon even if one side's is unset.
+      icon: rutorrent.icon ?? rtorrent.icon,
+      // Link opens ruTorrent's web UI; the switch (serviceApp) toggles rTorrent.
+      webPath: rutorrent.web_path,
+      // Present the switch, confirmation modal, and toasts under the combined
+      // name the user sees, while keeping rTorrent's real id and service so the
+      // toggle still acts on rTorrent's systemd unit (the action keys off id,
+      // every label keys off name).
+      serviceApp: rtorrent.service ? { ...rtorrent, name: COMBINED_NAME } : undefined,
+    });
+  }
+
+  return entries.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
 export function AppSidebar({
   apps,
   isLoading = false,
@@ -59,9 +128,7 @@ export function AppSidebar({
   onToggleService,
   pendingServiceAppId,
 }: Props) {
-  const installed = apps
-    .filter((app) => app.installed)
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const entries = sidebarEntries(apps);
   const userLabel = user ?? "Signed in";
   const userInitials = user ? initials(user) : null;
 
@@ -119,48 +186,48 @@ export function AppSidebar({
                 <p className="px-2 py-1.5 text-xs text-destructive group-data-[collapsible=icon]:hidden">
                   {errorMessage ?? "Failed to load apps."}
                 </p>
-              ) : installed.length === 0 ? (
+              ) : entries.length === 0 ? (
                 <p className="px-2 py-1.5 text-xs text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
                   No apps installed
                 </p>
               ) : (
-                installed.map((app) => {
-                  const url = appUrl(app.web_path);
+                entries.map((entry) => {
+                  const url = appUrl(entry.webPath);
                   // Reserve room on the right so a long app name doesn't slide
                   // under the absolutely-positioned service switch.
-                  const servicePadding = app.service ? "pr-12" : "";
+                  const servicePadding = entry.serviceApp ? "pr-12" : "";
 
                   return (
-                    <SidebarMenuItem key={app.id}>
+                    <SidebarMenuItem key={entry.key}>
                       {url ? (
                         // p-1! shrinks the collapsed button's padding so the
                         // size-6 icon fits its 32px slot exactly (centered),
                         // instead of overflowing the default p-2 content box.
                         <SidebarMenuButton
                           asChild
-                          tooltip={app.name}
+                          tooltip={entry.name}
                           className={`group-data-[collapsible=icon]:p-1! ${servicePadding}`}
                         >
                           <a href={url} target="_blank" rel="noopener noreferrer">
-                            <AppIcon icon={app.icon} className="size-6 max-w-none" />
-                            <span>{app.name}</span>
+                            <AppIcon icon={entry.icon} className="size-6 max-w-none" />
+                            <span>{entry.name}</span>
                           </a>
                         </SidebarMenuButton>
                       ) : (
                         // Installed but no web UI to link to — show it, but inert.
                         <SidebarMenuButton
                           disabled
-                          tooltip={app.name}
+                          tooltip={entry.name}
                           className={`group-data-[collapsible=icon]:p-1! ${servicePadding}`}
                         >
-                          <AppIcon icon={app.icon} className="size-6 max-w-none" />
-                          <span>{app.name}</span>
+                          <AppIcon icon={entry.icon} className="size-6 max-w-none" />
+                          <span>{entry.name}</span>
                         </SidebarMenuButton>
                       )}
-                      {app.service && (
+                      {entry.serviceApp && (
                         <ServiceSwitch
-                          app={app}
-                          pending={pendingServiceAppId === app.id}
+                          app={entry.serviceApp}
+                          pending={pendingServiceAppId === entry.serviceApp.id}
                           onToggle={onToggleService}
                         />
                       )}

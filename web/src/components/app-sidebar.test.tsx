@@ -155,4 +155,77 @@ describe("AppSidebar", () => {
 
     expect(screen.getByRole("switch", { name: "Start and enable Deluge" })).not.toBeChecked();
   });
+
+  // rTorrent (service, no web UI) and ruTorrent (web UI, no service) are two
+  // halves of one thing, so the sidebar collapses them into a single row.
+  describe("rTorrent + ruTorrent", () => {
+    const combinedApps: AppStatus[] = [
+      {
+        id: "rtorrent",
+        name: "rTorrent",
+        description: "",
+        category: "download",
+        icon: "/apps/rutorrent.png",
+        installed: true,
+        dependencies_satisfied: true,
+        service: { units: ["rtorrent@admin.service"], active: true, enabled: true },
+      },
+      {
+        id: "rutorrent",
+        name: "ruTorrent",
+        description: "",
+        category: "download",
+        icon: "/apps/rutorrent.png",
+        web_path: "/rutorrent/",
+        installed: true,
+        dependencies_satisfied: true,
+      },
+    ];
+
+    it("collapses the pair into a single r(u)Torrent row linking to ruTorrent", () => {
+      renderSidebar({ apps: combinedApps });
+
+      const link = screen.getByRole("link", { name: "r(u)Torrent" });
+      expect(link).toHaveAttribute("href", `${window.location.origin}/rutorrent/`);
+      // Neither half is listed on its own.
+      expect(screen.queryByText("rTorrent")).not.toBeInTheDocument();
+      expect(screen.queryByText("ruTorrent")).not.toBeInTheDocument();
+    });
+
+    it("toggles rTorrent's service from the combined row", async () => {
+      const user = userEvent.setup();
+      const onToggleService = vi.fn();
+
+      renderSidebar({ apps: combinedApps, onToggleService });
+
+      // The switch reads rTorrent's running service but is labelled with the
+      // combined name; the toggle still targets rTorrent's id underneath.
+      await user.click(screen.getByRole("switch", { name: "Stop and disable r(u)Torrent" }));
+      expect(onToggleService).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "rtorrent" }),
+        false,
+      );
+    });
+
+    it("spins the combined switch while rTorrent's toggle is pending", () => {
+      renderSidebar({ apps: combinedApps, pendingServiceAppId: "rtorrent" });
+
+      expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("status", { name: "Updating r(u)Torrent service" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows rTorrent on its own when ruTorrent is not installed", () => {
+      renderSidebar({ apps: [combinedApps[0]] });
+
+      // Falls back to its own identity: no web UI to link to, but the service
+      // switch is still present.
+      expect(screen.getByText("rTorrent")).toBeInTheDocument();
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("switch", { name: "Stop and disable rTorrent" }),
+      ).toBeInTheDocument();
+    });
+  });
 });
