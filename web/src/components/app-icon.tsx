@@ -14,7 +14,7 @@ export function AppIcon({ icon, className }: Props) {
     <img
       src={icon}
       alt=""
-      className={`shrink-0 rounded-md object-cover${className ? ` ${className}` : ""}`}
+      className={`shrink-0 object-cover${className ? ` ${className}` : ""}`}
     />
   );
 }
