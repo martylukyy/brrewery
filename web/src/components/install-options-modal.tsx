@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import type { InstallOption, AppStatus } from "@/lib/api";
 import { requiredInstallOptions } from "@/lib/install-options";
 
-const VERSION_KEY = "qbittorrent_version";
 const BRANCH_KEY = "libtorrent_branch";
 const PATCH_KEY = "libtorrent_patch";
 const MAX_PATCH_BYTES = 512 * 1024;
@@ -45,8 +44,12 @@ function readFileAsBase64(file: File): Promise<string> {
 
 export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props) {
   const options = useMemo(() => requiredInstallOptions(apps, appIds), [apps, appIds]);
-  const versionOption = optionByKey(options, VERSION_KEY);
+  // The first option is the primary version picker (its key varies per app, e.g.
+  // qbittorrent_version or rtorrent_version); the optional libtorrent branch and
+  // patch make up a second step that only qBittorrent declares.
+  const versionOption = options[0];
   const branchOption = optionByKey(options, BRANCH_KEY);
+  const hasSecondStep = Boolean(branchOption);
 
   const appNames = appIds
     .map((id) => apps.find((app) => app.id === id)?.name ?? id)
@@ -95,16 +98,21 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
 
     if (step === "version") {
       if (!version) {
-        setError("Select a qBittorrent version.");
+        setError("Select a version.");
         return;
       }
-      setStep("libtorrent");
-      return;
+      if (hasSecondStep) {
+        setStep("libtorrent");
+        return;
+      }
     }
 
-    const extraVars: Record<string, string> = { [VERSION_KEY]: version };
-    if (branchVisible && branch) {
-      extraVars[BRANCH_KEY] = branch;
+    const extraVars: Record<string, string> = {};
+    if (versionOption) {
+      extraVars[versionOption.key] = version;
+    }
+    if (branchVisible && branch && branchOption) {
+      extraVars[branchOption.key] = branch;
     }
     if (patch) {
       extraVars[PATCH_KEY] = patch.base64;
@@ -118,11 +126,11 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
           <DialogHeader className="gap-1 border-b border-border px-5 py-4">
             <DialogTitle className="text-base">
-              {step === "version" ? "Choose qBittorrent version" : "libtorrent options"}
+              {step === "version" ? `Choose ${versionOption?.label ?? "version"}` : "libtorrent options"}
             </DialogTitle>
             <DialogDescription>
               {step === "version"
-                ? `Select the qBittorrent release to build for ${appNames}.`
+                ? `Select the release to build for ${appNames}.`
                 : "Pick the libtorrent line and optionally supply a custom patch."}
             </DialogDescription>
           </DialogHeader>
@@ -130,7 +138,7 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
           <div className="scrollbar-zinc min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
             {step === "version" && (
               <fieldset className="space-y-2">
-                <legend className="sr-only">qBittorrent version</legend>
+                <legend className="sr-only">{versionOption?.label ?? "version"}</legend>
                 {versionOption?.choices?.map((choice) => (
                   <label
                     key={choice.value}
@@ -138,7 +146,7 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
                   >
                     <input
                       type="radio"
-                      name="qbittorrent-version"
+                      name="install-version"
                       value={choice.value}
                       checked={version === choice.value}
                       onChange={() => setVersion(choice.value)}
@@ -201,7 +209,7 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
               {step === "libtorrent" ? "Back" : "Cancel"}
             </Button>
             <Button type="submit">
-              {step === "version" ? "Continue" : "Start install"}
+              {step === "version" && hasSecondStep ? "Continue" : "Start install"}
             </Button>
           </DialogFooter>
         </form>
