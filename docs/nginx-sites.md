@@ -24,6 +24,15 @@ nginx -t && systemctl reload nginx
 | `/api/` | Go backend `127.0.0.1:8080` |
 | `/health` | Go backend health endpoint |
 | `/autobrr/` (and other installed apps) | Reverse-proxied via snippets in `/etc/nginx/brrewery/apps/` |
+| anything else | `404` → `/404.html` error page |
+
+The dashboard is a single page with no client-side router, so `/` is the only
+valid document. `location /` uses `try_files $uri $uri/ =404` (not a fallback to
+`/index.html`): real files and the directory index are served, every other path
+returns `404` and nginx renders the shared `404.html` error page (`error_page 404
+/404.html`). `404.html` ships in the frontend bundle (`web/public/404.html`), so
+it is deployed to the web root alongside `index.html` and the standalone Go
+server embeds the same file.
 
 HTTP (port 80) redirects to HTTPS (port 443). TLS material defaults to `/etc/ssl/brrewery/fullchain.pem` and `privkey.pem` (self-signed on first install).
 

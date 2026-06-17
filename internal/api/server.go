@@ -103,13 +103,18 @@ func (s *Server) Handler() http.Handler {
 
 	if s.embedFS != nil {
 		webHandler := webapp.NewHandler(s.embedFS)
-		r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
+		spa := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			if strings.HasPrefix(req.URL.Path, "/api/") {
 				httputil.WriteError(w, http.StatusNotFound, "Not found")
 				return
 			}
 			webHandler.ServeSPA(w, req)
 		})
+		// Register GET and HEAD explicitly: chi does not route HEAD to a GET
+		// handler, so without this an unknown path answers HEAD with a 405
+		// instead of the 404 it returns for GET.
+		r.Method(http.MethodGet, "/*", spa)
+		r.Method(http.MethodHead, "/*", spa)
 	}
 
 	return r
