@@ -113,14 +113,20 @@ func resolveDiskFromDeviceID(deviceID string) (string, error) {
 		return "", fmt.Errorf("resolve /sys/dev/block/%s: %w", deviceID, err)
 	}
 
-	parts := strings.Split(target, string(filepath.Separator))
-	for i := len(parts) - 1; i >= 0; i-- {
-		if parts[i] == "block" && i+1 < len(parts) {
-			return parts[i+1], nil
-		}
+	// A partition carries a "partition" file; its parent directory is the whole
+	// disk. This holds across sysfs topologies: SCSI/virtio nest the disk under a
+	// "block" component (.../block/sda/sda1) while NVMe does not
+	// (.../nvme0/nvme0n1/nvme0n1p1), so we cannot rely on a "block" path segment.
+	if fileReadable(filepath.Join(target, "partition")) {
+		target = filepath.Dir(target)
 	}
 
-	return "", fmt.Errorf("could not map %s to /sys/block disk", deviceID)
+	disk := filepath.Base(target)
+	if disk == "" || disk == "." || disk == string(filepath.Separator) {
+		return "", fmt.Errorf("could not map %s to /sys/block disk", deviceID)
+	}
+
+	return disk, nil
 }
 
 // blockStatBusyMsIndex is the 0-based field index of "time doing I/Os (ms)" (iostat %util).
