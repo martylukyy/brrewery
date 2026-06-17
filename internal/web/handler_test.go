@@ -14,11 +14,10 @@ import (
 )
 
 // The fixture mirrors the real bundle: index.html carries the SPA mount point
-// (<div id="root">), 404.html is the shared error page, plus a couple of assets.
+// (<div id="root">), plus a couple of static assets.
 func newTestFS() fstest.MapFS {
 	return fstest.MapFS{
 		"index.html":    {Data: []byte(`<!doctype html><html><body><div id="root"></div></body></html>`)},
-		"404.html":      {Data: []byte(`<!doctype html><title>404</title><h1>Page not found</h1>`)},
 		"assets/app.js": {Data: []byte("console.log('app')")},
 		"logos/x.webp":  {Data: []byte("webp-bytes")},
 	}
@@ -32,14 +31,19 @@ func serve(t *testing.T, h *web.Handler, method, target string) *http.Response {
 	return rec.Result()
 }
 
-func TestServeSPA_Root(t *testing.T) {
-	res := serve(t, web.NewHandler(newTestFS()), http.MethodGet, "/")
-	defer res.Body.Close()
+// Known client routes serve the SPA shell with a 200 so the app boots.
+func TestServeSPA_KnownRoutesServeShell(t *testing.T) {
+	for _, target := range []string{"/", "/index.html", "/login"} {
+		t.Run(target, func(t *testing.T) {
+			res := serve(t, web.NewHandler(newTestFS()), http.MethodGet, target)
+			defer res.Body.Close()
 
-	body, _ := io.ReadAll(res.Body)
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Contains(t, res.Header.Get("Content-Type"), "text/html")
-	assert.Contains(t, string(body), `id="root"`)
+			body, _ := io.ReadAll(res.Body)
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+			assert.Contains(t, res.Header.Get("Content-Type"), "text/html")
+			assert.Contains(t, string(body), `id="root"`)
+		})
+	}
 }
 
 func TestServeSPA_StaticAssetServesWithContentType(t *testing.T) {
@@ -64,16 +68,10 @@ func TestServeSPA_StaticAssetServesWithContentType(t *testing.T) {
 	}
 }
 
-func TestServeSPA_IndexHTMLPath(t *testing.T) {
-	res := serve(t, web.NewHandler(newTestFS()), http.MethodGet, "/index.html")
-	defer res.Body.Close()
-
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-}
-
-// The core bug: unknown paths used to fall back to index.html with a 200 and
-// render the dashboard. They must now be a real 404 with the error page.
-func TestServeSPA_UnknownPathReturns404(t *testing.T) {
+// The core behaviour: an unknown path serves the shell but with a true 404 so
+// the client renders <NotFound/>. It must not be a 200, and must not 404 with an
+// empty/error body that fails to boot the app.
+func TestServeSPA_UnknownPathServesShellAs404(t *testing.T) {
 	cases := []string{
 		"/notvalid/",
 		"/notvalid",
@@ -91,15 +89,14 @@ func TestServeSPA_UnknownPathReturns404(t *testing.T) {
 			assert.Equal(t, http.StatusNotFound, res.StatusCode)
 			assert.Contains(t, res.Header.Get("Content-Type"), "text/html")
 			assert.Equal(t, "no-store", res.Header.Get("Cache-Control"))
-			assert.Contains(t, string(body), "Page not found")
-			// It must not silently fall back to the dashboard shell.
-			assert.NotContains(t, string(body), `id="root"`)
+			// The SPA shell boots so the in-app React 404 renders.
+			assert.Contains(t, string(body), `id="root"`)
 		})
 	}
 }
 
-// A directory must not be served (no listing) and must not fall back to index.
-func TestServeSPA_DirectoryReturns404(t *testing.T) {
+// A directory must not be served (no listing); it falls through to the 404 shell.
+func TestServeSPA_DirectoryServesShellAs404(t *testing.T) {
 	res := serve(t, web.NewHandler(newTestFS()), http.MethodGet, "/assets")
 	defer res.Body.Close()
 
@@ -107,27 +104,20 @@ func TestServeSPA_DirectoryReturns404(t *testing.T) {
 }
 
 func TestServeSPA_HeadHasNoBody(t *testing.T) {
-	res := serve(t, web.NewHandler(newTestFS()), http.MethodHead, "/notvalid")
-	defer res.Body.Close()
-
-	body, _ := io.ReadAll(res.Body)
-	assert.Equal(t, http.StatusNotFound, res.StatusCode)
-	assert.Empty(t, body)
-}
-
-// When the bundle lacks 404.html (e.g. an old build), the handler still returns
-// a 404 with the inline fallback rather than failing.
-func TestServeSPA_NotFoundFallbackWhenPageMissing(t *testing.T) {
-	fsys := fstest.MapFS{
-		"index.html": {Data: []byte(`<div id="root"></div>`)},
-	}
-	res := serve(t, web.NewHandler(fsys), http.MethodGet, "/notvalid")
-	defer res.Body.Close()
-
-	body, _ := io.ReadAll(res.Body)
-	assert.Equal(t, http.StatusNotFound, res.StatusCode)
-	assert.Contains(t, string(body), "Page not found")
-	assert.NotContains(t, string(body), `id="root"`)
+	t.Run("unknown path", func(t *testing.T) {
+		res := serve(t, web.NewHandler(newTestFS()), http.MethodHead, "/notvalid")
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		assert.Equal(t, http.StatusNotFound, res.StatusCode)
+		assert.Empty(t, body)
+	})
+	t.Run("known route", func(t *testing.T) {
+		res := serve(t, web.NewHandler(newTestFS()), http.MethodHead, "/")
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		assert.Empty(t, body)
+	})
 }
 
 func TestServeSPA_NilFSNotBuilt(t *testing.T) {
@@ -139,20 +129,22 @@ func TestServeSPA_NilFSNotBuilt(t *testing.T) {
 	assert.Contains(t, string(body), "Frontend not built")
 }
 
-func TestServeSPA_RealDistRootServes(t *testing.T) {
+func TestServeSPA_RealDist(t *testing.T) {
 	dist, err := web.DistFS()
 	require.NoError(t, err)
+	h := web.NewHandler(dist)
 
-	res := serve(t, web.NewHandler(dist), http.MethodGet, "/")
-	defer res.Body.Close()
-	assert.Equal(t, http.StatusOK, res.StatusCode)
+	for _, route := range []string{"/", "/login"} {
+		res := serve(t, h, http.MethodGet, route)
+		body, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		assert.Equal(t, http.StatusOK, res.StatusCode, route)
+		assert.Contains(t, string(body), `id="root"`, route)
+	}
 
-	res404 := serve(t, web.NewHandler(dist), http.MethodGet, "/notvalid/")
-	defer res404.Body.Close()
+	res404 := serve(t, h, http.MethodGet, "/notvalid/")
 	body, _ := io.ReadAll(res404.Body)
+	res404.Body.Close()
 	assert.Equal(t, http.StatusNotFound, res404.StatusCode)
-	assert.Contains(t, string(body), "Page not found")
-	// Fingerprint the styled bundle page (not the inline fallback) so this
-	// proves the embedded 404.html — the single source of truth — is served.
-	assert.Contains(t, string(body), "Return to dashboard")
+	assert.Contains(t, string(body), `id="root"`)
 }

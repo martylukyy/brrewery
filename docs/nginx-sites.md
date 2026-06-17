@@ -20,19 +20,21 @@ nginx -t && systemctl reload nginx
 
 | Path | Target |
 |------|--------|
-| `/` | Static SPA at `/var/www/brrewery` |
+| `/`, `/login` | Static SPA shell (`index.html`) at `/var/www/brrewery`, `200` |
+| `/assets/…`, other real files | Served directly from `/var/www/brrewery` |
 | `/api/` | Go backend `127.0.0.1:8080` |
 | `/health` | Go backend health endpoint |
 | `/autobrr/` (and other installed apps) | Reverse-proxied via snippets in `/etc/nginx/brrewery/apps/` |
-| anything else | `404` → `/404.html` error page |
+| anything else | `404` serving the SPA shell, so the in-app React 404 renders |
 
-The dashboard is a single page with no client-side router, so `/` is the only
-valid document. `location /` uses `try_files $uri $uri/ =404` (not a fallback to
-`/index.html`): real files and the directory index are served, every other path
-returns `404` and nginx renders the shared `404.html` error page (`error_page 404
-/404.html`). `404.html` ships in the frontend bundle (`web/public/404.html`), so
-it is deployed to the web root alongside `index.html` and the standalone Go
-server embeds the same file.
+The dashboard is a TanStack Router SPA. Its **known routes** (`/`, `/login`) each
+get an exact `location` that serves `index.html` with a `200`. Real static files
+are served directly. Every other path hits `location /`'s `try_files … =404`,
+which `error_page 404 @spa_notfound` routes to a named location that returns the
+`index.html` shell **with the 404 status preserved** (no `=code`) plus
+`Cache-Control: no-store` and the shared security headers, so the client router
+boots and renders its `<NotFound/>` page against a true 404. Add a `location =
+/<route>` line whenever a client route is added to `web/src/router.tsx`.
 
 HTTP (port 80) redirects to HTTPS (port 443). TLS material defaults to `/etc/ssl/brrewery/fullchain.pem` and `privkey.pem` (self-signed on first install).
 

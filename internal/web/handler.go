@@ -20,6 +20,17 @@ func NewHandler(fsys fs.FS) *Handler {
 	return &Handler{fs: http.FS(fsys)}
 }
 
+// knownRoutes are the client-side routes the SPA renders as a real page (HTTP
+// 200). They mirror the TanStack route tree in web/src/router.tsx and the nginx
+// vhost allowlist. Every other non-asset path is served the same index.html
+// shell but with a 404 status, so the in-app <NotFound/> page renders against a
+// genuine 404 instead of the dashboard masking a broken link with a 200.
+var knownRoutes = map[string]bool{
+	"":           true, // "/"
+	"index.html": true,
+	"login":      true,
+}
+
 func (h *Handler) ServeSPA(w http.ResponseWriter, r *http.Request) {
 	if h.fs == nil {
 		http.Error(w, "Frontend not built. Run 'make frontend'.", http.StatusNotFound)
@@ -27,51 +38,47 @@ func (h *Handler) ServeSPA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := strings.TrimPrefix(r.URL.Path, "/")
-	if path == "" {
-		path = "index.html"
-	}
 
-	// The frontend is a single page with no client-side router: the only valid
-	// document is index.html ("/"). Any other path must resolve to a real static
-	// asset, otherwise it is genuinely not found. Falling back to index.html for
-	// unknown paths (the usual SPA trick) would answer /notvalid/ with a 200 and
-	// the dashboard, hiding broken links and bad bookmarks behind a healthy page.
-	if file, err := h.fs.Open(path); err == nil {
-		defer file.Close()
-		if stat, statErr := file.Stat(); statErr == nil && !stat.IsDir() {
-			serveFile(w, r, path, file, stat)
-			return
+	// A real static asset (js/css/image/…) is served as-is with a 200.
+	if path != "" && path != "index.html" {
+		if file, err := h.fs.Open(path); err == nil {
+			defer file.Close()
+			if stat, statErr := file.Stat(); statErr == nil && !stat.IsDir() {
+				serveFile(w, r, path, file, stat)
+				return
+			}
 		}
 	}
 
-	h.serveNotFound(w, r)
+	// Otherwise serve the SPA shell: a 200 for a known route, a true 404 for
+	// anything else (the client router then renders the matching page).
+	status := http.StatusNotFound
+	if knownRoutes[path] {
+		status = http.StatusOK
+	}
+	h.serveShell(w, r, status)
 }
 
-// serveNotFound writes a 404 backed by the embedded 404.html error page. That
-// page is the single source of truth shared with the production nginx vhost
-// (error_page 404 /404.html), so the standalone Go server and the nginx-fronted
-// deployment render the same page. A tiny inline fallback covers the case where
-// the frontend has not been built and 404.html is absent from the bundle.
-func (h *Handler) serveNotFound(w http.ResponseWriter, r *http.Request) {
+// serveShell writes index.html with an explicit status. A 404 is marked
+// no-store so a not-found response is never cached as a healthy page; HEAD gets
+// the headers and status without a body.
+func (h *Handler) serveShell(w http.ResponseWriter, r *http.Request, status int) {
+	file, err := h.fs.Open("index.html")
+	if err != nil {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(http.StatusNotFound)
+	if status == http.StatusNotFound {
+		w.Header().Set("Cache-Control", "no-store")
+	}
+	w.WriteHeader(status)
 	if r.Method == http.MethodHead {
 		return
 	}
-
-	// Prefer the bundled error page; the inline fallback is only for a bundle
-	// that predates 404.html. Once the file opens we commit to it — a mid-write
-	// copy error means the client went away, not that the fallback should be
-	// appended to a half-written page.
-	if h.fs != nil {
-		if file, err := h.fs.Open("404.html"); err == nil {
-			defer file.Close()
-			_, _ = io.Copy(w, file)
-			return
-		}
-	}
-	_, _ = io.WriteString(w, fallbackNotFound)
+	_, _ = io.Copy(w, file)
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request, path string, file fs.File, stat fs.FileInfo) {
@@ -92,10 +99,3 @@ func serveFile(w http.ResponseWriter, r *http.Request, path string, file fs.File
 	}
 	_, _ = w.Write(data)
 }
-
-const fallbackNotFound = `<!DOCTYPE html>
-<html lang="en">
-  <head><meta charset="UTF-8" /><title>404 — brrewery</title></head>
-  <body><h1>404 — Page not found</h1></body>
-</html>
-`

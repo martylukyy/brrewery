@@ -60,23 +60,26 @@ func get(t *testing.T, url string) (*http.Response, string) {
 	return res, string(body)
 }
 
-// An unknown front-end path must be a real 404 with the HTML error page, not the
-// dashboard served with a 200.
+// An unknown front-end path must be a real 404 that still serves the SPA shell,
+// so the in-app React 404 page renders (not the dashboard with a 200).
 func TestSPACatchAll_UnknownPathIs404(t *testing.T) {
 	ts := newSPATestServer(t)
 
 	res, body := get(t, ts.URL+"/notvalid/")
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.Contains(t, res.Header.Get("Content-Type"), "text/html")
-	assert.Contains(t, body, "Page not found")
+	assert.Contains(t, body, `id="root"`)
 }
 
-func TestSPACatchAll_RootServesApp(t *testing.T) {
+func TestSPACatchAll_KnownRoutesServeApp(t *testing.T) {
 	ts := newSPATestServer(t)
 
-	res, _ := get(t, ts.URL+"/")
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-	assert.Contains(t, res.Header.Get("Content-Type"), "text/html")
+	for _, route := range []string{"/", "/login"} {
+		res, body := get(t, ts.URL+route)
+		assert.Equal(t, http.StatusOK, res.StatusCode, route)
+		assert.Contains(t, res.Header.Get("Content-Type"), "text/html", route)
+		assert.Contains(t, body, `id="root"`, route)
+	}
 }
 
 // HEAD on an unknown path must also be a 404 (not a 405) — the catch-all is
