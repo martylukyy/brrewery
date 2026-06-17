@@ -14,6 +14,21 @@
     SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
     SSL_CERT_DIR: /etc/ssl/certs
 
+# The Deluge 1.3 source tree ships setup.cfg with "[egg_info] tag_build = -dev", so
+# setuptools appends it at build time and the package reports 1.3.15-dev — PEP 440
+# normalizes that to 1.3.15.dev0, which is what `deluged --version` and the WebUI
+# show. Upstream's official release tarballs were rolled with the tag stripped;
+# building straight from the git tag keeps it. Blank tag_build so the venv carries
+# the plain release version. Legacy line only — the 2.x setup.cfg has no such tag,
+# so those lines already report a clean version. replace (not lineinfile) so it is a
+# no-op when absent and never appends the key outside its [egg_info] section.
+- name: Strip the egg_info dev build tag so 1.3 reports a clean release version
+  ansible.builtin.replace:
+    path: "{{ deluge_build_root }}/deluge/setup.cfg"
+    regexp: '^(\s*tag_build\s*=).*$'
+    replace: '\1'
+  when: dz_legacy | bool
+
 # Deluge 1.3's setup.py does not pull its Twisted/pyOpenSSL stack, and the last
 # Python 2 releases of those (and cryptography, which must compile against the
 # vendored OpenSSL 1.1) have to be requested explicitly. The python3 lines
@@ -83,6 +98,60 @@
     - dz_cgi_probe.rc is defined
     - dz_cgi_probe.rc != 0
 
+# Deluge's WebUI registers itself as a child resource under the configured base
+# path — we run deluge-web with -b {{ deluge_web_base }} (see deluge-web@.service) —
+# via, in deluge/ui/web/server.py DelugeWeb.__init__:
+#     self.top_level.putChild(self.base.strip('/'), self.top_level)
+# self.base.strip('/') is a str, but Twisted's Resource.putChild has required bytes
+# for the path segment on Python 3 for years, so with any non-root base deluge-web
+# aborts at startup with "TypeError: Path segment must be bytes, but 'deluge' is
+# <class 'str'>". Encode the segment to bytes, matching every sibling putChild(b'..')
+# call in the same file. Patch the installed venv copy (not the scratch source tree)
+# so the fix is immune to pip's wheel cache serving a stale unpatched build. Deluge
+# 2.2+ rewrote this (base handled per-request in TopLevel.getChildWithDefault) and has
+# no such line, so the regexp — not a version — is the gate: a no-op there, enforced
+# by the verify below. The trailing ", self.top_level)" anchor keeps it idempotent.
+- name: Patch the WebUI base-path segment to bytes (non-root base crash on py3 Twisted)
+  ansible.builtin.replace:
+    path: "{{ dz_venv_site }}/deluge/ui/web/server.py"
+    regexp: "(putChild\\(self\\.base\\.strip\\('/'\\))(, self\\.top_level\\))"
+    replace: '\1.encode()\2'
+  when: not dz_legacy | bool
+
+# The Deluge 1.3 (legacy py2.7) WebUI has no equivalent of the 2.x base-path child
+# registration above: its DelugeWeb never calls putChild() for the base. So under
+# our full-path proxy (-b {{ deluge_web_base }}; nginx forwards the whole URI, see
+# install.yml) a request for {{ deluge_web_base }} hits top_level.getChild('deluge')
+# with no such child and Twisted returns "No Such Resource - No such child resource".
+# Register the base segment as a self-referential child so /deluge/... routes to the
+# WebUI, exactly as 2.x does. self.base is set from -b in web.py Web.start() AFTER
+# DelugeWeb.__init__, so the registration goes in DelugeWeb.start() (where base is
+# already resolved), as a single-line if. On py2 the segment is a str, which py2
+# Twisted's putChild accepts (no .encode(), unlike the py3 lines). Legacy line only.
+- name: Register the WebUI base-path child for the legacy 1.3 line (fixes /deluge/ 404)
+  ansible.builtin.lineinfile:
+    path: "{{ dz_venv_site }}/deluge/ui/web/server.py"
+    insertafter: 'Starting server in PID'
+    line: "        if self.base and self.base != '/': self.top_level.putChild(self.base.strip('/'), self.top_level)"
+    state: present
+  when: dz_legacy | bool
+
+# pip byte-compiles the venv at install time, so server.pyc already exists (from
+# the UNPATCHED source) before lineinfile edits server.py. Python 2's .pyc header
+# stores the source mtime at 1-second resolution and has no source-size field
+# (unlike py3), so when the edit lands in the same wall-clock second as pip's
+# compile, the import machinery deems the stale .pyc current and never recompiles —
+# the patch sits in the .py but the unpatched bytecode runs. Recompile the file from
+# the patched source so the .pyc carries the registration. (The py3 lines are immune:
+# their .pyc header includes the source size, which the bytes patch above changes.)
+- name: Regenerate the legacy WebUI bytecode from the patched source (stale .pyc)
+  ansible.builtin.command:
+    cmd: "{{ deluge_venv }}/bin/python -m py_compile {{ dz_venv_site }}/deluge/ui/web/server.py"
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+  changed_when: true
+  when: dz_legacy | bool
+
 - name: Verify deluged runs and links the built libtorrent
   ansible.builtin.command:
     cmd: "{{ deluge_bin }} --version"
@@ -112,6 +181,62 @@
     LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
   changed_when: false
   when: not dz_legacy | bool
+
+# The deluged import-chain verify above never touches the WebUI, so guard the
+# base-path fix explicitly at the venv that actually runs: the byte-less
+# putChild(self.base.strip('/'), ...) call must be gone, or deluge-web crashes at
+# startup under our non-root base and surfaces a playbook away as the deluge-web
+# port wait_for timeout in install.yml. Fail the BUILD here with a clear message.
+# grep rc: 0 = still present (buggy), 1 = absent (patched, or 2.2+ which never had
+# it), so the patch is enforced for the lines that need it without a version check.
+- name: Check the WebUI base-path bytes patch applied to the installed source
+  ansible.builtin.command:
+    cmd: >-
+      grep -Fn "putChild(self.base.strip('/'), self.top_level)"
+      {{ dz_venv_site }}/deluge/ui/web/server.py
+  register: dz_web_base_grep
+  changed_when: false
+  failed_when: false
+  when: not dz_legacy | bool
+
+- name: Fail when the WebUI base-path bytes patch did not take
+  ansible.builtin.assert:
+    that:
+      - dz_web_base_grep.rc == 1
+    fail_msg: >-
+      deluge-web still has the byte-less putChild(self.base.strip('/'), ...) call in
+      deluge/ui/web/server.py; under our non-root base (-b {{ deluge_web_base }}) it
+      would crash at startup with "Path segment must be bytes". The bytes patch in
+      this role did not apply to Deluge {{ deluge_release }} — check the source layout.
+  when: not dz_legacy | bool
+
+# Same guard for the legacy 1.3 line, but checked against the LOADED bytecode rather
+# than the .py text: importing the module and inspecting DelugeWeb.start's code object
+# proves the registration is actually what runs, so a stale .pyc (see above) fails the
+# BUILD here instead of silently serving "No Such Resource" for {{ deluge_web_base }}.
+- name: Verify the legacy WebUI base-path registration is in the loaded bytecode
+  ansible.builtin.command:
+    cmd: >-
+      {{ deluge_venv }}/bin/python -c
+      "import deluge.ui.web.server as s;
+      n = s.DelugeWeb.start.__code__.co_names;
+      assert 'putChild' in n and 'top_level' in n,
+      'base-path child registration missing from DelugeWeb.start (stale .pyc or unpatched source)'"
+  environment:
+    LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
+  changed_when: false
+  when: dz_legacy | bool
+
+# Confirm the egg_info dev tag was stripped: deluged --version (captured above)
+# must report the plain release, not 1.3.15.dev0.
+- name: Verify the legacy build reports a clean release version (no dev tag)
+  ansible.builtin.assert:
+    that:
+      - "'.dev' not in dz_deluged_version.stdout"
+    fail_msg: >-
+      deluged reports a dev version ({{ dz_deluged_version.stdout }}); the egg_info
+      tag_build was not stripped from setup.cfg before the build.
+  when: dz_legacy | bool
 
 - name: Announce the installed Deluge
   ansible.builtin.debug:
