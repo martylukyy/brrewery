@@ -1,4 +1,4 @@
-import { IconExclamationMark, IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
+import { IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
