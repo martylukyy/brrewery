@@ -114,11 +114,16 @@ export type InstallOption = {
 
 // ServiceStatus is the live systemd state of an installed app's controllable
 // unit(s). It is present only for installed apps that expose a service; the
-// sidebar toggle is "on" when both active and enabled.
+// sidebar toggle is "on" when both active and enabled, and gets a red backdrop
+// when failing.
 export type ServiceStatus = {
   units: string[];
   active: boolean;
   enabled: boolean;
+  // True when any unit is unhealthy — failed outright or stuck restarting
+  // (crash-looping). Independent of active: a crash-looping unit is
+  // active=false, failing=true.
+  failing: boolean;
 };
 
 export type AppStatus = {

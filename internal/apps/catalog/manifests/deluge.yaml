@@ -15,5 +15,10 @@ requires_account_password: true
 detection:
   binaries:
     - deluged
+  # Both the daemon and the WebUI are installed and toggled together: the WebUI
+  # Requires= the daemon, so listing both keeps the sidebar switch in charge of
+  # the whole app (a daemon-only toggle leaves the WebUI down after an off→on
+  # cycle) and lets brrewery report either one as failing.
   systemd_user_units:
     - "deluged@{user}.service"
+    - "deluge-web@{user}.service"

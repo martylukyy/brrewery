@@ -50,6 +50,12 @@ export function AppShell() {
   const apps = useQuery({
     queryKey: ["apps"],
     queryFn: listApps,
+    // Poll so the sidebar reflects live service health — a unit that starts
+    // crash-looping after load surfaces its red backdrop without a manual
+    // refresh. Background-tab throttling is fine here; precise cadence isn't
+    // needed, so plain refetchInterval beats the worker-backed keepalive used
+    // for the metrics charts.
+    refetchInterval: 15_000,
   });
 
   const appList = apps.data?.apps ?? [];

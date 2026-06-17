@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -18,7 +18,7 @@ const apps: AppStatus[] = [
     web_path: "/sonarr/",
     installed: true,
     dependencies_satisfied: true,
-    service: { units: ["sonarr@admin.service"], active: true, enabled: true },
+    service: { units: ["sonarr@admin.service"], active: true, enabled: true, failing: false },
   },
   {
     id: "radarr",
@@ -148,12 +148,50 @@ describe("AppSidebar", () => {
           category: "download",
           installed: true,
           dependencies_satisfied: true,
-          service: { units: ["deluged.service"], active: false, enabled: false },
+          service: { units: ["deluged.service"], active: false, enabled: false, failing: false },
         },
       ],
     });
 
     expect(screen.getByRole("switch", { name: "Start and enable Deluge" })).not.toBeChecked();
+  });
+
+  it("does not flag a healthy running service as failing", () => {
+    renderSidebar();
+
+    // Sonarr is active+enabled: the accessible name has no failing suffix, the
+    // switch is not forced red, and the thumb carries no "!".
+    const sonarr = screen.getByRole("switch", { name: "Stop and disable Sonarr" });
+    expect(sonarr).not.toHaveClass("bg-red-600!");
+    expect(screen.queryByText("!")).not.toBeInTheDocument();
+  });
+
+  it("turns the switch's own track red and names the failing state when a unit is failing", () => {
+    renderSidebar({
+      apps: [
+        {
+          id: "deluge",
+          name: "Deluge",
+          description: "",
+          category: "download",
+          installed: true,
+          dependencies_satisfied: true,
+          // deluge-web crash-looping: enabled but never reaches running, so the
+          // switch reads off while the red track flags the unhealthy service.
+          service: {
+            units: ["deluged@admin.service", "deluge-web@admin.service"],
+            active: false,
+            enabled: true,
+            failing: true,
+          },
+        },
+      ],
+    });
+
+    const sw = screen.getByRole("switch", { name: "Start and enable Deluge (service failing)" });
+    expect(sw).toHaveClass("bg-red-600!");
+    // The thumb carries a "!" to mark the unhealthy service.
+    expect(within(sw).getByText("!")).toBeInTheDocument();
   });
 
   // rTorrent (service, no web UI) and ruTorrent (web UI, no service) are two
@@ -168,7 +206,7 @@ describe("AppSidebar", () => {
         icon: "/apps/rutorrent.png",
         installed: true,
         dependencies_satisfied: true,
-        service: { units: ["rtorrent@admin.service"], active: true, enabled: true },
+        service: { units: ["rtorrent@admin.service"], active: true, enabled: true, failing: false },
       },
       {
         id: "rutorrent",

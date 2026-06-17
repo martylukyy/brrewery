@@ -20,6 +20,7 @@ type Evaluator struct {
 	lookPath         func(string) (string, error)
 	systemctlActive  func(context.Context, string) error
 	systemctlEnabled func(context.Context, string) error
+	systemctlFailing func(context.Context, string) bool
 	systemctlPresent func(context.Context, string) error
 	stat             func(string) (os.FileInfo, error)
 }
@@ -33,6 +34,7 @@ func NewEvaluator() *Evaluator {
 		systemctlEnabled: func(ctx context.Context, unit string) error {
 			return systemctlQuiet(ctx, "is-enabled", unit)
 		},
+		systemctlFailing: systemctlUnitFailing,
 		systemctlPresent: systemctlUnitPresent,
 		stat:             os.Stat,
 	}
@@ -41,6 +43,42 @@ func NewEvaluator() *Evaluator {
 func systemctlQuiet(ctx context.Context, op, unit string) error {
 	cmd := exec.CommandContext(ctx, "systemctl", op, "--quiet", unit)
 	return cmd.Run()
+}
+
+// systemctlUnitFailing reports whether a unit is unhealthy: either it has failed
+// outright (ActiveState=failed) or it is stuck restarting (SubState=auto-restart),
+// the latter being how a crash-looping service such as a misconfigured deluge-web
+// presents before systemd gives up. `is-failed` is not enough on its own — it
+// only matches the terminal "failed" state, not the auto-restart loop. A cleanly
+// stopped unit (inactive) or a normally starting one (activating/start) is not
+// failing. `systemctl show` exits 0 even for unknown units (reporting inactive),
+// so a non-nil error here means the probe itself failed; treat that as not-failing.
+func systemctlUnitFailing(ctx context.Context, unit string) bool {
+	out, err := exec.CommandContext(ctx, "systemctl", "show", unit,
+		"--property=ActiveState", "--property=SubState").Output()
+	if err != nil {
+		return false
+	}
+	activeState, subState := parseShowState(out)
+	return activeState == "failed" || subState == "auto-restart"
+}
+
+// parseShowState pulls ActiveState and SubState out of `systemctl show` key=value
+// output, ignoring any other properties.
+func parseShowState(out []byte) (activeState, subState string) {
+	for _, line := range strings.Split(string(out), "\n") {
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		switch strings.TrimSpace(key) {
+		case "ActiveState":
+			activeState = strings.TrimSpace(val)
+		case "SubState":
+			subState = strings.TrimSpace(val)
+		}
+	}
+	return activeState, subState
 }
 
 // systemctlUnitPresent reports (via a nil error) whether a unit file is
@@ -148,7 +186,8 @@ func (e *Evaluator) checkUnitsPresent(units []string) bool {
 // ServiceStatus reports the live systemd state of the controllable units for an
 // app, with {user} instance units expanded. ok is false when the spec declares
 // no units (or declares user units without a username), meaning the app has no
-// service to toggle. A unit is Active/Enabled only when every unit is.
+// service to toggle. Active/Enabled are true only when every unit is; Failing is
+// true when any unit is unhealthy (failed or crash-looping).
 func (e *Evaluator) ServiceStatus(spec *model.DetectionSpec, username string) (model.ServiceStatus, bool) {
 	if spec == nil {
 		return model.ServiceStatus{}, false
@@ -178,6 +217,9 @@ func (e *Evaluator) ServiceStatus(spec *model.DetectionSpec, username string) (m
 		}
 		if e.systemctlEnabled(ctx, unit) != nil {
 			status.Enabled = false
+		}
+		if e.systemctlFailing(ctx, unit) {
+			status.Failing = true
 		}
 	}
 	return status, true

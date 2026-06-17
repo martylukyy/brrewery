@@ -1,4 +1,4 @@
-import { IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
+import { IconExclamationMark, IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -19,6 +19,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { appUrl } from "@/lib/app-link";
+import { cn } from "@/lib/utils";
 import type { AppStatus } from "@/lib/api";
 
 type Props = {
@@ -306,6 +307,9 @@ export function AppSidebar({
 // app's service state — flipping it asks the parent to confirm and apply. While
 // the transition runs in the background a spinner takes the switch's place, and
 // the switch reappears in its new position once the refreshed state arrives.
+// When any of the app's units is failing (failed or crash-looping) the switch's
+// own track turns red to flag the unhealthy service, and the failing state is
+// named in the aria-label so it isn't a colour-only signal.
 function ServiceSwitch({
   app,
   pending,
@@ -316,6 +320,8 @@ function ServiceSwitch({
   onToggle: (app: AppStatus, enabled: boolean) => void;
 }) {
   const on = serviceOn(app);
+  const failing = Boolean(app.service?.failing);
+  const action = on ? "Stop and disable" : "Start and enable";
   return (
     <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center justify-center group-data-[collapsible=icon]:hidden">
       {pending ? (
@@ -324,10 +330,25 @@ function ServiceSwitch({
         <Switch
           checked={on}
           onCheckedChange={(checked) => onToggle(app, checked)}
-          aria-label={`${on ? "Stop and disable" : "Start and enable"} ${app.name}`}
-          // Green when running/enabled, red when stopped/disabled. The dark
-          // variants override the base switch's dark-mode unchecked colour.
-          className="data-checked:bg-emerald-600 dark:data-checked:bg-emerald-600 data-unchecked:bg-red-600 dark:data-unchecked:bg-red-600"
+          aria-label={failing ? `${action} ${app.name} (service failing)` : `${action} ${app.name}`}
+          // A failing unit puts a red "!" inside the thumb. It's decorative
+          // (the failing state is named in the aria-label above), so hide it
+          // from assistive tech to avoid a duplicate announcement.
+          thumbContent={
+            failing ? (
+              <span aria-hidden className="text-xs leading-none font-bold text-red-600">
+                !
+              </span>
+            ) : undefined
+          }
+          className={cn(
+            // Green when running/enabled, red when stopped/disabled. The dark
+            // variants override the base switch's dark-mode unchecked colour.
+            "data-checked:bg-emerald-600 dark:data-checked:bg-emerald-600 data-unchecked:bg-red-600 dark:data-unchecked:bg-red-600",
+            // A failing unit forces the switch's own track red regardless of the
+            // on/off colour (! beats the variant-gated colours above).
+            failing && "bg-red-600!",
+          )}
         />
       )}
     </div>

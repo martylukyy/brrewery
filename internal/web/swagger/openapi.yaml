@@ -186,12 +186,13 @@ components:
           $ref: '#/components/schemas/PlaybookPaths'
     ServiceStatus:
       type: object
-      required: [units, active, enabled]
+      required: [units, active, enabled, failing]
       description: >-
         Live systemd state of an installed app's controllable unit(s). Decoupled
         from `installed` (persistent artifacts) so an app stays listed while its
         service is stopped or disabled. The dashboard toggle is on when both
-        `active` and `enabled` are true.
+        `active` and `enabled` are true; a red backdrop is drawn behind the
+        switch when `failing` is true.
       properties:
         units:
           type: array
@@ -204,6 +205,12 @@ components:
         enabled:
           type: boolean
           description: True when every unit is enabled (systemctl is-enabled).
+        failing:
+          type: boolean
+          description: >-
+            True when any unit is unhealthy — failed outright or stuck in a
+            restart loop (crash-looping). Independent of `active`: a
+            crash-looping unit reports active=false and failing=true.
     AppStatus:
       allOf:
         - $ref: '#/components/schemas/App'

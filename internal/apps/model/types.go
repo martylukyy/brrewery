@@ -71,6 +71,11 @@ type ServiceStatus struct {
 	Active bool `json:"active"`
 	// Enabled is true when every unit is enabled (systemctl is-enabled).
 	Enabled bool `json:"enabled"`
+	// Failing is true when any unit is unhealthy — failed outright or stuck in a
+	// restart loop (crash-looping). It is independent of Active: a crash-looping
+	// unit never reaches "running" (Active=false) yet must be flagged so the
+	// dashboard can draw a red backdrop behind the switch.
+	Failing bool `json:"failing"`
 }
 
 type AppStatus struct {

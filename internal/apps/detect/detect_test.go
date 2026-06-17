@@ -165,12 +165,14 @@ func TestServiceStatus(t *testing.T) {
 		eval := &Evaluator{
 			systemctlActive:  func(context.Context, string) error { return nil },
 			systemctlEnabled: func(context.Context, string) error { return nil },
+			systemctlFailing: func(context.Context, string) bool { return false },
 		}
 		got, ok := eval.ServiceStatus(&model.DetectionSpec{SystemdUnits: []string{"deluged.service"}}, "")
 		assert.True(t, ok)
 		assert.Equal(t, []string{"deluged.service"}, got.Units)
 		assert.True(t, got.Active)
 		assert.True(t, got.Enabled)
+		assert.False(t, got.Failing)
 	})
 
 	t.Run("stopped and disabled with expanded user unit", func(t *testing.T) {
@@ -178,13 +180,85 @@ func TestServiceStatus(t *testing.T) {
 		eval := &Evaluator{
 			systemctlActive:  func(context.Context, string) error { return errors.New("inactive") },
 			systemctlEnabled: func(context.Context, string) error { return errors.New("disabled") },
+			systemctlFailing: func(context.Context, string) bool { return false },
 		}
 		got, ok := eval.ServiceStatus(&model.DetectionSpec{SystemdUserUnits: []string{"sonarr@{user}.service"}}, "admin")
 		assert.True(t, ok)
 		assert.Equal(t, []string{"sonarr@admin.service"}, got.Units)
 		assert.False(t, got.Active)
 		assert.False(t, got.Enabled)
+		assert.False(t, got.Failing)
 	})
+
+	t.Run("crash-looping unit reports failing while inactive", func(t *testing.T) {
+		t.Parallel()
+		// A crash-looping unit never reaches "running" (is-active fails) but is
+		// still enabled; Failing must be reported alongside Active=false so the
+		// dashboard can draw its red backdrop.
+		eval := &Evaluator{
+			systemctlActive:  func(context.Context, string) error { return errors.New("activating") },
+			systemctlEnabled: func(context.Context, string) error { return nil },
+			systemctlFailing: func(_ context.Context, unit string) bool { return unit == "deluge-web@admin.service" },
+		}
+		spec := &model.DetectionSpec{
+			SystemdUserUnits: []string{"deluged@{user}.service", "deluge-web@{user}.service"},
+		}
+		got, ok := eval.ServiceStatus(spec, "admin")
+		assert.True(t, ok)
+		assert.Equal(t, []string{"deluged@admin.service", "deluge-web@admin.service"}, got.Units)
+		assert.False(t, got.Active)
+		assert.True(t, got.Enabled)
+		assert.True(t, got.Failing)
+	})
+}
+
+func TestParseShowState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		out        string
+		wantActive string
+		wantSub    string
+	}{
+		{
+			name:       "auto-restart loop",
+			out:        "ActiveState=activating\nSubState=auto-restart\n",
+			wantActive: "activating",
+			wantSub:    "auto-restart",
+		},
+		{
+			name:       "failed",
+			out:        "ActiveState=failed\nSubState=failed\n",
+			wantActive: "failed",
+			wantSub:    "failed",
+		},
+		{
+			name:       "running",
+			out:        "ActiveState=active\nSubState=running\n",
+			wantActive: "active",
+			wantSub:    "running",
+		},
+		{
+			name:       "ignores unrelated properties",
+			out:        "Id=deluge-web@admin.service\nActiveState=active\nResult=success\nSubState=running",
+			wantActive: "active",
+			wantSub:    "running",
+		},
+		{
+			name: "empty output",
+			out:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			active, sub := parseShowState([]byte(tt.out))
+			assert.Equal(t, tt.wantActive, active)
+			assert.Equal(t, tt.wantSub, sub)
+		})
+	}
 }
 
 type fakeFileInfo struct{}
