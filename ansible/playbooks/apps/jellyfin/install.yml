@@ -1,8 +1,184 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    jellyfin_port: 8096
+    # Jellyfin is installed from its official APT repository (repo.jellyfin.org),
+    # not a one-off .deb: the `jellyfin` metapackage pulls jellyfin-server,
+    # jellyfin-web and jellyfin-ffmpeg7, and its postinst creates the `jellyfin`
+    # system user and enables+starts jellyfin.service on :8096.
+    jellyfin_key_url: https://repo.jellyfin.org/jellyfin_team.gpg.key
+    jellyfin_key_tmp: /tmp/jellyfin_team.gpg.key
+    jellyfin_keyring: /etc/apt/keyrings/jellyfin.gpg
+    jellyfin_sources: /etc/apt/sources.list.d/jellyfin.sources
+    # A pre-deb822 brrewery/Jellyfin install may have left a .list source behind.
+    jellyfin_legacy_list: /etc/apt/sources.list.d/jellyfin.list
+    jellyfin_network_xml: /etc/jellyfin/network.xml
+    # dpkg architectures Jellyfin publishes packages for.
+    jellyfin_supported_arches:
+      - amd64
+      - arm64
+      - armhf
+  roles:
+    # Resolves brrewery_user (the admin OS account, passed by the install API)
+    # and its primary group as brrewery_group — the group the jellyfin service
+    # account is added to so it can read that user's media.
+    - brrewery_user
   tasks:
-    - name: jellyfin install placeholder
+    - name: Require a Debian-family host for the Jellyfin apt repository
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Jellyfin is installed from an apt repository and requires a Debian/Ubuntu host (found {{ ansible_os_family }})"
+
+    - name: Resolve the host dpkg architecture
+      ansible.builtin.command: dpkg --print-architecture
+      register: jellyfin_dpkg_arch
+      changed_when: false
+
+    - name: Require an architecture Jellyfin publishes packages for
+      ansible.builtin.assert:
+        that:
+          - jellyfin_dpkg_arch.stdout in jellyfin_supported_arches
+        fail_msg: "No Jellyfin package is published for architecture {{ jellyfin_dpkg_arch.stdout }} (supported: {{ jellyfin_supported_arches | join(', ') }})"
+
+    - name: Ensure the apt keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download the Jellyfin signing key
+      ansible.builtin.get_url:
+        url: "{{ jellyfin_key_url }}"
+        dest: "{{ jellyfin_key_tmp }}"
+        mode: "0644"
+
+    - name: Install the Jellyfin signing key into the apt keyrings
+      # gpg --dearmor turns the ASCII key into the binary form Signed-By expects.
+      # Guarded by creates so re-runs do not rewrite (and churn) the keyring.
+      ansible.builtin.command:
+        cmd: "gpg --dearmor -o {{ jellyfin_keyring }} {{ jellyfin_key_tmp }}"
+        creates: "{{ jellyfin_keyring }}"
+
+    - name: Ensure the Jellyfin keyring is world-readable
+      ansible.builtin.file:
+        path: "{{ jellyfin_keyring }}"
+        mode: "0644"
+
+    - name: Remove the leftover Jellyfin key download
+      ansible.builtin.file:
+        path: "{{ jellyfin_key_tmp }}"
+        state: absent
+
+    - name: Remove any legacy Jellyfin apt source list
+      ansible.builtin.file:
+        path: "{{ jellyfin_legacy_list }}"
+        state: absent
+
+    - name: Write the Jellyfin deb822 apt source
+      # URIs is /debian on Debian and /ubuntu on Ubuntu; Suites is the host's
+      # release codename; Architectures pins the one arch dpkg reports.
+      ansible.builtin.copy:
+        dest: "{{ jellyfin_sources }}"
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: https://repo.jellyfin.org/{{ ansible_distribution | lower }}
+          Suites: {{ ansible_distribution_release }}
+          Components: main
+          Architectures: {{ jellyfin_dpkg_arch.stdout }}
+          Signed-By: {{ jellyfin_keyring }}
+
+    - name: Install Jellyfin from its apt repository
+      # The jellyfin metapackage pulls jellyfin-server, jellyfin-web and
+      # jellyfin-ffmpeg7; the .deb postinst creates the jellyfin user and
+      # enables+starts jellyfin.service.
+      ansible.builtin.apt:
+        name: jellyfin
+        state: present
+        update_cache: true
+
+    - name: Wait for Jellyfin to generate its network configuration
+      # The server writes /etc/jellyfin/network.xml on its first start (driven by
+      # the postinst). We must wait for it before editing the base URL.
+      ansible.builtin.wait_for:
+        path: "{{ jellyfin_network_xml }}"
+        timeout: 60
+
+    - name: Stop Jellyfin before editing its network configuration
+      ansible.builtin.systemd:
+        name: jellyfin.service
+        state: stopped
+
+    - name: Set the Jellyfin base URL to /jellyfin
+      # nginx preserves the /jellyfin/ prefix (no strip), so Jellyfin must serve
+      # under that base URL. Matches both the default self-closing <BaseUrl /> and
+      # an already-set <BaseUrl>…</BaseUrl>, so the task is idempotent.
+      ansible.builtin.replace:
+        path: "{{ jellyfin_network_xml }}"
+        regexp: '<BaseUrl\s*/>|<BaseUrl>.*?</BaseUrl>'
+        replace: "<BaseUrl>/jellyfin</BaseUrl>"
+
+    - name: Add the jellyfin service user to the brrewery group
+      ansible.builtin.user:
+        name: jellyfin
+        groups: "{{ brrewery_group }}"
+        append: true
+
+    - name: Look up the brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set the brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Read the brrewery home directory mode
+      ansible.builtin.stat:
+        path: "{{ brrewery_home }}"
+      register: brrewery_home_stat
+
+    - name: Open the brrewery home to its group so Jellyfin can enter (0700 -> 0750)
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}"
+        mode: "0750"
+      when:
+        - brrewery_home_stat.stat.exists
+        - brrewery_home_stat.stat.mode == "0700"
+
+    - name: Enable and start the Jellyfin service
+      ansible.builtin.systemd:
+        name: jellyfin.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for the Jellyfin HTTP port to accept connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ jellyfin_port }}"
+        timeout: 120
+
+    - name: Configure nginx reverse proxy for jellyfin
+      # strip_path_prefix=false: Jellyfin's BaseUrl serves under /jellyfin, so the
+      # prefix is preserved. websocket=true forwards the upgrade handshake the
+      # dashboard / SyncPlay / remote control rely on.
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: jellyfin
+        brrewery_app_web_path: /jellyfin/
+        brrewery_app_upstream: http://127.0.0.1:{{ jellyfin_port }}
+        brrewery_app_strip_path_prefix: false
+        brrewery_app_websocket: true
+
+    - name: Finish Jellyfin setup in your browser
       ansible.builtin.debug:
-        msg: "brrewery stub playbook for jellyfin install"
+        msg:
+          - "Jellyfin is now installed and running."
+          - "Finish the setup wizard at /jellyfin/ (open the Jellyfin app in the sidebar)."

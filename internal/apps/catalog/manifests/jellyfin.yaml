@@ -3,6 +3,10 @@ name: Jellyfin
 description: Media server
 category: media
 web_path: /jellyfin/
+# Install/upgrade/remove run apt with become: true; this collects the operator's
+# account password (reused as the sudo/become password, verified against the
+# brrewery account before the playbook runs).
+requires_account_password: true
 detection:
   binaries:
     - jellyfin

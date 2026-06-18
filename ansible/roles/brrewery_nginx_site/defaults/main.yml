@@ -5,3 +5,7 @@ brrewery_app_upstream: ""
 # When true, proxy_pass uses a trailing slash so nginx strips the web_path prefix
 # before forwarding (required for apps without a subpath base URL, e.g. qBittorrent).
 brrewery_app_strip_path_prefix: false
+# When true, the location forwards the WebSocket upgrade handshake so apps with
+# live features work through the proxy (e.g. Jellyfin's dashboard / SyncPlay /
+# remote control). Default off: existing apps render identically.
+brrewery_app_websocket: false

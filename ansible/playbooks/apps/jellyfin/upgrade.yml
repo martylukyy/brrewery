@@ -1,8 +1,164 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    jellyfin_port: 8096
+    jellyfin_key_url: https://repo.jellyfin.org/jellyfin_team.gpg.key
+    jellyfin_key_tmp: /tmp/jellyfin_team.gpg.key
+    jellyfin_keyring: /etc/apt/keyrings/jellyfin.gpg
+    jellyfin_sources: /etc/apt/sources.list.d/jellyfin.sources
+    jellyfin_legacy_list: /etc/apt/sources.list.d/jellyfin.list
+    jellyfin_network_xml: /etc/jellyfin/network.xml
+    jellyfin_supported_arches:
+      - amd64
+      - arm64
+      - armhf
+  roles:
+    - brrewery_user
   tasks:
-    - name: jellyfin upgrade placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for jellyfin upgrade"
+    - name: Require a Debian-family host for the Jellyfin apt repository
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Jellyfin is installed from an apt repository and requires a Debian/Ubuntu host (found {{ ansible_os_family }})"
+
+    - name: Resolve the host dpkg architecture
+      ansible.builtin.command: dpkg --print-architecture
+      register: jellyfin_dpkg_arch
+      changed_when: false
+
+    - name: Require an architecture Jellyfin publishes packages for
+      ansible.builtin.assert:
+        that:
+          - jellyfin_dpkg_arch.stdout in jellyfin_supported_arches
+        fail_msg: "No Jellyfin package is published for architecture {{ jellyfin_dpkg_arch.stdout }} (supported: {{ jellyfin_supported_arches | join(', ') }})"
+
+    # Re-assert the repository so an upgrade self-heals a missing/renamed key or
+    # source (e.g. an install that predates the deb822 source).
+    - name: Ensure the apt keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download the Jellyfin signing key
+      ansible.builtin.get_url:
+        url: "{{ jellyfin_key_url }}"
+        dest: "{{ jellyfin_key_tmp }}"
+        mode: "0644"
+
+    - name: Install the Jellyfin signing key into the apt keyrings
+      ansible.builtin.command:
+        cmd: "gpg --dearmor -o {{ jellyfin_keyring }} {{ jellyfin_key_tmp }}"
+        creates: "{{ jellyfin_keyring }}"
+
+    - name: Ensure the Jellyfin keyring is world-readable
+      ansible.builtin.file:
+        path: "{{ jellyfin_keyring }}"
+        mode: "0644"
+
+    - name: Remove the leftover Jellyfin key download
+      ansible.builtin.file:
+        path: "{{ jellyfin_key_tmp }}"
+        state: absent
+
+    - name: Remove any legacy Jellyfin apt source list
+      ansible.builtin.file:
+        path: "{{ jellyfin_legacy_list }}"
+        state: absent
+
+    - name: Write the Jellyfin deb822 apt source
+      ansible.builtin.copy:
+        dest: "{{ jellyfin_sources }}"
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: https://repo.jellyfin.org/{{ ansible_distribution | lower }}
+          Suites: {{ ansible_distribution_release }}
+          Components: main
+          Architectures: {{ jellyfin_dpkg_arch.stdout }}
+          Signed-By: {{ jellyfin_keyring }}
+
+    - name: Upgrade Jellyfin and its components to the latest packages
+      # The metapackage's version can lag the components, so the server, web and
+      # ffmpeg packages are upgraded explicitly alongside it.
+      ansible.builtin.apt:
+        name:
+          - jellyfin
+          - jellyfin-server
+          - jellyfin-web
+          - jellyfin-ffmpeg7
+        state: latest
+        update_cache: true
+
+    - name: Wait for the Jellyfin network configuration to exist
+      ansible.builtin.wait_for:
+        path: "{{ jellyfin_network_xml }}"
+        timeout: 60
+
+    - name: Stop Jellyfin before editing its network configuration
+      ansible.builtin.systemd:
+        name: jellyfin.service
+        state: stopped
+
+    - name: Re-affirm the Jellyfin base URL is /jellyfin
+      ansible.builtin.replace:
+        path: "{{ jellyfin_network_xml }}"
+        regexp: '<BaseUrl\s*/>|<BaseUrl>.*?</BaseUrl>'
+        replace: "<BaseUrl>/jellyfin</BaseUrl>"
+
+    - name: Re-affirm the jellyfin service user is in the brrewery group
+      ansible.builtin.user:
+        name: jellyfin
+        groups: "{{ brrewery_group }}"
+        append: true
+
+    - name: Look up the brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set the brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Read the brrewery home directory mode
+      ansible.builtin.stat:
+        path: "{{ brrewery_home }}"
+      register: brrewery_home_stat
+
+    - name: Open the brrewery home to its group so Jellyfin can enter (0700 -> 0750)
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}"
+        mode: "0750"
+      when:
+        - brrewery_home_stat.stat.exists
+        - brrewery_home_stat.stat.mode == "0700"
+
+    - name: Ensure the Jellyfin service is enabled and running after upgrade
+      ansible.builtin.systemd:
+        name: jellyfin.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for the Jellyfin HTTP port to accept connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ jellyfin_port }}"
+        timeout: 120
+
+    - name: Configure nginx reverse proxy for jellyfin
+      # Re-asserted so an older install (written before the WebSocket flag) gains
+      # the upgrade-handshake headers Jellyfin's live features need.
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: jellyfin
+        brrewery_app_web_path: /jellyfin/
+        brrewery_app_upstream: http://127.0.0.1:{{ jellyfin_port }}
+        brrewery_app_strip_path_prefix: false
+        brrewery_app_websocket: true

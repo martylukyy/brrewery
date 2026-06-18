@@ -1,8 +1,96 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    jellyfin_keyring: /etc/apt/keyrings/jellyfin.gpg
+    jellyfin_sources: /etc/apt/sources.list.d/jellyfin.sources
+    jellyfin_legacy_list: /etc/apt/sources.list.d/jellyfin.list
+    jellyfin_defaults: /etc/default/jellyfin
+    # apt purge of jellyfin-server removes these dirs and the jellyfin user, but
+    # they are deleted explicitly so removal is clean even if a purge is partial.
+    jellyfin_data_dirs:
+      - /var/lib/jellyfin
+      - /etc/jellyfin
+      - /var/cache/jellyfin
+      - /var/log/jellyfin
+  roles:
+    - brrewery_user
   tasks:
-    - name: jellyfin remove placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for jellyfin remove"
+    - name: Require a Debian-family host for the apt purge
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Jellyfin is managed via apt and requires a Debian/Ubuntu host (found {{ ansible_os_family }})"
+
+    - name: Stop and disable the Jellyfin service
+      ansible.builtin.systemd:
+        name: jellyfin.service
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Remove nginx reverse proxy for jellyfin
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+        tasks_from: remove
+      vars:
+        brrewery_app_id: jellyfin
+
+    - name: Purge Jellyfin and its components
+      # purge removes package configuration; autoremove drops jellyfin-ffmpeg7 and
+      # any other dependency no longer needed.
+      ansible.builtin.apt:
+        name:
+          - jellyfin
+          - jellyfin-server
+          - jellyfin-web
+          - jellyfin-ffmpeg7
+        state: absent
+        purge: true
+        autoremove: true
+      notify: Reload systemd
+
+    - name: Remove the Jellyfin apt source, legacy list and signing key
+      # apt purge does not remove these — the repo/keyring are dropped manually so
+      # the OS package manager no longer tracks Jellyfin.
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ jellyfin_sources }}"
+        - "{{ jellyfin_legacy_list }}"
+        - "{{ jellyfin_keyring }}"
+        - "{{ jellyfin_defaults }}"
+
+    - name: Remove Jellyfin config, data, cache and logs
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ jellyfin_data_dirs }}"
+
+    - name: Look up the brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Read the brrewery home directory mode
+      ansible.builtin.stat:
+        path: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+      register: brrewery_home_stat
+
+    - name: Revert the brrewery home directory mode opened for Jellyfin (0750 -> 0700)
+      ansible.builtin.file:
+        path: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+        mode: "0700"
+      when:
+        - brrewery_home_stat.stat.exists
+        - brrewery_home_stat.stat.mode == "0750"
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

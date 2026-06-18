@@ -7,6 +7,10 @@ location = {{ brrewery_app_web_path[:-1] }} {
 location ^~ {{ brrewery_app_web_path }} {
     include /etc/nginx/nginxconfig.io/proxy.conf;
     proxy_set_header X-Forwarded-Host $http_host;
+{% if brrewery_app_websocket | bool %}
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $http_connection;
+{% endif %}
 {% if brrewery_app_strip_path_prefix | bool %}
     proxy_set_header Host $proxy_host;
     proxy_pass {{ brrewery_app_upstream | regex_replace('/$', '') }}/;
