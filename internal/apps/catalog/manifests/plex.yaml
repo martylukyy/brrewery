@@ -2,7 +2,18 @@ id: plex
 name: Plex
 description: Media server
 category: media
-web_path: /plex/
+# Plex is not reverse-proxied (its web client addresses the server at the origin
+# root, which a subpath proxy cannot satisfy). Like swizzin, it is served on its
+# own port; the dashboard link opens the current host on :32400/web. The empty
+# host in this URL is the port form understood by the frontend's appUrl(), which
+# fills in the current hostname (plain HTTP avoids a cert prompt on the raw IP).
+web_path: "http://:32400/web"
+# Plex is installed from the official Plex download API as a .deb and runs as the
+# system "plex" user the package creates — brrewery provisions no per-user
+# account. The shared password prompt is collected only to supply the sudo
+# (become) password the dpkg install needs; it is verified against the brrewery
+# account before the playbook runs.
+requires_account_password: true
 detection:
   systemd_units:
     - plexmediaserver.service

@@ -1,8 +1,136 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    plex_port: 32400
+    plex_downloads_api: https://plex.tv/api/downloads/5.json
+    plex_deb_path: /tmp/plexmediaserver.deb
+    plex_apt_source: /etc/apt/sources.list.d/plexmediaserver.list
+    plex_build_by_arch:
+      x86_64: linux-x86_64
+      aarch64: linux-aarch64
+  roles:
+    # Resolves brrewery_user / brrewery_group — the group the plex service
+    # account is added to so it can read that user's media.
+    - brrewery_user
   tasks:
-    - name: plex upgrade placeholder
+    - name: Require a Debian-family host for the Plex .deb
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Plex is installed from a .deb and requires a Debian/Ubuntu host (found {{ ansible_os_family }})"
+
+    - name: Resolve the Plex build for this architecture
+      ansible.builtin.set_fact:
+        plex_build: "{{ plex_build_by_arch[ansible_architecture] | default('') }}"
+
+    - name: Fail on an unsupported architecture
+      ansible.builtin.assert:
+        that:
+          - plex_build | length > 0
+        fail_msg: "No Plex .deb is available for architecture {{ ansible_architecture }} (supported: {{ plex_build_by_arch.keys() | list | join(', ') }})"
+
+    - name: Read the installed Plex package version
+      ansible.builtin.command: dpkg-query -W -f='${Version}' plexmediaserver
+      register: plex_installed_version
+      failed_when: false
+      changed_when: false
+
+    - name: Fetch the Plex download catalog
+      ansible.builtin.uri:
+        url: "{{ plex_downloads_api }}"
+        return_content: true
+      register: plex_catalog
+
+    - name: Resolve the latest Plex version and .deb URL
+      ansible.builtin.set_fact:
+        plex_latest_version: "{{ plex_catalog.json.computer.Linux.version }}"
+        plex_deb_url: >-
+          {{ (plex_catalog.json.computer.Linux.releases
+              | selectattr('distro', 'equalto', 'debian')
+              | selectattr('build', 'equalto', plex_build)
+              | map(attribute='url')
+              | first) }}
+
+    - name: Fail when no Plex .deb matched this host
+      ansible.builtin.assert:
+        that:
+          - plex_deb_url | length > 0
+        fail_msg: "No Plex .deb found for {{ ansible_architecture }} (distro=debian, build={{ plex_build }}); the Plex download API may have changed"
+
+    - name: Report that Plex is already up to date
       ansible.builtin.debug:
-        msg: "brrewery stub playbook for plex upgrade"
+        msg: "Plex is already at the latest version ({{ plex_latest_version }}); nothing to upgrade."
+      when: plex_installed_version.stdout == plex_latest_version
+
+    - name: Download the latest Plex .deb
+      ansible.builtin.get_url:
+        url: "{{ plex_deb_url }}"
+        dest: "{{ plex_deb_path }}"
+        mode: "0644"
+      when: plex_installed_version.stdout != plex_latest_version
+
+    - name: Upgrade Plex from the downloaded .deb
+      # dpkg, not apt: the package comes from the Plex download API. dpkg upgrades
+      # the already-installed plexmediaserver in place and its postinst restarts
+      # the service.
+      ansible.builtin.command: dpkg --install "{{ plex_deb_path }}"
+      register: plex_dpkg
+      when: plex_installed_version.stdout != plex_latest_version
+      changed_when: plex_dpkg.rc == 0
+      notify: Restart Plex
+
+    - name: Remove the leftover Plex .deb
+      ansible.builtin.file:
+        path: "{{ plex_deb_path }}"
+        state: absent
+
+    - name: Disable the apt source the Plex package re-installs
+      ansible.builtin.file:
+        path: "{{ plex_apt_source }}"
+        state: absent
+
+    - name: Enable and start the Plex service
+      ansible.builtin.systemd:
+        name: plexmediaserver.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Add the plex service user to the brrewery group
+      ansible.builtin.user:
+        name: plex
+        groups: "{{ brrewery_group }}"
+        append: true
+      notify: Restart Plex
+
+    - name: Look up the brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set the brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Read the brrewery home directory mode
+      ansible.builtin.stat:
+        path: "{{ brrewery_home }}"
+      register: brrewery_home_stat
+
+    - name: Open the brrewery home to its group so Plex can enter (0700 -> 0750)
+      ansible.builtin.file:
+        path: "{{ brrewery_home }}"
+        mode: "0750"
+      when:
+        - brrewery_home_stat.stat.exists
+        - brrewery_home_stat.stat.mode == "0700"
+
+  handlers:
+    - name: Restart Plex
+      ansible.builtin.systemd:
+        name: plexmediaserver.service
+        state: restarted

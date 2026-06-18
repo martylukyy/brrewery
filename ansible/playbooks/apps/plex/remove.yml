@@ -1,8 +1,82 @@
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  become: true
+  gather_facts: true
+  vars:
+    plex_apt_source: /etc/apt/sources.list.d/plexmediaserver.list
+    # Plex's library database, metadata and transcoder cache. Removed for a clean
+    # uninstall, matching how brrewery removes other apps' data.
+    plex_data_dir: /var/lib/plexmediaserver
   tasks:
-    - name: plex remove placeholder
-      ansible.builtin.debug:
-        msg: "brrewery stub playbook for plex remove"
+    - name: Require a Debian-family host for the dpkg purge
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Plex is managed as a .deb and requires a Debian/Ubuntu host (found {{ ansible_os_family }})"
+
+    - name: Stop and disable the Plex service
+      ansible.builtin.systemd:
+        name: plexmediaserver.service
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Read the installed Plex package version
+      ansible.builtin.command: dpkg-query -W -f='${Version}' plexmediaserver
+      register: plex_installed_version
+      failed_when: false
+      changed_when: false
+
+    - name: Purge the Plex package
+      # dpkg, not apt: mirrors the download-API install path. --purge removes the
+      # binaries, the systemd unit and the package's own configuration. Gated on
+      # the package being installed so re-runs are idempotent, and without a
+      # failed_when override so a genuine purge failure fails the play (rather
+      # than leaving the unit behind for the post-run detection to flag).
+      ansible.builtin.command: dpkg --purge plexmediaserver
+      register: plex_purge
+      when: plex_installed_version.stdout | length > 0
+      changed_when: plex_purge.rc == 0
+      notify: Reload systemd
+
+    - name: Remove the apt source the Plex package installed
+      ansible.builtin.file:
+        path: "{{ plex_apt_source }}"
+        state: absent
+
+    - name: Remove any Plex systemd override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/plexmediaserver.service.d
+        state: absent
+      notify: Reload systemd
+
+    - name: Remove Plex data, metadata and cache
+      ansible.builtin.file:
+        path: "{{ plex_data_dir }}"
+        state: absent
+
+    - name: Look up the brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Read the brrewery home directory mode
+      ansible.builtin.stat:
+        path: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+      register: brrewery_home_stat
+
+    - name: Revert the brrewery home directory mode opened for Plex (0750 -> 0700)
+      ansible.builtin.file:
+        path: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+        mode: "0700"
+      when:
+        - brrewery_home_stat.stat.exists
+        - brrewery_home_stat.stat.mode == "0750"
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
