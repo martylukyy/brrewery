@@ -13,7 +13,6 @@ curl -fsSL -o "${DEST}/prowlarr.png" "https://raw.githubusercontent.com/Prowlarr
 curl -fsSL -o "${DEST}/lidarr.png" "https://raw.githubusercontent.com/Lidarr/Lidarr/develop/Logo/256.png"
 curl -fsSL -o "${DEST}/deluge.png" "https://raw.githubusercontent.com/deluge-torrent/deluge/develop/deluge/ui/data/pixmaps/deluge.png"
 curl -fsSL -o "${DEST}/rutorrent.png" "https://raw.githubusercontent.com/Novik/ruTorrent/master/images/logo.png"
-curl -fsSL -o "${DEST}/filebrowser.png" "https://raw.githubusercontent.com/filebrowser/logo/master/icon.png"
 
 # PNG-only sources where upstream ships ICO or blocks direct favicon fetches (dashboard-icons artwork).
 curl -fsSL -o "${DEST}/qbittorrent.png" "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/qbittorrent.png"
