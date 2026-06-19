@@ -225,4 +225,4 @@
       ansible.builtin.debug:
         msg:
           - "Jellyfin is now installed and running."
-          - "Finish the setup wizard at /jellyfin/ (open the Jellyfin app in the sidebar)."
+          - "Continue with the Jellyfin setup wizard by opening the Jellyfin app in the sidebar."
