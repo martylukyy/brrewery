@@ -19,7 +19,6 @@ curl -fsSL -o "${DEST}/filebrowser.png" "https://raw.githubusercontent.com/fileb
 curl -fsSL -o "${DEST}/qbittorrent.png" "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/qbittorrent.png"
 curl -fsSL -o "${DEST}/sabnzbd.png" "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/sabnzbd.png"
 curl -fsSL -o "${DEST}/jellyfin.png" "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/jellyfin.png"
-curl -fsSL -o "${DEST}/emby.png" "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/emby.png"
 curl -fsSL -o "${DEST}/plex.png" "https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/plex.png"
 
 echo "App icons updated in ${DEST}"
