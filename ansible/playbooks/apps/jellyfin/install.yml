@@ -56,6 +56,14 @@
         dest: "{{ jellyfin_key_tmp }}"
         mode: "0644"
 
+    - name: Ensure gnupg is installed for the dearmor step
+      # The dearmor below shells out to gpg, which a minimal Debian host may not
+      # have. gnupg ships it; apt is idempotent so this is a no-op once present.
+      ansible.builtin.apt:
+        name: gnupg
+        state: present
+        update_cache: true
+
     - name: Install the Jellyfin signing key into the apt keyrings
       # gpg --dearmor turns the ASCII key into the binary form Signed-By expects.
       # Guarded by creates so re-runs do not rewrite (and churn) the keyring.
@@ -101,17 +109,30 @@
         state: present
         update_cache: true
 
-    - name: Wait for Jellyfin to generate its network configuration
-      # The server writes /etc/jellyfin/network.xml on its first start (driven by
-      # the postinst). We must wait for it before editing the base URL.
-      ansible.builtin.wait_for:
-        path: "{{ jellyfin_network_xml }}"
-        timeout: 60
-
     - name: Stop Jellyfin before editing its network configuration
       ansible.builtin.systemd:
         name: jellyfin.service
         state: stopped
+
+    - name: Ensure a Jellyfin network configuration file exists
+      # Jellyfin 10.11 keeps network settings in its database and no longer
+      # writes /etc/jellyfin/network.xml on first start (older releases did),
+      # so we seed a default one ourselves rather than waiting for a file that
+      # never appears. Jellyfin still reads network.xml on every start, so the
+      # base URL set below is honoured. force: false leaves an existing file
+      # (e.g. one a previous run or the user customised) untouched — the
+      # replace task below only normalises the BaseUrl.
+      ansible.builtin.copy:
+        dest: "{{ jellyfin_network_xml }}"
+        owner: jellyfin
+        group: jellyfin
+        mode: "0644"
+        force: false
+        content: |
+          <?xml version="1.0" encoding="utf-8"?>
+          <NetworkConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+            <BaseUrl />
+          </NetworkConfiguration>
 
     - name: Set the Jellyfin base URL to /jellyfin
       # nginx preserves the /jellyfin/ prefix (no strip), so Jellyfin must serve
@@ -163,6 +184,27 @@
         host: 127.0.0.1
         port: "{{ jellyfin_port }}"
         timeout: 120
+
+    - name: Get the current Jellyfin systemd invocation ID
+      # Scope the journal search below to this start of the service, so a
+      # "Startup complete" line from an earlier run cannot satisfy the wait.
+      ansible.builtin.command: systemctl show -p InvocationID --value jellyfin.service
+      register: jellyfin_invocation
+      changed_when: false
+
+    - name: Wait for Jellyfin to finish starting up
+      # The HTTP port binds before Jellyfin is fully initialised, so we wait for
+      # its authoritative "[INF] Startup complete" log line rather than trust the
+      # open port. journalctl exits 0 with no output until the line appears, so
+      # the until loop simply retries.
+      ansible.builtin.command: >-
+        journalctl --quiet --no-pager
+        _SYSTEMD_INVOCATION_ID={{ jellyfin_invocation.stdout }}
+      register: jellyfin_startup_log
+      until: "'Startup complete' in jellyfin_startup_log.stdout"
+      retries: 30
+      delay: 4
+      changed_when: false
 
     - name: Configure nginx reverse proxy for jellyfin
       # strip_path_prefix=false: Jellyfin's BaseUrl serves under /jellyfin, so the
