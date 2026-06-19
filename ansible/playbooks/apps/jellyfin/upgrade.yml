@@ -183,16 +183,19 @@
 
     - name: Wait for Jellyfin to finish starting up
       # An upgrade runs database migrations on the new version's first start, and
-      # the HTTP port binds before those finish, so we wait for the authoritative
-      # "[INF] Startup complete" log line. journalctl exits 0 with no output until
-      # the line appears, so the until loop simply retries.
-      ansible.builtin.command: >-
-        journalctl --quiet --no-pager
+      # the HTTP port binds before those finish, so we block on the authoritative
+      # "[INF] Startup complete" log line. journalctl --follow streams this
+      # invocation's log (--lines=all replays the backlog first, so an
+      # already-written line is caught) and grep -m1 exits on the first match,
+      # closing the pipe; timeout bounds the wait. A single blocking command is
+      # used rather than an until/retries loop so the run is not spammed with
+      # "FAILED - RETRYING" lines, and it returns the instant the line appears.
+      # No pipefail: the pipeline's exit status is grep's (0 found / non-zero
+      # timed out), which is exactly the pass/fail signal we want.
+      ansible.builtin.shell: >-
+        timeout 60 journalctl --quiet --no-pager --follow --lines=all
         _SYSTEMD_INVOCATION_ID={{ jellyfin_invocation.stdout }}
-      register: jellyfin_startup_log
-      until: "'Startup complete' in jellyfin_startup_log.stdout"
-      retries: 30
-      delay: 4
+        | grep -m1 'Startup complete'
       changed_when: false
 
     - name: Configure nginx reverse proxy for jellyfin
