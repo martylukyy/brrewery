@@ -810,6 +810,21 @@ paths:
       summary: Historic traffic from vnstat
       security:
         - SessionAuth: []
+      parameters:
+        - name: days
+          in: query
+          required: true
+          description: Number of days of daily history to return
+          schema:
+            type: integer
+            minimum: 1
+        - name: months
+          in: query
+          required: true
+          description: Number of months of monthly history to return
+          schema:
+            type: integer
+            minimum: 1
       responses:
         '200':
           description: vnstat report or not-installed notice
@@ -817,6 +832,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VnstatReport'
+        '400':
+          description: Invalid or missing query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
           content:

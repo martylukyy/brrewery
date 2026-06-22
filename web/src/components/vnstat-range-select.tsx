@@ -20,13 +20,16 @@ export function VnstatRangeSelect({ value, onChange, id = "vnstat-range" }: Prop
       <Label htmlFor={id} className="text-xs text-muted-foreground">
         Range
       </Label>
-      <Select value={value} onValueChange={(next) => onChange(next as VnstatRangeId)}>
+      <Select
+        value={String(value)}
+        onValueChange={(next) => onChange(Number(next) as VnstatRangeId)}
+      >
         <SelectTrigger id={id} size="sm" className="text-xs" aria-label="vnStat range">
           <SelectValue />
         </SelectTrigger>
         <SelectContent position="popper" align="end">
           {VNSTAT_RANGE_OPTIONS.map((option) => (
-            <SelectItem key={option.id} value={option.id} className="text-xs">
+            <SelectItem key={option.id} value={String(option.id)} className="text-xs">
               {option.label}
             </SelectItem>
           ))}

@@ -319,8 +319,10 @@ export type VnstatReport = {
   months?: TrafficPeriod[];
 };
 
-export function getVnstatReport() {
-  return apiFetch<VnstatReport>("/traffic/vnstat");
+export function getVnstatReport(params: { days: number; months: number }) {
+  return apiFetch<VnstatReport>(
+    `/traffic/vnstat?days=${params.days}&months=${params.months}`,
+  );
 }
 
 export type SysctlKind = "integer" | "integer_list" | "enum";

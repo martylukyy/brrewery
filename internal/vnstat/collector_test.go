@@ -20,6 +20,7 @@ type mockRunner struct {
 	lookPathErr error
 	outputs     map[string][]byte
 	outputErr   error
+	limits      map[string]string
 }
 
 func (m *mockRunner) LookPath(string) (string, error) {
@@ -37,6 +38,12 @@ func (m *mockRunner) Output(_ context.Context, _ string, args ...string) ([]byte
 	if len(args) >= 2 {
 		key = args[1]
 	}
+	if len(args) >= 3 {
+		if m.limits == nil {
+			m.limits = map[string]string{}
+		}
+		m.limits[key] = args[2]
+	}
 	data, ok := m.outputs[key]
 	if !ok {
 		return nil, errors.New("unexpected args")
@@ -48,7 +55,7 @@ func TestCollector_Collect_notInstalled(t *testing.T) {
 	t.Parallel()
 
 	c := &Collector{runner: &mockRunner{lookPathErr: errors.New("missing")}}
-	report, err := c.Collect(context.Background())
+	report, err := c.Collect(context.Background(), 14, 12)
 	require.NoError(t, err)
 	assert.False(t, report.Installed)
 	assert.Contains(t, report.Message, "not installed")
@@ -57,18 +64,22 @@ func TestCollector_Collect_notInstalled(t *testing.T) {
 func TestCollector_Collect_parsesHistory(t *testing.T) {
 	t.Parallel()
 
-	c := &Collector{runner: &mockRunner{
+	runner := &mockRunner{
 		outputs: map[string][]byte{
 			"d": sampleDays,
 			"m": sampleMonths,
 		},
-	}}
+	}
+	c := &Collector{runner: runner}
 
-	report, err := c.Collect(context.Background())
+	report, err := c.Collect(context.Background(), 14, 12)
 	require.NoError(t, err)
 	require.True(t, report.Installed)
 	require.Len(t, report.Days, 2)
 	require.Len(t, report.Months, 2)
+
+	assert.Equal(t, "14", runner.limits["d"])
+	assert.Equal(t, "12", runner.limits["m"])
 
 	assert.Equal(t, "2026-05-29", report.Days[0].Label)
 	assert.Equal(t, uint64(1_000_000), report.Days[0].RxBytes)

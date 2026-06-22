@@ -17,12 +17,18 @@ import {
 import { useSetting } from "@/hooks/use-setting";
 import { getVnstatReport, type TrafficPeriod } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
-import { DEFAULT_VNSTAT_RANGE, isVnstatRangeId, type VnstatRangeId } from "@/lib/vnstat-range";
+import {
+  DEFAULT_VNSTAT_RANGE,
+  isVnstatRangeId,
+  VNSTAT_RANGE_OPTIONS,
+  vnstatReportRequest,
+  type VnstatRangeId,
+} from "@/lib/vnstat-range";
 
 export function VnstatPanel() {
   const vnstat = useQuery({
     queryKey: ["vnstat"],
-    queryFn: getVnstatReport,
+    queryFn: () => getVnstatReport(vnstatReportRequest()),
     refetchInterval: 60_000,
   });
   const [range, setRange] = useSetting<VnstatRangeId>(
@@ -32,24 +38,18 @@ export function VnstatPanel() {
   );
   const report = vnstat.data;
   const tableConfig = useMemo(() => {
-    switch (range) {
-      case "months":
-        return {
-          periods: report?.months ?? [],
-        };
-      case "top10":
-        return {
-          periods: [...(report?.days ?? [])]
-            .sort((a, b) => b.rx_bytes + b.tx_bytes - (a.rx_bytes + a.tx_bytes))
-            .slice(0, 10),
-        };
-      case "days":
-      default:
-        return {
-          periods: report?.days ?? [],
-        };
+    const option = VNSTAT_RANGE_OPTIONS.find((o) => o.id === range) ?? VNSTAT_RANGE_OPTIONS[0];
+    const periods = report?.[option.source] ?? [];
+    if (option.sort === "total") {
+      return {
+        periods: [...periods]
+          .sort((a, b) => b.rx_bytes + b.tx_bytes - (a.rx_bytes + a.tx_bytes))
+          .slice(0, option.limit),
+        reverse: false,
+      };
     }
-  }, [range, report?.days, report?.months]);
+    return { periods: periods.slice(-option.limit), reverse: true };
+  }, [range, report]);
 
   if (vnstat.isLoading) {
     return (
@@ -89,7 +89,7 @@ export function VnstatPanel() {
       }
     >
       <div>
-        <TrafficTable periods={tableConfig.periods} reverse={range !== "top10"} />
+        <TrafficTable periods={tableConfig.periods} reverse={tableConfig.reverse} />
       </div>
     </Panel>
   );

@@ -5,14 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"time"
 )
 
-const (
-	dayLimit   = 30
-	monthLimit = 12
-	runTimeout = 10 * time.Second
-)
+const runTimeout = 10 * time.Second
 
 var ErrNotInstalled = errors.New("vnstat is not installed")
 
@@ -40,7 +37,10 @@ func NewCollector() *Collector {
 	return &Collector{runner: execRunner{}}
 }
 
-func (c *Collector) Collect(ctx context.Context) (Report, error) {
+// Collect reads the last dayLimit days and monthLimit months of traffic. The
+// limits are supplied by the caller so the available ranges can be defined by
+// the frontend rather than hardcoded here.
+func (c *Collector) Collect(ctx context.Context, dayLimit, monthLimit int) (Report, error) {
 	if _, err := c.runner.LookPath("vnstat"); err != nil {
 		return Report{
 			Installed: false,
@@ -51,12 +51,12 @@ func (c *Collector) Collect(ctx context.Context) (Report, error) {
 	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
 	defer cancel()
 
-	dayJSON, err := c.runner.Output(runCtx, "vnstat", "--json", "d", fmt.Sprintf("%d", dayLimit))
+	dayJSON, err := c.runner.Output(runCtx, "vnstat", "--json", "d", strconv.Itoa(dayLimit))
 	if err != nil {
 		return Report{}, fmt.Errorf("vnstat days: %w", err)
 	}
 
-	monthJSON, err := c.runner.Output(runCtx, "vnstat", "--json", "m", fmt.Sprintf("%d", monthLimit))
+	monthJSON, err := c.runner.Output(runCtx, "vnstat", "--json", "m", strconv.Itoa(monthLimit))
 	if err != nil {
 		return Report{}, fmt.Errorf("vnstat months: %w", err)
 	}
