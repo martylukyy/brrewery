@@ -4,15 +4,19 @@ brrewery ships nginx configuration under `contrib/nginx/`, deployed to `/etc/ngi
 
 ## sites-available / sites-enabled
 
-The dashboard vhost lives in:
+The dashboard vhost **is** nginx's default site — it replaces the distro's
+`default` vhost rather than living alongside it:
 
-- `sites-available/brrewery.conf`
-- enabled via symlink: `sites-enabled/brrewery.conf` → `../sites-available/brrewery.conf`
+- `sites-available/default`
+- enabled via symlink: `sites-enabled/default` → `../sites-available/default`
 
-The install script runs:
+The default site name has no `.conf` extension, so the app-snippet glob inside the
+vhost (`sites-enabled/*.conf`) never re-includes it; `nginx.conf` includes the vhost
+explicitly by that name. The install script runs:
 
 ```bash
-ln -sf ../sites-available/brrewery.conf /etc/nginx/sites-enabled/brrewery.conf
+install -m 0644 contrib/nginx/sites-available/default /etc/nginx/sites-available/default
+ln -sf ../sites-available/default /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 ```
 
@@ -24,7 +28,7 @@ nginx -t && systemctl reload nginx
 | `/assets/…`, other real files | Served directly from `/var/www/brrewery` |
 | `/api/` | Go backend `127.0.0.1:8080` |
 | `/health` | Go backend health endpoint |
-| `/autobrr/` (and other installed apps) | Reverse-proxied via snippets in `/etc/nginx/brrewery/apps/` |
+| `/autobrr/` (and other installed apps) | Reverse-proxied via `<id>.conf` location snippets enabled in `/etc/nginx/sites-enabled/` |
 | anything else | `404` serving the SPA shell, so the in-app React 404 renders |
 
 The dashboard is a TanStack Router SPA. Its **known routes** (`/`, `/login`) each
@@ -40,14 +44,21 @@ HTTP (port 80) redirects to HTTPS (port 443). TLS material defaults to `/etc/ssl
 
 ## App reverse proxies
 
-Installed apps add nginx location snippets under `/etc/nginx/brrewery/apps/` via the Ansible `brrewery_nginx_site` role. The dashboard vhost includes them before the SPA catch-all:
+Installed apps add nginx location snippets via the Ansible `brrewery_nginx_site` role. Each snippet is written to `sites-available/<id>.conf` and enabled by a symlink into `sites-enabled/`, mirroring the dashboard vhost's layout:
+
+- `sites-available/radarr.conf`
+- enabled via symlink: `sites-enabled/radarr.conf` → `../sites-available/radarr.conf`
+
+These snippets are **location blocks, not server blocks** — the dashboard vhost includes the enabled ones inside its `server {}` before the SPA catch-all:
 
 ```nginx
-include /etc/nginx/brrewery/apps/*.conf;
+include /etc/nginx/sites-enabled/*.conf;
 ```
 
-## nginxconfig.io snippets
+Because that glob runs **inside** the `server {}` block, only `location`-level snippets may live in `sites-enabled/` as `.conf` files. The dashboard vhost itself is the lone server block, so it is enabled as the **default site** (`sites-enabled/default`, no `.conf` extension) and included explicitly from `nginx.conf` — that keeps the `*.conf` glob from re-including the vhost (which would nest a `server {}` inside a `server {}`) and keeps a `location` snippet from ever being loaded at the http context (which fails with *"location directive is not allowed here"*). Removing an app deletes both the symlink and the `sites-available` file and reloads nginx.
 
-Shared snippets are under `nginxconfig.io/` (`general.conf`, `security.conf`, `proxy.conf`, `ssl.conf`), following the [nginxconfig.io](https://github.com/digitalocean/nginxconfig.io) layout.
+## Shared snippets
+
+Shared snippets (`general.conf`, `security.conf`, `proxy.conf`, `ssl.conf`, adapted from [nginxconfig.io](https://github.com/digitalocean/nginxconfig.io)) live directly under `/etc/nginx/`. `nginx.conf` includes them explicitly — not via a glob, since `/etc/nginx/*.conf` would match `nginx.conf` itself and recurse.
 
 Per-app reverse-proxy snippets are installed by Ansible playbooks using the `brrewery_nginx_site` role.

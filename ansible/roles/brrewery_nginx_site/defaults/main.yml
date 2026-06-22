@@ -1,4 +1,11 @@
-brrewery_nginx_apps_dir: /etc/nginx/brrewery/apps
+# App reverse-proxy snippets live in sites-available and are enabled by a symlink
+# into sites-enabled, matching the dashboard vhost's layout. The dashboard vhost
+# includes the enabled snippets via sites-enabled/*.conf; it stays out of that glob
+# by being the default site, symlinked without a .conf extension (sites-enabled/default),
+# so app snippets keep plain <id>.conf names with no prefix.
+brrewery_nginx_sites_available: /etc/nginx/sites-available
+brrewery_nginx_sites_enabled: /etc/nginx/sites-enabled
+brrewery_nginx_app_conf_name: "{{ brrewery_app_id }}.conf"
 brrewery_app_id: ""
 brrewery_app_web_path: ""
 brrewery_app_upstream: ""

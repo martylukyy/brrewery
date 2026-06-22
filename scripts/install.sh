@@ -210,16 +210,14 @@ fi
 
 run_with_spinner "Configuring nginx" bash -c "
   install -d -m 0755 \"$NGINX_ETC/sites-available\" \"$NGINX_ETC/sites-enabled\" &&
-    install -d -m 0755 \"$NGINX_ETC/nginxconfig.io\" &&
-    install -d -m 0755 /etc/nginx/brrewery/apps &&
     install -m 0644 \"$SOURCE_DIR/contrib/nginx/nginx.conf\" \"$NGINX_ETC/nginx.conf\" &&
-    install -m 0644 \"$SOURCE_DIR/contrib/nginx/nginxconfig.io/general.conf\" \"$NGINX_ETC/nginxconfig.io/general.conf\" &&
-    install -m 0644 \"$SOURCE_DIR/contrib/nginx/nginxconfig.io/security.conf\" \"$NGINX_ETC/nginxconfig.io/security.conf\" &&
-    install -m 0644 \"$SOURCE_DIR/contrib/nginx/nginxconfig.io/proxy.conf\" \"$NGINX_ETC/nginxconfig.io/proxy.conf\" &&
-    install -m 0644 \"$SOURCE_DIR/contrib/nginx/nginxconfig.io/ssl.conf\" \"$NGINX_ETC/nginxconfig.io/ssl.conf\" &&
-    install -m 0644 \"$SOURCE_DIR/contrib/nginx/sites-available/brrewery.conf\" \"$NGINX_ETC/sites-available/brrewery.conf\" &&
-    rm -f \"$NGINX_ETC/sites-enabled/default\" \"$NGINX_ETC/sites-available/default\" &&
-    ln -sf ../sites-available/brrewery.conf \"$NGINX_ETC/sites-enabled/brrewery.conf\" &&
+    install -m 0644 \"$SOURCE_DIR/contrib/nginx/general.conf\" \"$NGINX_ETC/general.conf\" &&
+    install -m 0644 \"$SOURCE_DIR/contrib/nginx/security.conf\" \"$NGINX_ETC/security.conf\" &&
+    install -m 0644 \"$SOURCE_DIR/contrib/nginx/proxy.conf\" \"$NGINX_ETC/proxy.conf\" &&
+    install -m 0644 \"$SOURCE_DIR/contrib/nginx/ssl.conf\" \"$NGINX_ETC/ssl.conf\" &&
+    install -m 0644 \"$SOURCE_DIR/contrib/nginx/sites-available/default\" \"$NGINX_ETC/sites-available/default\" &&
+    rm -rf \"$NGINX_ETC/sites-enabled/brrewery\" \"$NGINX_ETC/sites-enabled/brrewery.conf\" \"$NGINX_ETC/sites-available/brrewery.conf\" \"$NGINX_ETC/nginxconfig.io\" &&
+    ln -sf ../sites-available/default \"$NGINX_ETC/sites-enabled/default\" &&
     nginx -t &&
     systemctl enable nginx &&
     (systemctl reload nginx || systemctl start nginx)
@@ -240,4 +238,3 @@ run_with_log "Creating admin user" bash -c "
 "
 
 echo "✓ brrewery installed"
-echo "  Access the dashboard at: https://127.0.0.1/"

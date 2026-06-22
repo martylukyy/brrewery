@@ -7,15 +7,26 @@
       - brrewery_app_upstream | length > 0
     fail_msg: brrewery_nginx_site requires brrewery_app_id, brrewery_app_web_path, and brrewery_app_upstream
 
-- name: Ensure brrewery nginx apps directory exists
+- name: Ensure nginx sites-available and sites-enabled directories exist
   ansible.builtin.file:
-    path: "{{ brrewery_nginx_apps_dir }}"
+    path: "{{ item }}"
     state: directory
     mode: "0755"
+  loop:
+    - "{{ brrewery_nginx_sites_available }}"
+    - "{{ brrewery_nginx_sites_enabled }}"
 
-- name: Install app nginx location
+- name: Install app nginx location into sites-available
   ansible.builtin.template:
     src: location.conf.j2
-    dest: "{{ brrewery_nginx_apps_dir }}/{{ brrewery_app_id }}.conf"
+    dest: "{{ brrewery_nginx_sites_available }}/{{ brrewery_nginx_app_conf_name }}"
     mode: "0644"
+  notify: Reload nginx
+
+- name: Enable app nginx location via sites-enabled symlink
+  ansible.builtin.file:
+    src: "../sites-available/{{ brrewery_nginx_app_conf_name }}"
+    dest: "{{ brrewery_nginx_sites_enabled }}/{{ brrewery_nginx_app_conf_name }}"
+    state: link
+    force: true
   notify: Reload nginx

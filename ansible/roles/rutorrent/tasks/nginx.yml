@@ -1,15 +1,26 @@
 ---
-- name: Ensure the brrewery nginx apps directory exists
+- name: Ensure nginx sites-available and sites-enabled directories exist
   ansible.builtin.file:
-    path: /etc/nginx/brrewery/apps
+    path: "{{ item }}"
     state: directory
     mode: "0755"
+  loop:
+    - /etc/nginx/sites-available
+    - /etc/nginx/sites-enabled
 
-- name: Install the ruTorrent nginx location
+- name: Install the ruTorrent nginx location into sites-available
   ansible.builtin.template:
     src: rutorrent-nginx.conf.j2
-    dest: /etc/nginx/brrewery/apps/rutorrent.conf
+    dest: /etc/nginx/sites-available/rutorrent.conf
     mode: "0644"
+  notify: Reload nginx
+
+- name: Enable the ruTorrent nginx location via sites-enabled symlink
+  ansible.builtin.file:
+    src: ../sites-available/rutorrent.conf
+    dest: /etc/nginx/sites-enabled/rutorrent.conf
+    state: link
+    force: true
   notify: Reload nginx
 
 - name: Flush handlers so nginx reloads now

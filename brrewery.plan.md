@@ -118,13 +118,13 @@ flowchart TB
 ```text
 contrib/nginx/  →  /etc/nginx/
   nginx.conf
-  sites-available/brrewery.conf
-  nginxconfig.io/{security,general,proxy,ssl}.conf
+  {general,security,proxy,ssl}.conf   # shared snippets, included explicitly by nginx.conf
+  sites-available/default             # brrewery dashboard vhost = nginx default site
 
-sites-enabled/brrewery.conf  →  ../sites-available/brrewery.conf
+sites-enabled/default  →  ../sites-available/default
 ```
 
-`install.sh`: deploy configs, `ln -sf` brrewery site, TLS, `nginx -t && reload`. Managed app vhosts: **Ansible role** `brrewery_nginx_site` (post-MVP playbooks).
+`install.sh`: deploy configs, `ln -sf` the brrewery site as nginx's `default`, TLS, `nginx -t && reload`. Managed app location snippets: **Ansible role** `brrewery_nginx_site` (`sites-available/<id>.conf` symlinked into `sites-enabled/`).
 
 Dashboard vhost: HTTP 80 + HTTPS 443; `/` → SPA; `/api/` → backend. No nginx `auth_basic`.
 

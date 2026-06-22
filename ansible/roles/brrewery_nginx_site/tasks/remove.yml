@@ -5,8 +5,14 @@
       - brrewery_app_id | length > 0
     fail_msg: brrewery_nginx_site remove requires brrewery_app_id
 
-- name: Remove app nginx location
+- name: Disable app nginx location by removing the sites-enabled symlink
   ansible.builtin.file:
-    path: "{{ brrewery_nginx_apps_dir }}/{{ brrewery_app_id }}.conf"
+    path: "{{ brrewery_nginx_sites_enabled }}/{{ brrewery_nginx_app_conf_name }}"
+    state: absent
+  notify: Reload nginx
+
+- name: Remove app nginx location from sites-available
+  ansible.builtin.file:
+    path: "{{ brrewery_nginx_sites_available }}/{{ brrewery_nginx_app_conf_name }}"
     state: absent
   notify: Reload nginx

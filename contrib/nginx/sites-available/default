@@ -1,4 +1,5 @@
-# brrewery dashboard vhost — HTTP redirects to HTTPS; API proxied to Go backend.
+# brrewery dashboard vhost — installed as nginx's default site
+# (sites-available/default). HTTP redirects to HTTPS; API proxied to Go backend.
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
@@ -14,22 +15,26 @@ server {
 
     ssl_certificate /etc/ssl/brrewery/fullchain.pem;
     ssl_certificate_key /etc/ssl/brrewery/privkey.pem;
-    include /etc/nginx/nginxconfig.io/ssl.conf;
+    include /etc/nginx/ssl.conf;
 
     root /var/www/brrewery;
     index index.html;
 
     location /api/ {
-        include /etc/nginx/nginxconfig.io/proxy.conf;
+        include /etc/nginx/proxy.conf;
         proxy_pass http://127.0.0.1:8080;
     }
 
     location /health {
-        include /etc/nginx/nginxconfig.io/proxy.conf;
+        include /etc/nginx/proxy.conf;
         proxy_pass http://127.0.0.1:8080;
     }
 
-    include /etc/nginx/brrewery/apps/*.conf;
+    # Installed-app reverse-proxy location snippets, enabled by symlinking
+    # sites-available/<id>.conf into sites-enabled (see the brrewery_nginx_site
+    # Ansible role). This vhost is the default site, enabled as the extensionless
+    # symlink sites-enabled/default, so this *.conf glob never re-includes it.
+    include /etc/nginx/sites-enabled/*.conf;
 
     # The SPA's known client-side routes boot the app with a 200. Mirror the
     # TanStack route tree in web/src/router.tsx — add a location per new route.
@@ -51,7 +56,7 @@ server {
     # never cached as a healthy page.
     error_page 404 @spa_notfound;
     location @spa_notfound {
-        include /etc/nginx/nginxconfig.io/security.conf;
+        include /etc/nginx/security.conf;
         add_header Cache-Control "no-store" always;
         try_files /index.html =404;
     }

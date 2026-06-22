@@ -8,9 +8,15 @@
     rutorrent_fpm_pool: rutorrent
     rutorrent_htpasswd: /etc/nginx/brrewery/rutorrent.htpasswd
   tasks:
-    - name: Remove the ruTorrent nginx location
+    - name: Disable the ruTorrent nginx location by removing the sites-enabled symlink
       ansible.builtin.file:
-        path: /etc/nginx/brrewery/apps/rutorrent.conf
+        path: /etc/nginx/sites-enabled/rutorrent.conf
+        state: absent
+      notify: Reload nginx
+
+    - name: Remove the ruTorrent nginx location from sites-available
+      ansible.builtin.file:
+        path: /etc/nginx/sites-available/rutorrent.conf
         state: absent
       notify: Reload nginx
 
