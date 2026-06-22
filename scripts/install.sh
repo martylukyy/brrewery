@@ -175,6 +175,28 @@ if [[ -f "$SOURCE_DIR/Makefile" ]]; then
       cp -r \"$SOURCE_DIR/web/dist\" \"$SOURCE_DIR/internal/web/\"
   "
   run_with_spinner "Building backend" bash -c "cd \"$SOURCE_DIR\" && make backend"
+
+  # The builds above run as root. When installing from a developer checkout
+  # (rather than the system clone in $CLONE_DIR), that leaves root-owned
+  # artifacts behind — web/node_modules (incl. .tmp/*.tsbuildinfo), web/dist,
+  # internal/web/dist and the brrewery binary — which stop the owning user from
+  # rebuilding (e.g. `make frontend` fails with EACCES on the tsbuildinfo files).
+  # Restore ownership of the generated artifacts to whoever owns the checkout.
+  if [[ "$SOURCE_DIR" == "$ROOT" ]]; then
+    owner_uid="$(stat -c '%u' "$SOURCE_DIR")"
+    owner_gid="$(stat -c '%g' "$SOURCE_DIR")"
+    if [[ "$owner_uid" -ne 0 ]]; then
+      run_with_spinner "Restoring build artifact ownership" bash -c "
+        for path in \
+          \"$SOURCE_DIR/web/node_modules\" \
+          \"$SOURCE_DIR/web/dist\" \
+          \"$SOURCE_DIR/internal/web/dist\" \
+          \"$SOURCE_DIR/brrewery\"; do
+          if [[ -e \"\$path\" ]]; then chown -R \"$owner_uid:$owner_gid\" \"\$path\"; fi
+        done
+      "
+    fi
+  fi
 else
   echo "Missing Makefile in $SOURCE_DIR" | tee -a "$INSTALL_LOG" >&2
   exit 1
