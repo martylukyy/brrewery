@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { IconX } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -92,6 +93,18 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
     }
   }
 
+  function handleClearPatch() {
+    setError(null);
+    setPatch(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -131,7 +144,7 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
             <DialogDescription>
               {step === "version"
                 ? `Select the release to build for ${appNames}.`
-                : "Pick the libtorrent line and optionally supply a custom patch."}
+                : "Pick your preferred libtorrent version."}
             </DialogDescription>
           </DialogHeader>
 
@@ -182,17 +195,42 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
 
                 <div className="space-y-1">
                   <Label htmlFor="libtorrent-patch">Custom libtorrent patch (optional)</Label>
-                  <Input
+                  <input
                     ref={fileInputRef}
                     id="libtorrent-patch"
                     type="file"
                     accept=".patch,.diff,text/plain"
+                    className="sr-only"
                     onChange={handleFileChange}
                   />
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        readOnly
+                        value={patch?.name ?? ""}
+                        placeholder="No patch selected"
+                        aria-label="Selected patch file"
+                        className="w-full cursor-pointer pr-8"
+                        onClick={openFilePicker}
+                      />
+                      {patch && (
+                        <button
+                          type="button"
+                          aria-label="Clear selected patch"
+                          onClick={handleClearPatch}
+                          className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                          <IconX className="size-4" />
+                        </button>
+                      )}
+                    </div>
+                    <Button type="button" variant="outline" onClick={openFilePicker}>
+                      Browse
+                    </Button>
+                  </div>
                   <span className="block text-xs text-muted-foreground">
                     Leave empty to use brrewery&apos;s default performance patch. Applied to this build only; not saved.
                   </span>
-                  {patch && <span className="block text-xs text-emerald-400">Selected {patch.name}</span>}
                 </div>
               </>
             )}

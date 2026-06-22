@@ -135,6 +135,33 @@ describe("InstallOptionsModal", () => {
     expect(submitted.qbittorrent_version).toBe("5.2");
   });
 
+  it("attaches a patch and clears it via the in-field clear button", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderModal();
+
+    await user.click(screen.getByRole("radio", { name: "5.2" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    // No clear affordance until a patch is selected.
+    expect(screen.queryByRole("button", { name: "Clear selected patch" })).toBeNull();
+
+    const file = new File(["diff --git a b"], "perf.patch", { type: "text/plain" });
+    await user.upload(screen.getByLabelText("Custom libtorrent patch (optional)"), file);
+
+    // The read-only field surfaces the filename and the clear button appears.
+    expect(await screen.findByDisplayValue("perf.patch")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear selected patch" }));
+
+    // Cleared: the field empties, the button disappears, and no patch is submitted.
+    expect(screen.getByLabelText("Selected patch file")).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "Clear selected patch" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Start install" }));
+    const submitted = onConfirm.mock.calls[0][0] as Record<string, string>;
+    expect(submitted).not.toHaveProperty("libtorrent_patch");
+    expect(submitted.qbittorrent_version).toBe("5.2");
+  });
+
   it("renders a single step keyed to the app's own version option for rTorrent", async () => {
     const user = userEvent.setup();
     const onConfirm = renderRtorrentModal();
