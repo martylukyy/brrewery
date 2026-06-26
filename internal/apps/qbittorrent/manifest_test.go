@@ -9,17 +9,7 @@ import (
 	"github.com/autobrr/brrewery/internal/apps/qbittorrent"
 )
 
-func TestLine_QtVersionOverride(t *testing.T) {
-	t.Parallel()
-
-	line := qbittorrent.Line{Qt: qbittorrent.QtSpec{Min: "6.6", Version: "6.8.2"}}
-	assert.Equal(t, "6.8.2", line.QtVersionOverride())
-
-	line = qbittorrent.Line{Qt: qbittorrent.QtSpec{Min: "6.6"}}
-	assert.Empty(t, line.QtVersionOverride())
-}
-
-func TestLoadManifest_qtMinPerLine(t *testing.T) {
+func TestLoadManifest_pinsBuildDependenciesPerLine(t *testing.T) {
 	t.Parallel()
 
 	m, err := qbittorrent.LoadManifest()
@@ -27,6 +17,10 @@ func TestLoadManifest_qtMinPerLine(t *testing.T) {
 
 	line, ok := m.LineForVersion("5.2")
 	require.True(t, ok)
-	assert.Equal(t, "6.6", line.Qt.Min)
-	assert.Empty(t, line.QtVersionOverride())
+	assert.Equal(t, "6.11.1", line.Qt)
+	assert.Equal(t, "1.3.2", line.Zlib)
+	assert.Equal(t, "3.6.3", line.Openssl)
+	assert.Equal(t, "-O3 -mtune=native", line.CompilerFlags)
+	assert.Equal(t, "1_86_0", line.Libtorrent.Branches["RC_1_2"].Boost)
+	assert.Equal(t, "1_91_0", line.Libtorrent.Branches["RC_2_0"].Boost)
 }

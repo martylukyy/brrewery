@@ -213,7 +213,7 @@ func enrichAppVars(ctx context.Context, appID string, action model.JobAction, va
 	}
 	switch appID {
 	case qbittorrent.AppID:
-		return qbittorrent.EnrichAnsibleVars(ctx, vars, nil, nil, nil, nil, nil)
+		return qbittorrent.EnrichAnsibleVars(ctx, vars, nil)
 	case rtorrent.AppID:
 		return rtorrent.EnrichAnsibleVars(ctx, vars, nil)
 	case deluge.AppID:

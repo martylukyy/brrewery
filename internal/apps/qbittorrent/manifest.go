@@ -26,37 +26,24 @@ const (
 
 // Manifest mirrors ansible/roles/qbittorrent_build/files/qbittorrent/manifest.yml.
 type Manifest struct {
-	Defaults Defaults `yaml:"defaults"`
-	Lines    []Line   `yaml:"lines"`
+	Lines []Line `yaml:"lines"`
 }
 
-// Defaults holds dependency versions shared across all lines.
-type Defaults struct {
-	// BoostRC12 caps Boost for libtorrent RC_1_2 (Boost >= 1.87 drops io_service.hpp).
-	BoostRC12     string `yaml:"boost_rc_1_2"`
-	CompilerFlags string `yaml:"compiler_flags"`
-}
-
-// Line is the build profile for one qBittorrent release line (e.g. 5.2).
+// Line is the complete, self-contained build profile for one qBittorrent
+// release line (e.g. 5.2). Every dependency version is pinned per line
+// (lockfile-style) rather than resolved from upstream at build time.
 type Line struct {
-	Version     string         `yaml:"version"`
-	CxxStd      string         `yaml:"cxx_std"`
-	BuildSystem string         `yaml:"build_system"`
-	Qt          QtSpec         `yaml:"qt"`
-	Libtorrent  LibtorrentSpec `yaml:"libtorrent"`
-}
-
-// QtSpec pins the minimum Qt version for a line. The install playbook resolves
-// the newest compatible patch from download.qt.io at build time unless Version
-// overrides it.
-type QtSpec struct {
-	Min     string `yaml:"min"`
-	Version string `yaml:"version,omitempty"`
-}
-
-// QtVersionOverride returns a fixed Qt version when the manifest pins one.
-func (l Line) QtVersionOverride() string {
-	return strings.TrimSpace(l.Qt.Version)
+	Version       string `yaml:"version"`
+	CxxStd        string `yaml:"cxx_std"`
+	BuildSystem   string `yaml:"build_system"`
+	CompilerFlags string `yaml:"compiler_flags"`
+	// Qt pins the exact Qt release for this line, e.g. 6.11.1.
+	Qt string `yaml:"qt"`
+	// Zlib pins the zlib release for this line, e.g. 1.3.2.
+	Zlib string `yaml:"zlib"`
+	// Openssl pins the OpenSSL 3.x release for this line, e.g. 3.6.3.
+	Openssl    string         `yaml:"openssl"`
+	Libtorrent LibtorrentSpec `yaml:"libtorrent"`
 }
 
 // LibtorrentSpec lists the branches a line can build against.
@@ -65,9 +52,13 @@ type LibtorrentSpec struct {
 	Branches map[string]LibtorrentBranchSpec `yaml:"branches"`
 }
 
-// LibtorrentBranchSpec pins the libtorrent tag for a branch.
+// LibtorrentBranchSpec pins the libtorrent tag and its compatible Boost for a
+// branch. Boost is per-branch because RC_1_2 and RC_2_0 require different Boost
+// versions (see the manifest header).
 type LibtorrentBranchSpec struct {
 	Tag string `yaml:"tag"`
+	// Boost pins the Boost release (underscore form, e.g. 1_86_0) this branch builds against.
+	Boost string `yaml:"boost"`
 }
 
 var (

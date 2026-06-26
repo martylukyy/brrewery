@@ -16,14 +16,10 @@ const (
 	// LibtorrentPatch carries an optional, ephemeral base64-encoded libtorrent patch
 	// uploaded for a single build. It is never persisted to disk by the API.
 	LibtorrentPatch = "libtorrent_patch"
-	// QbittorrentQtVersion is the Qt patch release resolved before Ansible runs.
-	QbittorrentQtVersion = "qbittorrent_qt_version"
-	// QbittorrentZlibVersion is the zlib release resolved before Ansible runs.
-	QbittorrentZlibVersion = "qbittorrent_zlib_version"
-	// QbittorrentBoostVersion is the Boost release (underscore form, e.g. 1_88_0) resolved before Ansible runs.
-	QbittorrentBoostVersion = "qbittorrent_boost_version"
-	// QbittorrentOpensslVersion is the OpenSSL 3.x release resolved before Ansible runs.
-	QbittorrentOpensslVersion = "qbittorrent_openssl_version"
+	// Build-dependency versions (Qt, zlib, Boost, OpenSSL) are not passed as extra
+	// vars: they are pinned per line in the vendored manifest, which the Ansible
+	// build role reads directly.
+	//
 	// QbittorrentWebUIPasswordHash is the PBKDF2-HMAC-SHA512 password hash in qBittorrent's
 	// @ByteArray(<salt_b64>:<hash_b64>) format, computed in Go before the playbook runs.
 	QbittorrentWebUIPasswordHash = "qbittorrent_webui_password_hash"

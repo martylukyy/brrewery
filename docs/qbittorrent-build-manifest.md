@@ -21,27 +21,34 @@ At install time, downloaded sources are cached under
 ## manifest.yml
 
 Each line builds the **latest stable patch** of a qBittorrent version series.
-Dependency versions are resolved by brrewery before Ansible runs, then fetched
-and compiled by `ansible/roles/qbittorrent_build/tasks/vendor.yml`:
+Only the qBittorrent patch itself is resolved from upstream; every build
+**dependency** is pinned in `manifest.yml` (lockfile-style, like a `package.json`),
+then fetched and compiled by `ansible/roles/qbittorrent_build/tasks/vendor.yml`:
 
-| Dependency | Resolution |
-|------------|------------|
-| qBittorrent patch | GitHub `release-{minor}.*` (`qbittorrent_release`) |
-| Qt | Newest patch ≥ `qt.min` on download.qt.io (`qbittorrent_qt_version`) |
-| zlib | Newest release on github.com/madler/zlib (`qbittorrent_zlib_version`) |
-| Boost | Newest on archives.boost.io for `RC_2_0`; manifest `boost_rc_1_2` for `RC_1_2` (`qbittorrent_boost_version`) |
-| OpenSSL | Newest 3.x on github.com/openssl/openssl (`qbittorrent_openssl_version`; 4.x excluded) |
-| libtorrent | Tag from manifest for the selected branch |
+Each line is self-contained: it pins all of its own dependency versions (there
+is no shared `defaults` block).
 
-The Go API reads the manifest for the install wizard and validation; Ansible
-reads it to drive the build. Version resolution runs inside brrewery when a
-app job starts.
+| Dependency | Source |
+|------------|--------|
+| qBittorrent patch | Resolved from GitHub `release-{minor}.*`, passed as the `qbittorrent_release` extra var |
+| Qt | Pinned per line as `qt`, read from the manifest by Ansible |
+| zlib | Pinned per line as `zlib`, read from the manifest by Ansible |
+| Boost | Pinned per line under the chosen libtorrent branch as `branches.<branch>.boost`, read from the manifest by Ansible |
+| OpenSSL | Pinned per line as `openssl` (3.x), read from the manifest by Ansible |
+| libtorrent | Pinned per line as `branches.<branch>.tag`, read from the manifest by Ansible |
+
+The build role (`tasks/resolve.yml`) reads the pinned dependency versions
+straight from the manifest line it loads — they are not passed as extra vars.
+The Go API reads the same manifest for the install wizard and validation, and
+before an app job starts it sets only the values Ansible cannot derive itself:
+the resolved `qbittorrent_release` and the WebUI password hash.
 
 ## Maintainers
 
-When upstream ships newer compatible releases, update `manifest.yml` (libtorrent
-tags, `boost_rc_1_2` cap, Qt floors, etc.). Sources refresh automatically on the
-next install.
+When upstream ships newer compatible releases, bump the pinned versions on the
+affected line(s) in `manifest.yml`: `qt`, `zlib`, `openssl`, `compiler_flags`,
+and each libtorrent branch's `tag` / `boost` (RC_1_2 stays capped at Boost
+1.86). Sources refresh automatically on the next install.
 
 ## Patches
 

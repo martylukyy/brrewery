@@ -38,8 +38,9 @@ Backend
   `Validate()`, `ValidateInstallOptions()`, `ValidateLibtorrentPatch()` (+ tests).
 - `internal/apps/model/types.go` — `InstallOption[Choice|When]`, `App.InstallOptions`.
 - `internal/apps/extravars/extravars.go` — `QbittorrentVersion`, `QbittorrentRelease`,
-  `QbittorrentQtVersion`, `LibtorrentBranch`,
-  `LibtorrentPatch`, `BecomePassword` (`ansible_become_password`).
+  `LibtorrentBranch`, `LibtorrentPatch`, `QbittorrentWebUIPasswordHash`,
+  `BecomePassword` (`ansible_become_password`). Build-dependency versions are
+  pinned in the manifest and read by Ansible directly, not passed as extra vars.
 - `internal/apps/catalog/catalog.go` — `qbittorrentEntry()`: detection
   `qbittorrent@{user}.service`, install options from manifest, required sudo secret.
 - `internal/apps/ansible/runner.go` — extracts `ansible_become_password`,
@@ -107,8 +108,8 @@ brrewery-vendored security patches only.
       libtorrent cmake (static), qBittorrent cmake (`GUI=OFF`, `QT6=ON`), install to
       `/usr/local/bin`. The cmake/autotools flags in `tasks/{libtorrent,qbittorrent}.yml`
       are reasoned but unverified end-to-end.
-- [ ] **Vendored Qt build path** (`internal/apps/qbittorrent/qtresolve.go` + `tasks/qt.yml`)
-      resolves the newest Qt patch ≥ `qt.min` from download.qt.io before Ansible runs.
+- [ ] **Vendored Qt build path** (`tasks/qt.yml`) builds the exact Qt version pinned
+      per line as `qt` in the manifest (downloaded from download.qt.io by `vendor.yml`).
 - [ ] **Default performance patches** (`ansible/roles/qbittorrent_build/files/qbittorrent/patches/*.patch`) have
       placeholder context lines; they apply best-effort and will likely no-op. Regenerate
       against the actual vendored libtorrent source if real tuning is desired.

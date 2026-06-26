@@ -1,110 +1,142 @@
 # Vendored build manifest for qBittorrent.
 #
-# Each entry under `lines` describes one supported major.minor series and its
-# compatible build profile. qBittorrent patch releases, Qt, zlib, Boost (RC_2_0),
-# and OpenSSL are resolved by brrewery before Ansible runs; libtorrent tags are
-# pinned here per branch.
+# Each entry under `lines` is a complete, self-contained build profile for one
+# supported major.minor series. Only the qBittorrent patch release is resolved
+# by brrewery before Ansible runs (the newest release-{minor}.* tag on GitHub).
+# Every build *dependency* — Qt, zlib, OpenSSL, Boost, and libtorrent — is
+# pinned per line like a lockfile (package.json-style), so builds are
+# reproducible instead of tracking upstream "latest".
 #
-# Refresh libtorrent tags and boost_rc_1_2 when upstream ships newer compatible
-# releases. See docs/qbittorrent-build-manifest.md.
-defaults:
-  # RC_1_2 is capped at Boost 1.86 (Boost >= 1.87 drops boost::asio::io_service).
-  boost_rc_1_2: "1_86_0"
-  # Host-tuned but ISA-portable. -mtune=native optimizes scheduling for the build
-  # host without emitting instructions beyond the x86-64 baseline. Do NOT use
-  # -march=native: it bakes the host's newest features (e.g. cmpccxadd, avxifma)
-  # into the binaries, which makes Qt's host tools abort at build time
-  # ("Incompatible processor. This Qt build requires the following features ...")
-  # and qbittorrent-nox SIGILL at runtime on any CPU lacking them — including
-  # hypervisors that advertise but do not enable those instructions.
-  compiler_flags: "-O3 -mtune=native"
+# Boost is pinned per libtorrent branch because its compatibility is tied to the
+# branch: RC_1_2 is capped at Boost 1.86 (Boost >= 1.87 drops
+# boost::asio::io_service, which RC_1_2 still uses); RC_2_0 dropped that
+# dependency and tracks a recent Boost.
+#
+# compiler_flags is host-tuned but ISA-portable. -mtune=native optimizes
+# scheduling for the build host without emitting instructions beyond the x86-64
+# baseline. Do NOT use -march=native: it bakes the host's newest features (e.g.
+# cmpccxadd, avxifma) into the binaries, which makes Qt's host tools abort at
+# build time ("Incompatible processor. This Qt build requires the following
+# features ...") and qbittorrent-nox SIGILL at runtime on any CPU lacking them —
+# including hypervisors that advertise but do not enable those instructions.
+#
+# Refresh the pinned versions per line (qt, zlib, openssl, the libtorrent tags
+# and their boost pins) when upstream ships newer compatible releases.
+# See docs/qbittorrent-build-manifest.md.
 
 lines:
   - version: "4.3"
     cxx_std: "c++17"
     build_system: autotools
-    qt:
-      min: "5.12"
+    compiler_flags: "-O3 -mtune=native"
+    qt: "5.14.2"
+    zlib: "1.3.2"
+    openssl: "3.6.3"
     libtorrent:
       default: RC_1_2
       branches:
         RC_1_2:
           tag: "v1.2.20"
+          boost: "1_86_0"
 
   - version: "4.4"
     cxx_std: "c++17"
     build_system: cmake
-    qt:
-      min: "6.0"
+    compiler_flags: "-O3 -mtune=native"
+    qt: "6.11.1"
+    zlib: "1.3.2"
+    openssl: "3.6.3"
     libtorrent:
       default: RC_1_2
       branches:
         RC_1_2:
           tag: "v1.2.20"
+          boost: "1_86_0"
         RC_2_0:
           tag: "v2.0.11"
+          boost: "1_91_0"
 
   - version: "4.5"
     cxx_std: "c++17"
     build_system: cmake
-    qt:
-      min: "6.2"
+    compiler_flags: "-O3 -mtune=native"
+    qt: "6.11.1"
+    zlib: "1.3.2"
+    openssl: "3.6.3"
     libtorrent:
       default: RC_1_2
       branches:
         RC_1_2:
           tag: "v1.2.20"
+          boost: "1_86_0"
         RC_2_0:
           tag: "v2.0.11"
+          boost: "1_91_0"
 
   - version: "4.6"
     cxx_std: "c++17"
     build_system: cmake
-    qt:
-      min: "6.4"
+    compiler_flags: "-O3 -mtune=native"
+    qt: "6.11.1"
+    zlib: "1.3.2"
+    openssl: "3.6.3"
     libtorrent:
       default: RC_1_2
       branches:
         RC_1_2:
           tag: "v1.2.20"
+          boost: "1_86_0"
         RC_2_0:
           tag: "v2.0.11"
+          boost: "1_91_0"
 
   - version: "5.0"
     cxx_std: "c++20"
     build_system: cmake
-    qt:
-      min: "6.5"
+    compiler_flags: "-O3 -mtune=native"
+    qt: "6.11.1"
+    zlib: "1.3.2"
+    openssl: "3.6.3"
     libtorrent:
       default: RC_1_2
       branches:
         RC_1_2:
           tag: "v1.2.20"
+          boost: "1_86_0"
         RC_2_0:
           tag: "v2.0.11"
+          boost: "1_91_0"
 
   - version: "5.1"
     cxx_std: "c++20"
     build_system: cmake
-    qt:
-      min: "6.5"
+    compiler_flags: "-O3 -mtune=native"
+    qt: "6.11.1"
+    zlib: "1.3.2"
+    openssl: "3.6.3"
     libtorrent:
       default: RC_1_2
       branches:
         RC_1_2:
           tag: "v1.2.20"
+          boost: "1_86_0"
         RC_2_0:
           tag: "v2.0.11"
+          boost: "1_91_0"
 
   - version: "5.2"
     cxx_std: "c++20"
     build_system: cmake
-    qt:
-      min: "6.6"
+    compiler_flags: "-O3 -mtune=native"
+    qt: "6.11.1"
+    zlib: "1.3.2"
+    openssl: "3.6.3"
     libtorrent:
       default: RC_1_2
       branches:
         RC_1_2:
           tag: "v1.2.20"
+          boost: "1_86_0"
         RC_2_0:
           tag: "v2.0.11"
+          boost: "1_91_0"

@@ -67,32 +67,27 @@
       - qbt_branch in qbt_line.libtorrent.branches
     fail_msg: "libtorrent branch {{ qbt_branch }} is not supported for qBittorrent {{ qbittorrent_version }}"
 
+# Every build dependency is pinned per line in the manifest (loaded above as
+# qbt_line), so we read the versions straight from it — no network resolution.
+# Boost is pinned per libtorrent branch. Only the qBittorrent patch release
+# (qbittorrent_release) is resolved by brrewery before the playbook runs.
 - name: Set resolved build facts
   ansible.builtin.set_fact:
     qbt_libtorrent_tag: "{{ qbt_line.libtorrent.branches[qbt_branch].tag }}"
     qbt_build_system: "{{ qbt_line.build_system }}"
     qbt_cxx_std: "{{ qbt_line.cxx_std | regex_replace('^c\\+\\+', '') }}"
-    qbt_qt_min: "{{ qbt_line.qt.min }}"
-    qbt_qt_major: "{{ qbt_line.qt.min.split('.')[0] }}"
-    qbt_compiler_flags: "{{ qbt_manifest.defaults.compiler_flags | default('-O2') }}"
+    qbt_qt_version: "{{ qbt_line.qt }}"
+    qbt_qt_major: "{{ qbt_line.qt.split('.')[0] }}"
+    qbt_zlib: "{{ qbt_line.zlib }}"
+    qbt_openssl: "{{ qbt_line.openssl }}"
+    qbt_boost: "{{ qbt_line.libtorrent.branches[qbt_branch].boost }}"
+    qbt_compiler_flags: "{{ qbt_line.compiler_flags | default('-O2') }}"
     qbt_version_line: "{{ qbt_line.version }}"
-
-- name: Resolve latest compatible Qt from download.qt.io
-  ansible.builtin.import_tasks: qt_resolve.yml
-
-- name: Resolve latest zlib from GitHub
-  ansible.builtin.import_tasks: zlib_resolve.yml
-
-- name: Resolve Boost version from brrewery extra vars
-  ansible.builtin.import_tasks: boost_resolve.yml
-
-- name: Resolve OpenSSL version from brrewery extra vars
-  ansible.builtin.import_tasks: openssl_resolve.yml
 
 - name: Announce resolved build profile
   ansible.builtin.debug:
     msg: >-
-      Building qBittorrent {{ qbittorrent_release }} (line {{ qbittorrent_version }}, Qt {{ qbt_qt_version }}, min {{ qbt_qt_min }},
+      Building qBittorrent {{ qbittorrent_release }} (line {{ qbittorrent_version }}, Qt {{ qbt_qt_version }},
       libtorrent {{ qbt_branch }} {{ qbt_libtorrent_tag }}, Boost {{ qbt_boost }}, zlib {{ qbt_zlib }}, OpenSSL {{ qbt_openssl }},
       {{ qbt_build_system }}, C++{{ qbt_cxx_std }})
 
