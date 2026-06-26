@@ -131,7 +131,6 @@ export type AppStatus = {
   name: string;
   description: string;
   category: string;
-  icon?: string;
   web_path?: string;
   install_secrets?: InstallSecret[];
   install_options?: InstallOption[];

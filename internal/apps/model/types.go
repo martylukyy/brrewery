@@ -51,7 +51,6 @@ type App struct {
 	Name           string          `json:"name"`
 	Description    string          `json:"description"`
 	Category       string          `json:"category"`
-	Icon           string          `json:"icon,omitempty"`
 	WebPath        string          `json:"web_path,omitempty"`
 	InstallSecrets []InstallSecret `json:"install_secrets,omitempty"`
 	InstallOptions []InstallOption `json:"install_options,omitempty"`

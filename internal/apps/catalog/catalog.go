@@ -3,14 +3,16 @@
 //
 // Adding an app to brrewery does NOT require editing this file. Drop a
 // <id>.yaml manifest beside the others, add the install/upgrade/remove
-// playbooks under ansible/playbooks/apps/<id>/, and an icon at
-// web/public/apps/<id>.png. See docs/adding-an-app.md.
+// playbooks under ansible/playbooks/apps/<id>/, and an icon SVG in the
+// frontend registry (web/src/assets/app-icons/<id>.svg + web/src/lib/app-icons.ts).
+// See docs/adding-an-app.md.
 //
-// The icon path (/apps/<id>.png) and the playbook paths are derived from the
-// app id by convention. Apps whose install options must be computed at
-// runtime (e.g. qBittorrent, whose version choices come from its build manifest)
-// register a provider via RegisterInstallOptions from their own app instead
-// of declaring static install_options.
+// The playbook paths are derived from the app id by convention. App icons are
+// owned by the frontend (keyed by id) and are not part of this catalog. Apps
+// whose install options must be computed at runtime (e.g. qBittorrent, whose
+// version choices come from its build manifest) register a provider via
+// RegisterInstallOptions from their own app instead of declaring static
+// install_options.
 package catalog
 
 import (
@@ -32,15 +34,13 @@ import (
 var manifestFS embed.FS
 
 // manifest is the authored, declarative shape of a catalog entry. Fields not
-// present here (icon path, playbook paths, runtime install options) are derived.
+// present here (playbook paths, runtime install options) are derived.
 type manifest struct {
-	ID          string `yaml:"id"`
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-	Category    string `yaml:"category"`
-	WebPath     string `yaml:"web_path"`
-	// Icon is an optional override for the icon basename. Defaults to "<id>.png".
-	Icon         string              `yaml:"icon"`
+	ID           string              `yaml:"id"`
+	Name         string              `yaml:"name"`
+	Description  string              `yaml:"description"`
+	Category     string              `yaml:"category"`
+	WebPath      string              `yaml:"web_path"`
 	Dependencies []string            `yaml:"dependencies"`
 	Detection    model.DetectionSpec `yaml:"detection"`
 	// RequiresAccountPassword adds the shared account-password prompt (see
@@ -114,11 +114,6 @@ func passwordSecret() model.InstallSecret {
 }
 
 func (m manifest) toApp() model.App {
-	icon := m.Icon
-	if icon == "" {
-		icon = m.ID + ".png"
-	}
-
 	secrets := m.InstallSecrets
 	if m.RequiresAccountPassword {
 		secrets = append([]model.InstallSecret{passwordSecret()}, secrets...)
@@ -129,7 +124,6 @@ func (m manifest) toApp() model.App {
 		Name:           m.Name,
 		Description:    m.Description,
 		Category:       m.Category,
-		Icon:           "/apps/" + icon,
 		WebPath:        m.WebPath,
 		InstallSecrets: secrets,
 		InstallOptions: installOptionsFor(m.ID, m.InstallOptions),

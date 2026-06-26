@@ -15,7 +15,6 @@ name: My App                    # required, display name
 description: What it does        # required
 category: download              # download | arr | media | automation | tools
 web_path: /myapp/               # optional; reverse-proxy subpath, omit if no web UI
-# icon: other.png               # optional; defaults to "<id>.png"
 # dependencies:                 # optional; other app ids that must be installed
 #   - rtorrent
 detection:                      # required; at least one check so install is detectable
@@ -43,9 +42,8 @@ detection:                      # required; at least one check so install is det
 
 Derived automatically from `id`:
 
-- **Icon:** `/apps/<id>.png` (override the basename with `icon:` to reuse
-  another app's asset, as `rtorrent` does with `rutorrent.png`).
 - **Playbooks:** `ansible/playbooks/apps/<id>/{install,upgrade,remove}.yml`.
+- **Icon:** resolved in the frontend by `id` (see step 3).
 
 ### The account password
 
@@ -65,10 +63,14 @@ unit, and wire up the nginx site via the `brrewery_nginx_site` role.
 
 ## 3. Icon
 
-Drop the official logo at `web/public/apps/<id>.png`. It is bundled into the
-frontend at build time and referenced by the catalog as `/apps/<id>.png`.
-There is no text or color fallback: if an app has no icon, the icon slot
-renders nothing. Nothing else to register on the frontend.
+Icons live entirely in the frontend, keyed by app `id` — there is no served
+`/apps/` asset folder. Drop the official logo as an SVG at
+`web/src/assets/app-icons/<id>.svg`, then register it in
+`web/src/lib/app-icons.ts` (import it with `?raw` and add an `APP_ICONS` entry).
+It is inlined into the JS bundle as a data URI at build time. There is no text
+or color fallback: an `id` with no registry entry renders nothing. To reuse
+another app's logo (as `rtorrent` does with ruTorrent's), point the new `id` at
+the same imported SVG.
 
 ## When you *do* need Go
 

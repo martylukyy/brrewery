@@ -58,13 +58,14 @@ const RUTORRENT_ID = "rutorrent";
 const COMBINED_NAME = "r(u)Torrent";
 
 // SidebarEntry is one rendered menu row. It decouples the link target
-// (webPath/icon) from the app whose service the switch controls, so the
+// (webPath/icon id) from the app whose service the switch controls, so the
 // combined r(u)Torrent row can link to ruTorrent while toggling rTorrent.
 type SidebarEntry = {
   // React key; the switch's pending/target state derives from serviceApp.
   key: string;
   name: string;
-  icon?: string;
+  // Catalog app id used to look up the row's inlined icon (see AppIcon).
+  iconId?: string;
   webPath?: string;
   // The app whose systemd service the switch toggles, when one is exposed.
   serviceApp?: AppStatus;
@@ -89,7 +90,7 @@ function sidebarEntries(apps: AppStatus[]): SidebarEntry[] {
     entries.push({
       key: app.id,
       name: app.name,
-      icon: app.icon,
+      iconId: app.id,
       webPath: app.web_path,
       serviceApp: app.service ? app : undefined,
     });
@@ -99,9 +100,9 @@ function sidebarEntries(apps: AppStatus[]): SidebarEntry[] {
     entries.push({
       key: `${RTORRENT_ID}+${RUTORRENT_ID}`,
       name: COMBINED_NAME,
-      // Both apps ship the same ruTorrent icon; fall back across them so the
-      // row keeps an icon even if one side's is unset.
-      icon: rutorrent.icon ?? rtorrent.icon,
+      // Both ids resolve to the same rTorrent icon in the registry; key the
+      // row off rTorrent's id.
+      iconId: rtorrent.id,
       // Link opens ruTorrent's web UI; the switch (serviceApp) toggles rTorrent.
       webPath: rutorrent.web_path,
       // Present the switch, confirmation modal, and toasts under the combined
@@ -215,7 +216,7 @@ export function AppSidebar({
                           className={`group-data-[collapsible=icon]:p-1! ${servicePadding}`}
                         >
                           <a href={url} target="_blank" rel="noopener noreferrer">
-                            <AppIcon icon={entry.icon} className="size-6 max-w-none" />
+                            <AppIcon appId={entry.iconId} className="size-6 max-w-none" />
                             <span>{entry.name}</span>
                           </a>
                         </SidebarMenuButton>
@@ -226,7 +227,7 @@ export function AppSidebar({
                           tooltip={entry.name}
                           className={`group-data-[collapsible=icon]:p-1! ${servicePadding}`}
                         >
-                          <AppIcon icon={entry.icon} className="size-6 max-w-none" />
+                          <AppIcon appId={entry.iconId} className="size-6 max-w-none" />
                           <span>{entry.name}</span>
                         </SidebarMenuButton>
                       )}

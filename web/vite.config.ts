@@ -9,6 +9,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    build: {
+      // Emit SVGs (the app icons) as separate hashed assets served like the
+      // font woff2 files, instead of inlining them as data URIs into the JS
+      // chunk. Returning false disables the size-based inlining that would
+      // otherwise embed the sub-4KB icons. Other assets keep the default.
+      assetsInlineLimit: (file) => (file.endsWith(".svg") ? false : undefined),
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

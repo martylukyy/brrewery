@@ -73,7 +73,7 @@ export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Prop
                     key={app.id}
                     className="flex items-start gap-3 rounded-md px-2 py-2.5 hover:bg-accent/50"
                   >
-                    <AppIcon icon={app.icon} className="size-9 self-center" />
+                    <AppIcon appId={app.id} className="size-9 self-center" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground">{app.name}</span>

@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,9 +29,6 @@ func TestAll_Invariants(t *testing.T) {
 		assert.NotEmpty(t, app.Name, "%s: name must be set", app.ID)
 		assert.NotEmpty(t, app.Description, "%s: description must be set", app.ID)
 		assert.NotEmpty(t, app.Category, "%s: category must be set", app.ID)
-
-		assert.True(t, strings.HasPrefix(app.Icon, "/apps/"), "%s: icon should be a bundled asset path", app.ID)
-		assert.True(t, strings.HasSuffix(app.Icon, ".png"), "%s: icon should be a PNG", app.ID)
 
 		assert.Contains(t, app.Playbooks.Install, app.ID, "%s: install playbook path", app.ID)
 		assert.Contains(t, app.Playbooks.Upgrade, app.ID, "%s: upgrade playbook path", app.ID)

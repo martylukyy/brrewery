@@ -1,12 +1,12 @@
-# rTorrent has no web UI of its own (ruTorrent provides one) and reuses the
-# ruTorrent icon. It is built from source with a user-selected version; the
-# version picker is registered at runtime from the vendored build manifest
-# (internal/apps/rtorrent), so no static install_options are declared here.
+# rTorrent has no web UI of its own (ruTorrent provides one). It is built from
+# source with a user-selected version; the version picker is registered at
+# runtime from the vendored build manifest (internal/apps/rtorrent), so no
+# static install_options are declared here. The frontend icon registry keys this
+# logo under rtorrent and reuses it for ruTorrent (web/src/lib/app-icons.ts).
 id: rtorrent
 name: rTorrent
 description: BitTorrent client
 category: download
-icon: rutorrent.png
 # Install builds from source and writes a per-user systemd unit, which needs
 # sudo: this adds the shared account-password prompt (reused as the become
 # password).
