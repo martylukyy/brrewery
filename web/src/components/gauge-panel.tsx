@@ -45,13 +45,18 @@ export function GaugePanel({ label, value, display, footer }: Props) {
           role="img"
           aria-label={`${label}: ${display}`}
         >
-          <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+          <ChartContainer
+            config={chartConfig}
+            className="pointer-events-none aspect-auto h-full w-full"
+          >
             <RadialBarChart
               data={data}
               startAngle={GAUGE_START_ANGLE}
               endAngle={GAUGE_END_ANGLE}
               innerRadius="86%"
               outerRadius="100%"
+              // Decorative gauge: no focus ring or click/keyboard interaction.
+              accessibilityLayer={false}
             >
               <PolarAngleAxis type="number" domain={[0, 100]} tick={false} axisLine={false} />
               <RadialBar
