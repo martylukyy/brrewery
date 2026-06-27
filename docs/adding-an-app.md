@@ -64,13 +64,16 @@ unit, and wire up the nginx site via the `brrewery_nginx_site` role.
 ## 3. Icon
 
 Icons live entirely in the frontend, keyed by app `id` — there is no served
-`/apps/` asset folder. Drop the official logo as an SVG at
-`web/src/assets/app-icons/<id>.svg`, then register it in
-`web/src/lib/app-icons.ts` (import it with `?raw` and add an `APP_ICONS` entry).
-It is inlined into the JS bundle as a data URI at build time. There is no text
-or color fallback: an `id` with no registry entry renders nothing. To reuse
-another app's logo (as `rtorrent` does with ruTorrent's), point the new `id` at
-the same imported SVG.
+`/apps/` asset folder. Drop the official logo as an SVG at`web/src/assets/app-icons/<id>.svg` 
+That file globs the folder at build time and registers every `<id>.svg` automatically, 
+using the file name (withoutextension) as the `id`. 
+Each SVG is emitted as a separate hashed asset andshipped with the bundle. 
+There is no text or color fallback: an `id` with no matching SVG renders nothing.
+
+To reuse another app's logo instead of shipping a new file (as `rutorrent` does
+with rTorrent's), add a one-line entry to the `ICON_ALIASES` map in
+`app-icons.ts`, keyed by the new `id` and valued by the `id` whose icon it
+borrows.
 
 ## When you *do* need Go
 

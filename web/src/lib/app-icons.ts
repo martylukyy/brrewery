@@ -3,35 +3,35 @@
 // vite.config assetsInlineLimit) rather than inlining it into the JS chunk.
 // Icons ship with the frontend bundle, so there is no served /apps/ asset
 // folder and the backend hands out no icon paths.
-import autobrr from "@/assets/app-icons/autobrr.svg";
-import deluge from "@/assets/app-icons/deluge.svg";
-import jellyfin from "@/assets/app-icons/jellyfin.svg";
-import lidarr from "@/assets/app-icons/lidarr.svg";
-import plex from "@/assets/app-icons/plex.svg";
-import prowlarr from "@/assets/app-icons/prowlarr.svg";
-import qbittorrent from "@/assets/app-icons/qbittorrent.svg";
-import qui from "@/assets/app-icons/qui.svg";
-import radarr from "@/assets/app-icons/radarr.svg";
-import rtorrent from "@/assets/app-icons/rtorrent.svg";
-import sabnzbd from "@/assets/app-icons/sabnzbd.svg";
-import sonarr from "@/assets/app-icons/sonarr.svg";
-import transmission from "@/assets/app-icons/transmission.svg";
+//
+// The registry is built at build time from the contents of the app-icons
+// folder: dropping `<id>.svg` into ../assets/app-icons registers that id
+// automatically, with no edit to this file required. The id is the file name
+// without its extension.
+const icons = import.meta.glob<string>("@/assets/app-icons/*.svg", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
 
-// Maps a catalog app id to its icon asset URL. ruTorrent ships no logo of its
-// own and reuses rTorrent's.
-export const APP_ICONS: Record<string, string> = {
-  autobrr,
-  deluge,
-  jellyfin,
-  lidarr,
-  plex,
-  prowlarr,
-  qbittorrent,
-  qui,
-  radarr,
-  rtorrent,
-  rutorrent: rtorrent,
-  sabnzbd,
-  sonarr,
-  transmission,
+// Aliases let one id reuse another's logo. ruTorrent ships no logo of its own
+// and reuses rTorrent's. Keyed by the new id, valued by the id whose icon it
+// borrows — only needed for these shared-logo cases.
+const ICON_ALIASES: Record<string, string> = {
+  rutorrent: "rtorrent",
 };
+
+// Maps a catalog app id to its icon asset URL.
+export const APP_ICONS: Record<string, string> = {};
+
+for (const [path, url] of Object.entries(icons)) {
+  // ".../app-icons/qbittorrent.svg" -> "qbittorrent"
+  const id = path.split("/").pop()!.replace(/\.svg$/, "");
+  APP_ICONS[id] = url;
+}
+
+for (const [alias, source] of Object.entries(ICON_ALIASES)) {
+  if (APP_ICONS[source]) {
+    APP_ICONS[alias] = APP_ICONS[source];
+  }
+}
