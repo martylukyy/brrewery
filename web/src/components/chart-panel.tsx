@@ -18,7 +18,7 @@ export function ChartPanel({
   children,
 }: Props) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-card p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-foreground">{title}</h2>
@@ -31,7 +31,7 @@ export function ChartPanel({
         </div>
         {action}
       </div>
-      {children}
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }

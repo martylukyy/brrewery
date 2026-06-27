@@ -114,6 +114,11 @@
   --chart-3: oklch(0.442 0.017 285.786);
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
+  /* Gauge status colors (Tailwind emerald-500 / orange-500 / red-700). Shared
+     across light and dark so the traffic-light reading stays consistent. */
+  --gauge-ok: oklch(0.696 0.17 162.48);
+  --gauge-warn: oklch(0.705 0.213 47.604);
+  --gauge-crit: oklch(0.505 0.213 27.518);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);

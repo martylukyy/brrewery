@@ -18,8 +18,15 @@ if (typeof window !== "undefined" && !window.matchMedia) {
 }
 
 if (typeof window !== "undefined" && !window.ResizeObserver) {
+  // recharts' ResponsiveContainer sizes itself from the ResizeObserver entry's
+  // contentRect; jsdom has no layout, so report a fixed non-zero size on observe
+  // to let charts render in tests.
   window.ResizeObserver = class {
-    observe() {}
+    constructor(private callback: ResizeObserverCallback) {}
+    observe(target: Element) {
+      const contentRect = { width: 640, height: 320, top: 0, left: 0, right: 640, bottom: 320, x: 0, y: 0 } as DOMRectReadOnly;
+      this.callback([{ target, contentRect } as ResizeObserverEntry], this);
+    }
     unobserve() {}
     disconnect() {}
   };

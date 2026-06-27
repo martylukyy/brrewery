@@ -60,8 +60,8 @@ export function DiskIOChart({ history, chartIdSuffix, mountPoint }: Props) {
       <LineChart
         pointCount={pointCount}
         series={[
-          { label: "Read", colorClass: "text-sky-400", values: read },
-          { label: "Write", colorClass: "text-emerald-400", values: write },
+          { label: "Read", color: "var(--color-sky-400)", values: read },
+          { label: "Write", color: "var(--color-emerald-400)", values: write },
         ]}
         formatValue={formatRate}
       />

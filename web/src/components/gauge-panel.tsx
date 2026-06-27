@@ -1,14 +1,21 @@
 import type { ReactNode } from "react";
+import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts";
 
 import { Card } from "@/components/ui/card";
-import {
-  GAUGE_SLOT_HEIGHT_PX,
-  STROKE,
-  TRACK_PATH,
-  VIEW_BOX,
-  gaugeFillClass,
-  gaugeFillPath,
-} from "@/lib/gauge";
+import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
+import { GAUGE_SLOT_HEIGHT_PX, gaugeColor } from "@/lib/gauge";
+
+// 300° arc, symmetric about the vertical axis: fills from the bottom-left
+// endpoint up and over the top toward the bottom-right as the value grows.
+const GAUGE_START_ANGLE = 240;
+const GAUGE_END_ANGLE = -60;
+
+const chartConfig = { value: { label: "Value" } } satisfies ChartConfig;
+
+// Below ~2.2% the fill arc is too short for two rounded corners and recharts
+// draws it with square ends. Lift small non-zero readings to this minimum so
+// the cap stays rounded inside the band; an exact zero still renders empty.
+const MIN_VISIBLE_PERCENT = 3;
 
 type Props = {
   label: string;
@@ -21,8 +28,8 @@ type Props = {
 
 export function GaugePanel({ label, value, display, footer }: Props) {
   const clamped = Math.min(100, Math.max(0, value));
-  const fillClass = gaugeFillClass(clamped);
-  const fillPath = gaugeFillPath(clamped);
+  const filled = clamped > 0 ? Math.max(clamped, MIN_VISIBLE_PERCENT) : 0;
+  const data = [{ name: label, value: filled, fill: gaugeColor(clamped) }];
 
   return (
     <Card className="flex h-full min-h-0 flex-col gap-0 overflow-visible p-3 py-3">
@@ -38,41 +45,31 @@ export function GaugePanel({ label, value, display, footer }: Props) {
           role="img"
           aria-label={`${label}: ${display}`}
         >
-          <svg
-            viewBox={`${VIEW_BOX.minX} ${VIEW_BOX.minY} ${VIEW_BOX.width} ${VIEW_BOX.height}`}
-            className="h-full w-full"
-            preserveAspectRatio="xMidYMax meet"
-            aria-hidden
-          >
-            <path
-              d={TRACK_PATH}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={STROKE}
-              strokeLinecap="round"
-              className="text-border"
-            />
-            {fillPath && (
-              <path
-                d={fillPath}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={STROKE}
-                strokeLinecap="round"
-                className={fillClass}
+          <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+            <RadialBarChart
+              data={data}
+              startAngle={GAUGE_START_ANGLE}
+              endAngle={GAUGE_END_ANGLE}
+              innerRadius="86%"
+              outerRadius="100%"
+            >
+              <PolarAngleAxis type="number" domain={[0, 100]} tick={false} axisLine={false} />
+              <RadialBar
+                dataKey="value"
+                background={{ fill: "var(--color-border)" }}
+                // Clamped by recharts to half the band thickness → pill caps.
+                cornerRadius={9999}
+                isAnimationActive={false}
               />
-            )}
-          </svg>
+            </RadialBarChart>
+          </ChartContainer>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="text-2xl font-semibold tabular-nums text-foreground">{display}</span>
           </div>
         </div>
       </div>
       <div className="flex min-h-11 w-full flex-1 flex-col items-center justify-center pt-3 text-center px-4 sm:px-8 xl:px-12">
-
-        {footer != null && (
-          <div className="flex h-full w-full flex-1 flex-col">{footer}</div>
-        )}
+        {footer != null && <div className="flex h-full w-full flex-1 flex-col">{footer}</div>}
       </div>
     </Card>
   );

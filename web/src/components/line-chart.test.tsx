@@ -5,51 +5,49 @@ import { LineChart } from "@/components/line-chart";
 import { formatRate } from "@/lib/format";
 
 describe("LineChart", () => {
-  it("uses fixed maxValue for Y scale", () => {
+  it("renders one recharts line per series", () => {
     const { container } = render(
       <LineChart
         maxValue={100}
         formatValue={formatRate}
-        series={[{ label: "A", colorClass: "text-zinc-100", values: [0, 50, 200] }]}
+        series={[
+          { label: "Read", color: "var(--color-sky-400)", values: [0, 50] },
+          { label: "Write", color: "var(--color-emerald-400)", values: [10, 20] },
+        ]}
       />,
     );
 
-    const polyline = container.querySelector("polyline");
-    expect(polyline).toBeTruthy();
-    const points = polyline?.getAttribute("points") ?? "";
-    const ys = points.split(" ").map((p) => Number(p.split(",")[1]));
-    expect(ys[2]).toBeCloseTo(4, 0);
+    expect(container.querySelectorAll(".recharts-line")).toHaveLength(2);
   });
 
-  it("places the latest sample at the right edge when pointCount is fixed", () => {
+  it("renders Y-axis ticks formatted from maxValue", () => {
     const { container } = render(
+      <LineChart
+        maxValue={100}
+        formatValue={(value) => `${value} B/s`}
+        series={[{ label: "A", color: "var(--color-sky-400)", values: [0, 50] }]}
+      />,
+    );
+
+    const ticks = Array.from(
+      container.querySelectorAll(".recharts-cartesian-axis-tick-value"),
+    ).map((node) => node.textContent);
+    expect(ticks).toContain("0 B/s");
+    expect(ticks).toContain("50 B/s");
+    expect(ticks).toContain("100 B/s");
+  });
+
+  it("shows the latest value per series in the legend", () => {
+    const { getByText } = render(
       <LineChart
         pointCount={5}
         maxValue={100}
         formatValue={formatRate}
-        series={[{ label: "A", colorClass: "text-zinc-100", values: [null, null, null, 10, 20] }]}
+        series={[{ label: "Down", color: "var(--color-sky-400)", values: [null, null, null, 10, 20] }]}
       />,
     );
 
-    const polyline = container.querySelector("polyline");
-    const points = polyline?.getAttribute("points") ?? "";
-    const xs = points.split(" ").map((p) => Number(p.split(",")[0]));
-    expect(xs[0]).toBeCloseTo(324, 0);
-    expect(xs[1]).toBeCloseTo(432, 0);
-  });
-
-  it("renders Y-axis scale labels when formatValue is set", () => {
-    const { getByTestId } = render(
-      <LineChart
-        maxValue={100}
-        formatValue={(value) => `${value} B/s`}
-        series={[{ label: "A", colorClass: "text-zinc-100", values: [0, 50] }]}
-      />,
-    );
-
-    const axis = getByTestId("chart-y-axis");
-    expect(axis).toHaveTextContent("100 B/s");
-    expect(axis).toHaveTextContent("50 B/s");
-    expect(axis).toHaveTextContent("0 B/s");
+    expect(getByText("Down")).toBeInTheDocument();
+    expect(getByText("20 B/s")).toBeInTheDocument();
   });
 });

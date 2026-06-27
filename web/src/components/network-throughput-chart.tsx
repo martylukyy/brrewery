@@ -80,8 +80,8 @@ export function NetworkThroughputChart({ history }: Props) {
       <LineChart
         pointCount={pointCount}
         series={[
-          { label: "Download", colorClass: "text-sky-400", values: rx },
-          { label: "Upload", colorClass: "text-emerald-400", values: tx },
+          { label: "Download", color: "var(--color-sky-400)", values: rx },
+          { label: "Upload", color: "var(--color-emerald-400)", values: tx },
         ]}
         maxValue={networkScaleMaxBytes(networkScale)}
         formatValue={formatRate}
