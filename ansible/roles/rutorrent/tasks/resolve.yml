@@ -1,19 +1,77 @@
 ---
-# ruTorrent ships no compiled assets and no release tarball asset, so track the
-# latest stable release tag and fetch its source archive.
-- name: Fetch latest ruTorrent release metadata
+# ruTorrent ships no compiled assets and no release tarball asset, so we fetch
+# the source archive for a chosen release tag. Which tag is "chosen" depends on
+# the installed rtorrent: ruTorrent >= 5.3.2 broke its ratio plugin on rtorrent
+# <= 0.15.x, so instead of always cloning the latest tag we pin per rtorrent
+# series from the vendored compatibility manifest. See files/rutorrent/manifest.yml
+# and https://github.com/Novik/ruTorrent/issues/3065.
+
+- name: Load the ruTorrent compatibility manifest
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/files/rutorrent/manifest.yml"
+    name: rutorrent_manifest
+
+# rtorrent is a hard dependency and is already installed (the install step waits
+# on its SCGI socket). It has no --version flag; `-h` prints a banner whose first
+# version token is the rtorrent version (e.g. "rtorrent 0.15.5/0.15.5 - ..."). It
+# needs a TTY and exits non-zero, so never fail on it — parse whatever it prints.
+# `timeout` guards against the rare case where it blocks on terminal init.
+- name: Read the installed rtorrent version banner
+  ansible.builtin.command:
+    cmd: timeout 10 {{ rutorrent_rtorrent_bin }} -h
+  register: rutorrent_rtorrent_banner
+  changed_when: false
+  failed_when: false
+
+- name: Extract the installed rtorrent version from the banner
+  ansible.builtin.set_fact:
+    rutorrent_rtorrent_version: >-
+      {{ ((rutorrent_rtorrent_banner.stdout | default('')) ~ ' ' ~ (rutorrent_rtorrent_banner.stderr | default('')))
+         | regex_search('[0-9]+\.[0-9]+\.[0-9]+') | default('', true) }}
+
+- name: Derive the installed rtorrent series (major.minor)
+  ansible.builtin.set_fact:
+    rutorrent_rtorrent_series: >-
+      {{ rutorrent_rtorrent_version.split('.')[0:2] | join('.') if (rutorrent_rtorrent_version | length > 0) else '' }}
+
+- name: Match the manifest line for the installed rtorrent series
+  ansible.builtin.set_fact:
+    rutorrent_line_matches: >-
+      {{ rutorrent_manifest.lines | selectattr('rtorrent_series', 'equalto', rutorrent_rtorrent_series) | list }}
+
+# Fall back to the manifest default (track latest) for a newer/unknown rtorrent
+# or when the version could not be read — never regress a working 0.16+ pairing.
+- name: Resolve the effective ruTorrent line
+  ansible.builtin.set_fact:
+    rutorrent_line: >-
+      {{ rutorrent_line_matches[0] if (rutorrent_line_matches | length > 0) else rutorrent_manifest.default }}
+
+- name: Fetch the latest ruTorrent release metadata (lines that track upstream)
   ansible.builtin.uri:
     url: "https://api.github.com/repos/{{ rutorrent_repo }}/releases/latest"
     return_content: true
   register: rutorrent_release
+  when: rutorrent_line.resolve == 'latest'
 
-- name: Resolve latest ruTorrent version and source archive URL
+- name: Resolve the ruTorrent release tag
   ansible.builtin.set_fact:
-    rutorrent_version: "{{ rutorrent_release.json.tag_name }}"
-    rutorrent_tarball_url: "https://github.com/{{ rutorrent_repo }}/archive/refs/tags/{{ rutorrent_release.json.tag_name }}.tar.gz"
+    rutorrent_version: "{{ rutorrent_release.json.tag_name if (rutorrent_line.resolve == 'latest') else rutorrent_line.tag }}"
+
+- name: Build the ruTorrent source archive URL
+  ansible.builtin.set_fact:
+    rutorrent_tarball_url: "https://github.com/{{ rutorrent_repo }}/archive/refs/tags/{{ rutorrent_version }}.tar.gz"
+
+- name: Announce the resolved ruTorrent pairing
+  ansible.builtin.debug:
+    msg: >-
+      Installing ruTorrent {{ rutorrent_version }} for rtorrent
+      {{ rutorrent_rtorrent_version if (rutorrent_rtorrent_version | length > 0) else 'series unknown' }}
+      (resolve={{ rutorrent_line.resolve }})
 
 - name: Fail when the ruTorrent version could not be resolved
   ansible.builtin.assert:
     that:
       - rutorrent_version | length > 0
-    fail_msg: "Could not resolve the latest ruTorrent release tag from GitHub"
+    fail_msg: >-
+      Could not resolve a ruTorrent release tag for rtorrent series
+      '{{ rutorrent_rtorrent_series }}' (resolve={{ rutorrent_line.resolve }})

@@ -1,0 +1,48 @@
+# Vendored compatibility manifest for ruTorrent (Novik/ruTorrent).
+#
+# ruTorrent is a PHP web UI whose plugins drive rtorrent over XML-RPC/SCGI, so
+# its compatibility is tied to the rtorrent command surface — not to a build
+# toolchain like the qbittorrent/rtorrent manifests. The `ratio` plugin is the
+# canary: ruTorrent >= 5.3.2 moved the ratio setters onto the rtorrent 0.16.x
+# `group.*` API and stopped emitting a working call for the 0.15.x
+# `group2.rat_N.ratio.*.set("", value)` surface. So an always-latest ruTorrent
+# paired with an rtorrent <= 0.15.x build leaves the ratio plugin dead out of the
+# box ("Plugin failed to start"; the Ratio Rules page throws
+# "theWebUI.isCorrectRatio is not a function"). Upstream now tracks rtorrent
+# 0.16.x and states it won't keep supporting older rtorrent.
+# See https://github.com/Novik/ruTorrent/issues/3065.
+#
+# brrewery detects the installed rtorrent series at ruTorrent install time
+# (tasks/resolve.yml reads the rtorrent banner) and selects the matching line
+# here, instead of always cloning the newest upstream tag. Each line is either:
+#   resolve: latest  -> track the newest upstream release tag (the old behaviour);
+#   resolve: pinned  -> use the manifest `tag` verbatim (lockfile-style).
+# Bump a pin only when a newer ruTorrent is verified to work with that rtorrent
+# series. See docs/rutorrent-version-manifest.md.
+
+# Used when the installed rtorrent series matches no line below — a newer/unknown
+# rtorrent, or one whose version could not be read. Newer rtorrent is the surface
+# upstream ruTorrent targets, so track latest there (no regression for 0.16+).
+default:
+  resolve: latest
+
+lines:
+  # rtorrent 0.16.x is the command surface upstream ruTorrent now targets.
+  - rtorrent_series: "0.16"
+    resolve: latest
+
+  # rtorrent 0.15.x: ruTorrent >= 5.3.2 broke the ratio plugin here (issue #3065).
+  # v5.3.1 is the last release whose ratio plugin drives the 0.15.x setters.
+  - rtorrent_series: "0.15"
+    resolve: pinned
+    tag: "v5.3.1"
+
+  # Older rtorrent (0.10.x, 0.9.x) predates the 0.16 group.* surface as well, so
+  # the same last-known-good ruTorrent applies.
+  - rtorrent_series: "0.10"
+    resolve: pinned
+    tag: "v5.3.1"
+
+  - rtorrent_series: "0.9"
+    resolve: pinned
+    tag: "v5.3.1"

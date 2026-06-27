@@ -9,6 +9,10 @@ rutorrent_web_path: /rutorrent/
 rtorrent_state_dir: "{{ rtorrent_home }}/.local/share/rtorrent"
 rutorrent_scgi_socket: "{{ rtorrent_state_dir }}/rpc.socket"
 
+# The installed rtorrent binary (rtorrent_build installs to /usr/local). resolve.yml
+# reads its version banner to pick a compatible ruTorrent tag from the manifest.
+rutorrent_rtorrent_bin: /usr/local/bin/rtorrent
+
 # Dedicated PHP-FPM pool. It runs as the brrewery user so it can reach rtorrent's
 # socket; nginx (www-data) connects to this pool socket.
 rutorrent_fpm_pool: rutorrent
