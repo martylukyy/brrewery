@@ -1,0 +1,99 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    filebrowser_bin: /usr/local/bin/filebrowser
+    filebrowser_port: 8090
+  roles:
+    - brrewery_user
+  tasks:
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Set filebrowser config paths
+      ansible.builtin.set_fact:
+        filebrowser_database: "{{ brrewery_home }}/.config/filebrowser/filebrowser.db"
+
+    - name: Fetch latest filebrowser release metadata
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/filebrowser/filebrowser/releases/latest
+        return_content: true
+      register: filebrowser_release
+
+    - name: Resolve filebrowser linux amd64 download URL
+      ansible.builtin.set_fact:
+        filebrowser_download_url: >-
+          {{ filebrowser_release.json.assets
+             | selectattr('name', 'search', 'linux-amd64')
+             | map(attribute='browser_download_url')
+             | first }}
+
+    - name: Download filebrowser release archive
+      ansible.builtin.get_url:
+        url: "{{ filebrowser_download_url }}"
+        dest: /tmp/filebrowser.tar.gz
+        mode: "0644"
+
+    - name: Ensure filebrowser extract directory exists
+      ansible.builtin.file:
+        path: /tmp/filebrowser-extract
+        state: directory
+        mode: "0755"
+
+    - name: Extract filebrowser binary
+      ansible.builtin.unarchive:
+        src: /tmp/filebrowser.tar.gz
+        dest: /tmp/filebrowser-extract
+        remote_src: true
+
+    - name: Install filebrowser binary
+      ansible.builtin.copy:
+        src: /tmp/filebrowser-extract/filebrowser
+        dest: "{{ filebrowser_bin }}"
+        mode: "0755"
+        remote_src: true
+      notify: Restart filebrowser
+
+    - name: Ensure filebrowser server settings are configured
+      ansible.builtin.command:
+        argv:
+          - "{{ filebrowser_bin }}"
+          - -d
+          - "{{ filebrowser_database }}"
+          - config
+          - set
+          - -a
+          - 127.0.0.1
+          - -p
+          - "{{ filebrowser_port }}"
+          - -b
+          - /filebrowser
+          - -r
+          - "{{ brrewery_home }}"
+      become: true
+      become_user: "{{ brrewery_user }}"
+      changed_when: false
+      notify: Restart filebrowser
+
+    - name: Configure nginx reverse proxy for filebrowser
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: filebrowser
+        brrewery_app_web_path: /filebrowser/
+        brrewery_app_upstream: http://127.0.0.1:{{ filebrowser_port }}
+
+  handlers:
+    - name: Restart filebrowser
+      ansible.builtin.systemd:
+        name: "filebrowser@{{ brrewery_user }}.service"
+        state: restarted

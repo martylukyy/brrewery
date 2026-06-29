@@ -1,0 +1,159 @@
+---
+- hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    filebrowser_bin: /usr/local/bin/filebrowser
+    filebrowser_port: 8090
+  roles:
+    - brrewery_user
+  tasks:
+    - name: Look up brrewery user home directory
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ brrewery_user }}"
+      register: brrewery_passwd
+
+    - name: Set brrewery home directory fact
+      ansible.builtin.set_fact:
+        brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Ensure brrewery user home directory exists
+      ansible.builtin.stat:
+        path: "{{ brrewery_home }}"
+      register: brrewery_home_dir
+
+    - name: Fail when brrewery user home is missing
+      ansible.builtin.fail:
+        msg: "Home directory {{ brrewery_home }} for user {{ brrewery_user }} does not exist"
+      when: not brrewery_home_dir.stat.exists
+
+    - name: Set filebrowser config paths
+      ansible.builtin.set_fact:
+        filebrowser_config_dir: "{{ brrewery_home }}/.config/filebrowser"
+        filebrowser_database: "{{ brrewery_home }}/.config/filebrowser/filebrowser.db"
+        filebrowser_configured_marker: "{{ brrewery_home }}/.config/filebrowser/.brrewery-configured"
+
+    - name: Ensure filebrowser config directory exists
+      ansible.builtin.file:
+        path: "{{ filebrowser_config_dir }}"
+        state: directory
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0750"
+
+    - name: Fetch latest filebrowser release metadata
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/filebrowser/filebrowser/releases/latest
+        return_content: true
+      register: filebrowser_release
+
+    - name: Resolve filebrowser linux amd64 download URL
+      ansible.builtin.set_fact:
+        filebrowser_download_url: >-
+          {{ filebrowser_release.json.assets
+             | selectattr('name', 'search', 'linux-amd64')
+             | map(attribute='browser_download_url')
+             | first }}
+
+    - name: Download filebrowser release archive
+      ansible.builtin.get_url:
+        url: "{{ filebrowser_download_url }}"
+        dest: /tmp/filebrowser.tar.gz
+        mode: "0644"
+
+    - name: Ensure filebrowser extract directory exists
+      ansible.builtin.file:
+        path: /tmp/filebrowser-extract
+        state: directory
+        mode: "0755"
+
+    - name: Extract filebrowser binary
+      ansible.builtin.unarchive:
+        src: /tmp/filebrowser.tar.gz
+        dest: /tmp/filebrowser-extract
+        remote_src: true
+        creates: /tmp/filebrowser-extract/filebrowser
+
+    - name: Install filebrowser binary
+      ansible.builtin.copy:
+        src: /tmp/filebrowser-extract/filebrowser
+        dest: "{{ filebrowser_bin }}"
+        mode: "0755"
+        remote_src: true
+
+    - name: Require brrewery user password for filebrowser admin account
+      ansible.builtin.assert:
+        that:
+          - brrewery_user_password is defined
+          - brrewery_user_password | length > 0
+        fail_msg: brrewery_user_password must be supplied for filebrowser install
+
+    # File Browser keeps its settings and users in a bolt database. Initialise it,
+    # point it at the loopback port behind the /filebrowser/ base URL, scope it to
+    # the brrewery user's home (where downloads land), and seed an admin account
+    # matching the brrewery operator. Guarded by a marker so re-runs are no-ops and
+    # the password is never re-applied. Runs as the brrewery user so the database is
+    # owned by them.
+    - name: Provision filebrowser database, settings and admin user
+      ansible.builtin.shell: |
+        set -euo pipefail
+        "{{ filebrowser_bin }}" -d "{{ filebrowser_database }}" config init
+        "{{ filebrowser_bin }}" -d "{{ filebrowser_database }}" config set \
+          -a 127.0.0.1 -p {{ filebrowser_port }} -b /filebrowser \
+          -r "{{ brrewery_home }}" --auth.method=json
+        "{{ filebrowser_bin }}" -d "{{ filebrowser_database }}" users add \
+          "{{ brrewery_user }}" "$BRREWERY_USER_PASSWORD" --perm.admin
+        touch "{{ filebrowser_configured_marker }}"
+      become: true
+      become_user: "{{ brrewery_user }}"
+      environment:
+        BRREWERY_USER_PASSWORD: "{{ brrewery_user_password }}"
+      args:
+        creates: "{{ filebrowser_configured_marker }}"
+      no_log: true
+
+    - name: Install filebrowser systemd template unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/filebrowser@.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=File Browser service for %i
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=%i
+          ExecStart={{ filebrowser_bin }} -d /home/%i/.config/filebrowser/filebrowser.db
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Reload systemd
+
+    - name: Enable and start filebrowser for brrewery user
+      ansible.builtin.systemd:
+        name: "filebrowser@{{ brrewery_user }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Configure nginx reverse proxy for filebrowser
+      # strip_path_prefix=false: File Browser's base URL serves under /filebrowser,
+      # so the prefix is preserved. Large uploads rely on the global
+      # client_max_body_size set in contrib/nginx/general.conf.
+      ansible.builtin.include_role:
+        name: brrewery_nginx_site
+      vars:
+        brrewery_app_id: filebrowser
+        brrewery_app_web_path: /filebrowser/
+        brrewery_app_upstream: http://127.0.0.1:{{ filebrowser_port }}
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

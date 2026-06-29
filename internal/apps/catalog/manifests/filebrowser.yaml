@@ -1,0 +1,16 @@
+id: filebrowser
+name: File Browser
+description: Web file manager
+category: tools
+web_path: /filebrowser/
+# Install/upgrade/remove run as the brrewery service account and need sudo: this
+# adds the shared account-password prompt (reused as the become password and as
+# the File Browser admin password). The released binary stores its config and
+# users in a bolt database under ~/.config/filebrowser, so there are no static
+# install options to declare.
+requires_account_password: true
+detection:
+  binaries:
+    - filebrowser
+  systemd_user_units:
+    - "filebrowser@{user}.service"
