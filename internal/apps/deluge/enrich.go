@@ -14,9 +14,11 @@ import (
 
 // EnrichAnsibleVars resolves the concrete Deluge release for the chosen version
 // line and the libtorrent branch to build against, writing them into the Ansible
-// extra vars. The deluge_build role reads the rest of the per-line build profile
-// (Python runtime, C++ standard, setuptools pin, legacy toolchain) from the
-// vendored manifest directly, and clones the chosen libtorrent branch head.
+// extra vars. Only the Deluge release is resolved from upstream; the rest of the
+// per-line build profile (Python runtime, C++ standard, setuptools pin, compiler
+// flags, legacy toolchain, and the libtorrent tag + Boost pinned per branch) is
+// read by the deluge_build role from the vendored manifest directly, and the
+// pinned libtorrent tag is cloned rather than the branch head.
 func EnrichAnsibleVars(ctx context.Context, vars map[string]string, resolver *ReleaseResolver) error {
 	if resolver == nil {
 		resolver = DefaultReleaseResolver()

@@ -76,13 +76,17 @@
   ansible.builtin.set_fact:
     dz_python: "{{ dz_line.python }}"
     dz_cxx_std: "{{ dz_line.cxx_std }}"
+    # libtorrent and its Boost are pinned per branch in the manifest
+    # (lockfile-style); the build clones this exact tag rather than the branch head.
+    dz_libtorrent_tag: "{{ dz_line.libtorrent.branches[dz_libtorrent_branch].tag }}"
+    dz_boost: "{{ dz_line.libtorrent.branches[dz_libtorrent_branch].boost }}"
     dz_setuptools: "{{ dz_line.setuptools | default('') }}"
     dz_legacy: "{{ dz_line.legacy | default(false) }}"
-    dz_compiler_flags: "{{ dz_manifest.defaults.compiler_flags }}"
-    dz_boost: "{{ dz_manifest.defaults.boost }}"
-    dz_link_libs: "{{ dz_manifest.defaults.libtorrent_link_libs }}"
-    dz_openssl11_version: "{{ dz_manifest.defaults.openssl11_version }}"
-    dz_python27_version: "{{ dz_manifest.defaults.python27_version }}"
+    # Every build dependency is pinned per line (there is no shared defaults block).
+    dz_compiler_flags: "{{ dz_line.compiler_flags | default('-O2') }}"
+    dz_link_libs: "{{ dz_line.libtorrent_link_libs | default('') }}"
+    dz_openssl11_version: "{{ dz_line.openssl11_version | default('') }}"
+    dz_python27_version: "{{ dz_line.python27_version | default('') }}"
     # RC_1_1 (the 1.3 line) needs the vendored Jamfile + source compatibility
     # patches to build with a modern toolchain; the modern branches do not.
     dz_libtorrent_patches: "{{ ['libtorrent-RC_1_1-Jamfile.patch'] if dz_libtorrent_branch == 'RC_1_1' else [] }}"
@@ -99,8 +103,8 @@
   ansible.builtin.debug:
     msg: >-
       Building Deluge {{ deluge_release }} (line {{ deluge_version }}) on
-      {{ dz_python }} + libtorrent {{ libtorrent_release | default('(branch ' ~ dz_libtorrent_branch ~ ')') }}
-      [{{ dz_libtorrent_branch }}], C++{{ dz_cxx_std | regex_replace('^c\\+\\+', '') }},
+      {{ dz_python }} + libtorrent {{ dz_libtorrent_tag }} [{{ dz_libtorrent_branch }}],
+      C++{{ dz_cxx_std | regex_replace('^c\\+\\+', '') }},
       flags={{ dz_compiler_flags }}{{ ', legacy py2.7 toolchain' if dz_legacy | bool else '' }}
 
 - name: Install vendored manifest and patches into a writable vendor root

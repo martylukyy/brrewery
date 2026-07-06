@@ -37,9 +37,8 @@ deluge_web_base: /deluge/
 # Supplied by brrewery before Ansible runs (see internal/apps/deluge):
 # deluge_version is the UI line (e.g. "2.2.x"); deluge_release is the concrete
 # resolved Deluge tag version (e.g. "2.2.0"); libtorrent_branch is the chosen
-# libtorrent line (RC_1_2/RC_2_0/RC_1_1); libtorrent_release is the resolved
-# libtorrent version (informational — the build clones the branch head).
+# libtorrent line (RC_1_2/RC_2_0/RC_1_1). The libtorrent version itself is not
+# passed here — it is pinned per branch in the manifest and read by the role.
 deluge_version: ""
 deluge_release: ""
 libtorrent_branch: ""
-libtorrent_release: ""

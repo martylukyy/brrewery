@@ -23,14 +23,20 @@ OpenSSL 1.1 under `/opt/brrewery-python27` and `/opt/brrewery-openssl11`.
 
 ## manifest.yml
 
-Each line builds the **latest patch** of a Deluge version series. brrewery
-resolves the concrete versions before Ansible runs (see `internal/apps/deluge`):
+Each line builds the **latest patch** of a Deluge version series. Only the
+Deluge release itself is resolved from upstream; every build **dependency** is
+pinned per line in `manifest.yml` (lockfile-style, like a `package.json`) so
+builds are reproducible instead of tracking upstream "latest". Each line is
+self-contained — there is no shared `defaults` block:
 
-| Selection | Resolution |
-|-----------|------------|
-| Deluge release | Newest `deluge-{series}.*` tag on GitHub (`deluge_release`) |
+| Selection | Source |
+|-----------|--------|
+| Deluge release | Resolved from the newest `deluge-{series}.*` tag on GitHub, passed as `deluge_release` (see `internal/apps/deluge`) |
 | libtorrent branch | User choice (`libtorrent_branch`), else the line default |
-| libtorrent version | Head of the chosen branch (RC_1_2 → 1.2.x, RC_2_0 → 2.0.x, RC_1_1 → 1.1.x) |
+| libtorrent version | Pinned per branch as `libtorrent.branches.<branch>.tag`, read from the manifest by Ansible and cloned by tag (RC_1_2 → `v1.2.20`, RC_2_0 → `v2.0.11`, RC_1_1 → `libtorrent-1_1_14`) |
+| Boost | Pinned per libtorrent branch as `libtorrent.branches.<branch>.boost` (all currently `1_86_0`) |
+| compiler flags | Pinned per line as `compiler_flags` |
+| OpenSSL 1.1 / CPython 2.7 | Pinned as `openssl11_version` / `python27_version` on the legacy 1.3 line only |
 
 | Deluge line | Python | libtorrent branches | Notes |
 |-------------|--------|---------------------|-------|
@@ -43,7 +49,7 @@ branch pickers) and validation; Ansible reads it to drive the build.
 ## libtorrent build
 
 The python bindings are built with Boost.Build (`b2 … install_module`), static
-libtorrent + Boost, and `-O3 -mtune=native` (the `compiler_flags` default —
+libtorrent + Boost, and `-O3 -mtune=native` (each line's `compiler_flags` —
 **never** `-march=native`, matching the qBittorrent build). On Debian's system
 OpenSSL 3 the static `libcrypto.a` references zstd/zlib symbols that b2 does not
 link, so the runtime sonames are appended (`-l:libzstd.so.1 -l:libz.so.1`); the
@@ -58,6 +64,11 @@ Boost's `_1.._N` placeholders into scope in the two binding sources that use the
 
 ## Maintainers
 
-`.x` always tracks the newest upstream patch, so no manifest edits are needed for
-new Deluge or libtorrent patch releases. Update `manifest.yml` only when adding a
-new series, changing the Boost version, or adjusting the per-line build profile.
+The Deluge `.x` release still tracks the newest upstream patch automatically, so
+no manifest edits are needed for new Deluge patch releases. Build **dependencies**
+are pinned, so bump them explicitly when upstream ships a newer compatible
+release: update a line's `libtorrent.branches.<branch>.{tag,boost}` (RC_1_2/RC_1_1
+stay ≤ Boost 1.86 for `boost::asio::io_service`), its `compiler_flags`, or the
+legacy line's `openssl11_version` / `python27_version`. Because each line is
+self-contained, apply the change to every affected line. Also edit `manifest.yml`
+when adding a new series or adjusting the per-line build profile.

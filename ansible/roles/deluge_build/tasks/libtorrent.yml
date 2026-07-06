@@ -9,10 +9,12 @@
     path: "{{ deluge_build_root }}/libtorrent"
     state: absent
 
-- name: Clone libtorrent ({{ dz_libtorrent_branch }})
+# --branch takes the pinned tag (dz_libtorrent_tag) so the build is reproducible;
+# --single-branch --depth 1 still fetches only the history reachable from it.
+- name: Clone libtorrent {{ dz_libtorrent_tag }} ({{ dz_libtorrent_branch }})
   ansible.builtin.command:
     cmd: >-
-      git clone --no-tags --single-branch --branch {{ dz_libtorrent_branch }}
+      git clone --no-tags --single-branch --branch {{ dz_libtorrent_tag }}
       --shallow-submodules --recurse-submodules -j{{ deluge_build_jobs }} --depth 1
       https://github.com/arvidn/libtorrent.git {{ deluge_build_root }}/libtorrent
     creates: "{{ deluge_build_root }}/libtorrent/Jamfile"
@@ -136,4 +138,4 @@
 
 - name: Announce the built libtorrent version
   ansible.builtin.debug:
-    msg: "libtorrent module {{ dz_lt_import.stdout }} ({{ dz_libtorrent_branch }}) installed into {{ deluge_venv }}"
+    msg: "libtorrent module {{ dz_lt_import.stdout }} ({{ dz_libtorrent_tag }}, {{ dz_libtorrent_branch }}) installed into {{ deluge_venv }}"

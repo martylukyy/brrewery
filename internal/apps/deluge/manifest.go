@@ -39,17 +39,12 @@ var (
 	ErrBranchNotAllowed = errors.New("libtorrent branch not supported for this Deluge version")
 )
 
-// Manifest mirrors ansible/roles/deluge_build/files/deluge/manifest.yml.
+// Manifest mirrors ansible/roles/deluge_build/files/deluge/manifest.yml. Each
+// line is self-contained: it pins its own build dependencies (there is no shared
+// defaults block). Go surfaces only what it needs for the wizard and validation;
+// the deluge_build role reads the rest of each line directly.
 type Manifest struct {
-	Defaults Defaults `yaml:"defaults"`
-	Lines    []Line   `yaml:"lines"`
-}
-
-// Defaults holds build settings shared across lines. Go only reads what it
-// surfaces; the deluge_build role reads the rest of the defaults directly.
-type Defaults struct {
-	CompilerFlags string `yaml:"compiler_flags"`
-	Boost         string `yaml:"boost"`
+	Lines []Line `yaml:"lines"`
 }
 
 // Line is the build profile for one selectable Deluge release line.
@@ -66,18 +61,27 @@ type Line struct {
 
 // LibtorrentSpec lists the libtorrent branches a line allows and its default.
 type LibtorrentSpec struct {
-	Default  string   `yaml:"default"`
-	Branches []string `yaml:"branches"`
+	Default string `yaml:"default"`
+	// Branches maps each allowed branch (RC_1_2/RC_2_0/RC_1_1) to its pinned
+	// build spec. Pinning the tag per branch keeps builds reproducible instead of
+	// tracking the branch head; the deluge_build role clones the pinned tag.
+	Branches map[string]LibtorrentBranchSpec `yaml:"branches"`
+}
+
+// LibtorrentBranchSpec pins, per libtorrent branch, the exact arvidn/libtorrent
+// tag a branch builds against (e.g. "v1.2.20", or "libtorrent-1_1_14" for the
+// pre-vX.Y.Z 1.1 series) and the Boost release it links (underscore form, e.g.
+// "1_86_0"). Boost is per-branch because RC_1_2/RC_1_1 require Boost <= 1.86
+// (boost::asio::io_service, removed in 1.87).
+type LibtorrentBranchSpec struct {
+	Tag   string `yaml:"tag"`
+	Boost string `yaml:"boost"`
 }
 
 // AllowsBranch reports whether the line can build against the given branch.
 func (l *Line) AllowsBranch(branch string) bool {
-	for _, b := range l.Libtorrent.Branches {
-		if b == branch {
-			return true
-		}
-	}
-	return false
+	_, ok := l.Libtorrent.Branches[branch]
+	return ok
 }
 
 // HasBranchChoice reports whether the line offers more than one libtorrent branch.

@@ -19,9 +19,6 @@ func TestLoadManifestHasAllLines(t *testing.T) {
 		got = append(got, l.Version)
 	}
 	assert.Equal(t, []string{"2.2.x", "2.1.x", "2.0.x", "1.3.x"}, got)
-
-	assert.Equal(t, "-O3 -mtune=native", m.Defaults.CompilerFlags)
-	assert.Equal(t, "1_86_0", m.Defaults.Boost)
 }
 
 func TestResolveSelectionModernLine(t *testing.T) {
@@ -37,6 +34,13 @@ func TestResolveSelectionModernLine(t *testing.T) {
 	assert.True(t, line.AllowsBranch(BranchRC12))
 	assert.True(t, line.AllowsBranch(BranchRC20))
 	assert.False(t, line.AllowsBranch(BranchRC11))
+
+	// libtorrent and its Boost are pinned per branch (lockfile-style) rather than
+	// tracking the branch head, so the exact versions come from the manifest.
+	assert.Equal(t, "v1.2.20", line.Libtorrent.Branches[BranchRC12].Tag)
+	assert.Equal(t, "1_86_0", line.Libtorrent.Branches[BranchRC12].Boost)
+	assert.Equal(t, "v2.0.11", line.Libtorrent.Branches[BranchRC20].Tag)
+	assert.Equal(t, "1_86_0", line.Libtorrent.Branches[BranchRC20].Boost)
 }
 
 func TestResolveSelectionLegacyLine(t *testing.T) {
@@ -51,6 +55,10 @@ func TestResolveSelectionLegacyLine(t *testing.T) {
 	assert.False(t, line.HasBranchChoice())
 	assert.True(t, line.AllowsBranch(BranchRC11))
 	assert.False(t, line.AllowsBranch(BranchRC20))
+
+	// RC_1_1's last release predates libtorrent's vX.Y.Z tags.
+	assert.Equal(t, "libtorrent-1_1_14", line.Libtorrent.Branches[BranchRC11].Tag)
+	assert.Equal(t, "1_86_0", line.Libtorrent.Branches[BranchRC11].Boost)
 }
 
 func TestResolveSelectionUnknown(t *testing.T) {
