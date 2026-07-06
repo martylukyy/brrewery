@@ -1,4 +1,4 @@
-import { IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
+import { IconBrandSpeedtest, IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -33,6 +33,7 @@ type Props = {
   // footer falls back to a generic "Signed in" label rather than inventing one.
   user?: string;
   onManageClick: () => void;
+  onTuneSysctl: () => void;
   onLogout: () => void;
   // Toggle an installed app's systemd service. `enabled` is the requested
   // target state (true = start & enable, false = stop & disable).
@@ -131,6 +132,7 @@ export function AppSidebar({
   version,
   user,
   onManageClick,
+  onTuneSysctl,
   onLogout,
   onToggleService,
   pendingServiceAppId,
@@ -253,12 +255,22 @@ export function AppSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              tooltip="Manage server"
+              tooltip="Manage apps"
               onClick={onManageClick}
               className="group-data-[collapsible=icon]:p-1!"
             >
               <IconServerCog className="size-6!" />
-              <span>Manage server</span>
+              <span>Manage apps</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Tune sysctl parameters"
+              onClick={onTuneSysctl}
+              className="group-data-[collapsible=icon]:p-1!"
+            >
+              <IconBrandSpeedtest className="size-6!" />
+              <span>Tune sysctl parameters</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

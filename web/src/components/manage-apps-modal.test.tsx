@@ -34,14 +34,7 @@ const apps: AppStatus[] = [
 
 describe("ManageAppsModal", () => {
   it("lists all catalog apps", () => {
-    render(
-      <ManageAppsModal
-        apps={apps}
-        onClose={() => {}}
-        onConfirm={() => {}}
-        onTuneSysctl={() => {}}
-      />,
-    );
+    render(<ManageAppsModal apps={apps} onClose={() => {}} onConfirm={() => {}} />);
 
     expect(screen.getByRole("dialog", { name: "Manage server" })).toBeInTheDocument();
     expect(screen.getByText("Sonarr")).toBeInTheDocument();
@@ -53,14 +46,7 @@ describe("ManageAppsModal", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
-    render(
-      <ManageAppsModal
-        apps={apps}
-        onClose={() => {}}
-        onConfirm={onConfirm}
-        onTuneSysctl={() => {}}
-      />,
-    );
+    render(<ManageAppsModal apps={apps} onClose={() => {}} onConfirm={onConfirm} />);
 
     await user.click(screen.getByRole("button", { name: "Install Radarr" }));
 
@@ -74,14 +60,7 @@ describe("ManageAppsModal", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
-    render(
-      <ManageAppsModal
-        apps={apps}
-        onClose={() => {}}
-        onConfirm={onConfirm}
-        onTuneSysctl={() => {}}
-      />,
-    );
+    render(<ManageAppsModal apps={apps} onClose={() => {}} onConfirm={onConfirm} />);
 
     await user.click(screen.getByRole("button", { name: "Upgrade Sonarr" }));
 
@@ -95,14 +74,7 @@ describe("ManageAppsModal", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
-    render(
-      <ManageAppsModal
-        apps={apps}
-        onClose={() => {}}
-        onConfirm={onConfirm}
-        onTuneSysctl={() => {}}
-      />,
-    );
+    render(<ManageAppsModal apps={apps} onClose={() => {}} onConfirm={onConfirm} />);
 
     await user.click(screen.getByRole("button", { name: "Remove Sonarr" }));
 
@@ -112,33 +84,8 @@ describe("ManageAppsModal", () => {
     });
   });
 
-  it("opens the sysctl tuner from the footer button", async () => {
-    const user = userEvent.setup();
-    const onTuneSysctl = vi.fn();
-
-    render(
-      <ManageAppsModal
-        apps={apps}
-        onClose={() => {}}
-        onConfirm={() => {}}
-        onTuneSysctl={onTuneSysctl}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Tune sysctl parameters" }));
-
-    expect(onTuneSysctl).toHaveBeenCalledTimes(1);
-  });
-
   it("disables actions based on app state", () => {
-    render(
-      <ManageAppsModal
-        apps={apps}
-        onClose={() => {}}
-        onConfirm={() => {}}
-        onTuneSysctl={() => {}}
-      />,
-    );
+    render(<ManageAppsModal apps={apps} onClose={() => {}} onConfirm={() => {}} />);
 
     // Not installed, dependencies missing -> nothing actionable.
     expect(screen.getByRole("button", { name: "Install ruTorrent" })).toBeDisabled();

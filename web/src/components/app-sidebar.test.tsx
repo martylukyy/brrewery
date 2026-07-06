@@ -46,6 +46,7 @@ function renderSidebar(overrides: Overrides = {}) {
         <AppSidebar
           apps={apps}
           onManageClick={() => {}}
+          onTuneSysctl={() => {}}
           onLogout={() => {}}
           onToggleService={() => {}}
           {...overrides}
@@ -89,8 +90,18 @@ describe("AppSidebar", () => {
 
     renderSidebar({ onManageClick });
 
-    await user.click(screen.getByRole("button", { name: "Manage server" }));
+    await user.click(screen.getByRole("button", { name: "Manage apps" }));
     expect(onManageClick).toHaveBeenCalled();
+  });
+
+  it("calls onTuneSysctl for the sysctl button", async () => {
+    const user = userEvent.setup();
+    const onTuneSysctl = vi.fn();
+
+    renderSidebar({ onTuneSysctl });
+
+    await user.click(screen.getByRole("button", { name: "Tune sysctl parameters" }));
+    expect(onTuneSysctl).toHaveBeenCalled();
   });
 
   it("shows the signed-in user when provided", () => {

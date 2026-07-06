@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { IconAdjustments, IconChevronsUp, IconDownload, IconTrash } from "@tabler/icons-react";
+import { IconChevronsUp, IconDownload, IconTrash } from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -23,7 +22,6 @@ type Props = {
   apps: AppStatus[];
   onClose: () => void;
   onConfirm: (request: ManageAppsConfirm) => void;
-  onTuneSysctl: () => void;
 };
 
 function sortedApps(apps: AppStatus[]): AppStatus[] {
@@ -38,7 +36,7 @@ function canUpgradeOrRemove(app: AppStatus): boolean {
   return app.installed;
 }
 
-export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Props) {
+export function ManageAppsModal({ apps, onClose, onConfirm }: Props) {
   const catalog = useMemo(() => sortedApps(apps), [apps]);
 
   function handleAction(action: JobAction, id: string) {
@@ -125,13 +123,6 @@ export function ManageAppsModal({ apps, onClose, onConfirm, onTuneSysctl }: Prop
             </ul>
           )}
         </div>
-
-        <DialogFooter className="border-t border-border px-5 py-4 sm:justify-start">
-          <Button variant="outline" onClick={onTuneSysctl}>
-            <IconAdjustments />
-            Tune sysctl parameters
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

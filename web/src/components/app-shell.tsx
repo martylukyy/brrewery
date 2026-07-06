@@ -161,6 +161,7 @@ export function AppShell() {
         version={session?.version}
         user={username}
         onManageClick={() => setPhase("select")}
+        onTuneSysctl={() => setPhase("sysctl")}
         onLogout={() => logout.mutate()}
         onToggleService={(app, enabled) => setServiceToggle({ app, enabled })}
         pendingServiceAppId={pendingServiceAppId}
@@ -186,7 +187,6 @@ export function AppShell() {
           apps={appList}
           onClose={() => setPhase(null)}
           onConfirm={beginAppJobs}
-          onTuneSysctl={() => setPhase("sysctl")}
         />
       )}
 
