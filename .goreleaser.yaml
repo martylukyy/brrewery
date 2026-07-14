@@ -22,6 +22,10 @@ archives:
   - formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      # install.sh deploys the SPA bundle to the nginx web root from here.
+      - src: internal/web/dist/**
+        dst: web/dist
 
 checksum:
   name_template: checksums.txt

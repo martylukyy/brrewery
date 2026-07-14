@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # brrewery host installer — idempotent bootstrap for production paths.
 set -euo pipefail
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="$ROOT"
@@ -16,9 +15,15 @@ QBT_PATCHES_DIR="/var/lib/brrewery/patches/qbittorrent"
 SSL_DIR="/etc/ssl/brrewery"
 NGINX_ETC="/etc/nginx"
 REPO_URL="${BRREWERY_REPO_URL:-https://github.com/martylukyy/brrewery.git}"
-REPO_REF="${BRREWERY_REPO_REF:-develop}"
+# Git ref for the config clone (ansible playbooks, nginx/systemd files). Empty
+# defaults to the release tag resolved by fetch_release, so config and binary
+# come from the same version.
+REPO_REF="${BRREWERY_REPO_REF:-}"
 CLONE_DIR="${BRREWERY_CLONE_DIR:-/etc/brrewery}"
-NODE_INSTALL_DIR="/usr/local/lib/nodejs"
+# Release tag to install (e.g. v1.2.0 or v1.2.0-rc.1). Empty resolves the
+# newest published GitHub release, pre-releases included.
+RELEASE_TAG="${BRREWERY_VERSION:-}"
+RELEASE_DIR=""
 ACME_HOME="/root/.acme.sh"
 
 if [[ "${EUID:-}" -ne 0 ]]; then
@@ -96,91 +101,84 @@ run_with_log() {
   echo
 }
 
+# Requires fetch_release to have run first so $RELEASE_TAG is resolved.
 bootstrap_source() {
   if [[ -f "$ROOT/Makefile" && -d "$ROOT/ansible" && -d "$ROOT/contrib" ]]; then
     SOURCE_DIR="$ROOT"
     return
   fi
 
-  run_with_log "Fetching brrewery source" bash -c "
+  local ref="${REPO_REF:-$RELEASE_TAG}"
+  run_with_log "Fetching brrewery source (${ref})" bash -c "
       rm -rf \"$CLONE_DIR\" &&
-        git clone --depth 1 --branch \"$REPO_REF\" \"$REPO_URL\" \"$CLONE_DIR\"
+        git clone --depth 1 --branch \"$ref\" \"$REPO_URL\" \"$CLONE_DIR\"
     "
   SOURCE_DIR="$CLONE_DIR"
 }
 
-install_node_lts() {
-  local arch
-  case "$(uname -m)" in
-  x86_64) arch="x64" ;;
-  aarch64) arch="arm64" ;;
-  *)
-    echo "Unsupported architecture for Node.js LTS install: $(uname -m)" >&2
-    exit 1
-    ;;
-  esac
-
-  local node_version
-  node_version="$(
-    curl -fsSL https://nodejs.org/dist/index.json | python3 -c '
-import json, sys
-for release in json.load(sys.stdin):
-    if release.get("lts"):
-        print(release["version"])
-        break
-'
-  )"
-  if [[ -z "$node_version" ]]; then
-    echo "Failed to resolve latest Node.js LTS version" >&2
+# Download the brrewery release archive (binary + web assets) built by the
+# Release GitHub workflow, verify its checksum and unpack it to $RELEASE_DIR.
+fetch_release() {
+  if [[ "$(uname -m)" != "x86_64" ]]; then
+    echo "Unsupported architecture: $(uname -m) (release binaries are linux/amd64 only)" >&2
     exit 1
   fi
 
-  local tarball="node-${node_version}-linux-${arch}.tar.xz"
-  local url="https://nodejs.org/dist/${node_version}/${tarball}"
-  local tmp_tar="/tmp/${tarball}"
+  local slug version archive base_url
+  slug="${REPO_URL#https://github.com/}"
+  slug="${slug%.git}"
 
-  run_with_spinner "Installing Node.js ${node_version} LTS" bash -c "
-    curl -fsSL \"$url\" -o \"$tmp_tar\" &&
-      install -d -m 0755 \"$NODE_INSTALL_DIR\" &&
-      rm -rf \"${NODE_INSTALL_DIR:?}/node-${node_version}-linux-${arch}\" &&
-      tar -xJf \"$tmp_tar\" -C \"$NODE_INSTALL_DIR\" &&
-      rm -f \"$tmp_tar\" &&
-      ln -sf \"${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/node\" /usr/local/bin/node &&
-      ln -sf \"${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/npm\" /usr/local/bin/npm &&
-      ln -sf \"${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/npx\" /usr/local/bin/npx &&
-      ln -sf \"${NODE_INSTALL_DIR}/node-${node_version}-linux-${arch}/bin/corepack\" /usr/local/bin/corepack
-  "
-}
+  if [[ -z "$RELEASE_TAG" ]]; then
+    # /releases/latest excludes pre-releases, so list releases and take the
+    # newest non-draft entry instead.
+    RELEASE_TAG="$(
+      curl -fsSL "https://api.github.com/repos/${slug}/releases?per_page=10" | python3 -c '
+import json, sys
+for release in json.load(sys.stdin):
+    if not release.get("draft"):
+        print(release["tag_name"])
+        break
+'
+    )"
+  fi
+  if [[ -z "$RELEASE_TAG" ]]; then
+    echo "Failed to resolve the latest brrewery release for ${slug}" >&2
+    exit 1
+  fi
 
-bootstrap_pnpm() {
-  run_with_spinner "Bootstrapping pnpm" bash -c "
-    npm install -g pnpm@11.5.0 &&
-      npm_prefix=\$(npm prefix -g) &&
-      npm_bin_dir=\"\${npm_prefix}/bin\" &&
-      export PATH=\"\${npm_bin_dir}:/usr/local/bin:\${PATH}\" &&
-      if [[ -x \"\${npm_bin_dir}/pnpm\" ]]; then ln -sf \"\${npm_bin_dir}/pnpm\" /usr/local/bin/pnpm; fi &&
-      if [[ -x \"\${npm_bin_dir}/pnpx\" ]]; then ln -sf \"\${npm_bin_dir}/pnpx\" /usr/local/bin/pnpx; fi &&
-      if ! command -v pnpm >/dev/null 2>&1; then
-        echo \"pnpm install succeeded but binary is not on PATH\" >&2
-        exit 1
-      fi &&
-      pnpm --version >/dev/null
+  version="${RELEASE_TAG#v}"
+  archive="brrewery_${version}_linux_amd64.tar.gz"
+  base_url="https://github.com/${slug}/releases/download/${RELEASE_TAG}"
+
+  RELEASE_DIR="$(mktemp -d /tmp/brrewery-release.XXXXXX)"
+  trap 'rm -rf "$RELEASE_DIR"' EXIT
+
+  run_with_spinner "Downloading brrewery ${RELEASE_TAG}" bash -c "
+    cd \"$RELEASE_DIR\" &&
+      curl -fsSL -o \"$archive\" \"$base_url/$archive\" &&
+      curl -fsSL -o checksums.txt \"$base_url/checksums.txt\" &&
+      grep \" $archive\$\" checksums.txt | sha256sum -c - &&
+      tar -xzf \"$archive\"
   "
+
+  if [[ ! -x "$RELEASE_DIR/brrewery" || ! -d "$RELEASE_DIR/web/dist" ]]; then
+    echo "Release archive $archive is missing the binary or web assets" >&2
+    exit 1
+  fi
 }
 
 if command -v apt >/dev/null 2>&1; then
   run_with_spinner "Installing dependencies" bash -c '
     apt update -qq &&
       DEBIAN_FRONTEND=noninteractive apt install -y -qq \
-        nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3 golang-go cron
+        nginx git vnstat sudo ansible openssl curl ca-certificates python3 cron
   '
 else
   echo "Unsupported distro: apt is required." >&2
   exit 1
 fi
 
-install_node_lts
-bootstrap_pnpm
+fetch_release
 bootstrap_source
 
 run_with_spinner "Creating directories" bash -c "
@@ -188,55 +186,20 @@ run_with_spinner "Creating directories" bash -c "
     install -d -m 0755 \"$(dirname "$BINARY_DEST")\"
 "
 
-if [[ -f "$SOURCE_DIR/Makefile" ]]; then
-  run_with_spinner "Building frontend" bash -c "
-      cd \"$SOURCE_DIR/web\" && pnpm install && pnpm build
-    "
-  run_with_spinner "Syncing frontend build artifacts" bash -c "
-    rm -rf \"$SOURCE_DIR/internal/web/dist\" &&
-      cp -r \"$SOURCE_DIR/web/dist\" \"$SOURCE_DIR/internal/web/\"
-  "
-  run_with_spinner "Building backend" bash -c "cd \"$SOURCE_DIR\" && make backend"
-
-  # The builds above run as root. When installing from a developer checkout
-  # (rather than the system clone in $CLONE_DIR), that leaves root-owned
-  # artifacts behind — web/node_modules (incl. .tmp/*.tsbuildinfo), web/dist,
-  # internal/web/dist and the brrewery binary — which stop the owning user from
-  # rebuilding (e.g. `make frontend` fails with EACCES on the tsbuildinfo files).
-  # Restore ownership of the generated artifacts to whoever owns the checkout.
-  if [[ "$SOURCE_DIR" == "$ROOT" ]]; then
-    owner_uid="$(stat -c '%u' "$SOURCE_DIR")"
-    owner_gid="$(stat -c '%g' "$SOURCE_DIR")"
-    if [[ "$owner_uid" -ne 0 ]]; then
-      run_with_spinner "Restoring build artifact ownership" bash -c "
-        for path in \
-          \"$SOURCE_DIR/web/node_modules\" \
-          \"$SOURCE_DIR/web/dist\" \
-          \"$SOURCE_DIR/internal/web/dist\" \
-          \"$SOURCE_DIR/brrewery\"; do
-          if [[ -e \"\$path\" ]]; then chown -R \"$owner_uid:$owner_gid\" \"\$path\"; fi
-        done
-      "
-    fi
-  fi
-else
-  echo "Missing Makefile in $SOURCE_DIR" | tee -a "$INSTALL_LOG" >&2
+if [[ ! -d "$SOURCE_DIR/ansible" || ! -d "$SOURCE_DIR/contrib" ]]; then
+  echo "Missing ansible/ or contrib/ in $SOURCE_DIR" | tee -a "$INSTALL_LOG" >&2
   exit 1
 fi
 
 run_with_spinner "Installing binary and ansible playbooks" bash -c "
-  install -m 0755 \"$SOURCE_DIR/brrewery\" \"$BINARY_DEST\" &&
+  install -m 0755 \"$RELEASE_DIR/brrewery\" \"$BINARY_DEST\" &&
     rm -rf \"${ANSIBLE_DEST:?}\"/* &&
     cp -a \"$SOURCE_DIR/ansible/.\" \"$ANSIBLE_DEST/\"
 "
 
 run_with_spinner "Deploying web assets" bash -c "
   rm -rf \"${WEB_ROOT:?}\"/* &&
-    if [[ -d \"$SOURCE_DIR/internal/web/dist\" ]]; then
-      cp -a \"$SOURCE_DIR/internal/web/dist/.\" \"$WEB_ROOT/\"
-    elif [[ -d \"$SOURCE_DIR/web/dist\" ]]; then
-      cp -a \"$SOURCE_DIR/web/dist/.\" \"$WEB_ROOT/\"
-    fi
+    cp -a \"$RELEASE_DIR/web/dist/.\" \"$WEB_ROOT/\"
 "
 
 if [[ ! -f "$SSL_DIR/fullchain.pem" ]]; then
