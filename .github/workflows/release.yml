@@ -50,9 +50,13 @@ jobs:
           rm -rf internal/web/dist
           cp -r web/dist internal/web/
 
+      # cache: false — the module cache restore races with go's automatic
+      # x/telemetry/config download and fails with a tar warning on every run;
+      # a fresh module download only costs a few seconds here.
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: false
 
       # Tag pushes publish a (pre-)release with the archive attached;
       # pushes to main only produce a snapshot build.
