@@ -5,9 +5,10 @@ import "time"
 type JobAction string
 
 const (
-	JobActionInstall JobAction = "install"
-	JobActionUpgrade JobAction = "upgrade"
-	JobActionRemove  JobAction = "remove"
+	JobActionInstall    JobAction = "install"
+	JobActionUpgrade    JobAction = "upgrade"
+	JobActionRemove     JobAction = "remove"
+	JobActionSelfUpdate JobAction = "self-update"
 )
 
 type JobStatus string

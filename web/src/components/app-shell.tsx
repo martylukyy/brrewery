@@ -12,6 +12,8 @@ import { SysctlModal } from "@/components/sysctl-modal";
 import { AppJobModal } from "@/components/app-job-modal";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceToggleModal } from "@/components/service-toggle-modal";
+import { UpdateModal } from "@/components/update-modal";
+import { useUpdateStatus } from "@/hooks/use-update-status";
 import {
   SidebarInset,
   SidebarProvider,
@@ -24,7 +26,7 @@ import {
   setAppService,
   verifyPassword,
   type AppStatus,
-  type JobAction,
+  type AppJobAction,
 } from "@/lib/api";
 
 type ManagePhase = "select" | "secrets" | "options" | "job" | "sysctl";
@@ -39,13 +41,16 @@ export function AppShell() {
   const { session, username, logout } = useAuth();
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<ManagePhase | null>(null);
-  const [pendingAction, setPendingAction] = useState<JobAction>("install");
+  const [pendingAction, setPendingAction] = useState<AppJobAction>("install");
   const [pendingAppIds, setPendingAppIds] = useState<string[]>([]);
   const [jobQueueTotal, setJobQueueTotal] = useState(0);
   const [jobExtraVars, setJobExtraVars] = useState<Record<string, string>>({});
   const [serviceToggle, setServiceToggle] = useState<{ app: AppStatus; enabled: boolean } | null>(
     null,
   );
+  const [showUpdate, setShowUpdate] = useState(false);
+
+  const updateStatus = useUpdateStatus();
 
   const apps = useQuery({
     queryKey: ["apps"],
@@ -109,7 +114,7 @@ export function AppShell() {
     setPhase("job");
   }
 
-  function needsOptions(action: JobAction, appIds: string[]): boolean {
+  function needsOptions(action: AppJobAction, appIds: string[]): boolean {
     return (action === "install" || action === "upgrade") &&
       requiredInstallOptions(appList, appIds).length > 0;
   }
@@ -160,8 +165,11 @@ export function AppShell() {
         errorMessage={apps.error?.message}
         version={session?.version}
         user={username}
+        updateAvailable={Boolean(updateStatus.data?.update_available)}
+        latestVersion={updateStatus.data?.latest_version}
         onManageClick={() => setPhase("select")}
         onTuneSysctl={() => setPhase("sysctl")}
+        onUpdateClick={() => setShowUpdate(true)}
         onLogout={() => logout.mutate()}
         onToggleService={(app, enabled) => setServiceToggle({ app, enabled })}
         pendingServiceAppId={pendingServiceAppId}
@@ -223,6 +231,10 @@ export function AppShell() {
           onClose={finishManageFlow}
           onFinished={handleJobFinished}
         />
+      )}
+
+      {showUpdate && updateStatus.data && (
+        <UpdateModal status={updateStatus.data} onClose={() => setShowUpdate(false)} />
       )}
 
       {serviceToggle && (

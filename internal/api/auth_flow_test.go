@@ -52,6 +52,8 @@ func newLoginTestServer(t *testing.T) *httptest.Server {
 		vnstat.NewCollector(),
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 
 	ts := httptest.NewServer(srv.Handler())

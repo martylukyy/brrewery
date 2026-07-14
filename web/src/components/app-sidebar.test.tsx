@@ -274,4 +274,21 @@ describe("AppSidebar", () => {
       ).toBeInTheDocument();
     });
   });
+
+  describe("self-update entry", () => {
+    it("is hidden when no update is available", () => {
+      renderSidebar();
+
+      expect(screen.queryByText(/Update to/)).not.toBeInTheDocument();
+    });
+
+    it("shows the available version and calls onUpdateClick", async () => {
+      const user = userEvent.setup();
+      const onUpdateClick = vi.fn();
+      renderSidebar({ updateAvailable: true, latestVersion: "1.2.0", onUpdateClick });
+
+      await user.click(screen.getByRole("button", { name: "Update to 1.2.0" }));
+      expect(onUpdateClick).toHaveBeenCalledOnce();
+    });
+  });
 });

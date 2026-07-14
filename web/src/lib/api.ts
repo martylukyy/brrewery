@@ -237,7 +237,12 @@ export function listApps() {
   return apiFetch<AppListResponse>("/apps");
 }
 
-export type JobAction = "install" | "upgrade" | "remove";
+// Actions the app-management flow can start on a catalog app.
+export type AppJobAction = "install" | "upgrade" | "remove";
+
+// Every action a job can carry. Self-update jobs are started via the update
+// endpoint, not the per-app job routes.
+export type JobAction = AppJobAction | "self-update";
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
@@ -263,7 +268,7 @@ export type JobLogsResponse = {
   lines: string[];
 };
 
-export function startAppJob(id: string, action: JobAction, body: AppJobRequest = {}) {
+export function startAppJob(id: string, action: AppJobAction, body: AppJobRequest = {}) {
   return apiFetch<AppJobResponse>(`/apps/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -322,6 +327,44 @@ export function getVnstatReport(params: { days: number; months: number }) {
   return apiFetch<VnstatReport>(
     `/traffic/vnstat?days=${params.days}&months=${params.months}`,
   );
+}
+
+// UpdateStatus is the backend's cached result of its GitHub release check.
+export type UpdateStatus = {
+  current_version: string;
+  latest_version?: string;
+  latest_tag?: string;
+  update_available: boolean;
+  checked_at?: string;
+  // Failure of the most recent check; the other fields keep the last
+  // successful result.
+  error?: string;
+};
+
+export function getUpdateStatus(refresh = false) {
+  return apiFetch<UpdateStatus>(`/update${refresh ? "?refresh=1" : ""}`);
+}
+
+// startSelfUpdate launches the brrewery self-update job. The account password
+// is required as a confirmation gate. Progress is polled via the jobs
+// endpoints; the update ends in a service restart that signs every session out.
+export function startSelfUpdate(password: string) {
+  return apiFetch<AppJobResponse>("/update", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}
+
+// checkHealth probes the unauthenticated /health endpoint. Used to detect the
+// server coming back after the self-update restart, when the session cookie is
+// no longer valid.
+export async function checkHealth(): Promise<boolean> {
+  try {
+    const res = await fetch("/health", { cache: "no-store" });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export type SysctlKind = "integer" | "integer_list" | "enum";

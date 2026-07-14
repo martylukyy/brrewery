@@ -1,4 +1,4 @@
-import type { InstallSecret, AppStatus, JobAction } from "@/lib/api";
+import type { InstallSecret, AppStatus, AppJobAction } from "@/lib/api";
 
 /**
  * Deduplicated install secrets prompted for the given action, in order.
@@ -11,7 +11,7 @@ import type { InstallSecret, AppStatus, JobAction } from "@/lib/api";
 export function requiredSecrets(
   apps: AppStatus[],
   appIds: string[],
-  action: JobAction = "install",
+  action: AppJobAction = "install",
 ): InstallSecret[] {
   const seen = new Set<string>();
   const out: InstallSecret[] = [];

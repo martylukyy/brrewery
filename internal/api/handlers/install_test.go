@@ -65,6 +65,8 @@ func TestInstallAppEndpoint(t *testing.T) {
 		vnstat.NewCollector(),
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 
 	ts := httptest.NewServer(srv.Handler())
@@ -148,6 +150,8 @@ func TestInstallAppEndpoint_InvalidPassword(t *testing.T) {
 		vnstat.NewCollector(),
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 
 	ts := httptest.NewServer(srv.Handler())
@@ -202,7 +206,7 @@ func newLoggedInClient(t *testing.T) (client *http.Client, baseURL string) {
 	logger := zerolog.New(io.Discard)
 
 	appsService := appsdomain.NewServiceWithDeps(detect.NewEvaluator(), stubRunner{}, jobs.NewStore())
-	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), vnstat.NewCollector(), nil, nil)
+	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), vnstat.NewCollector(), nil, nil, nil, nil)
 
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)

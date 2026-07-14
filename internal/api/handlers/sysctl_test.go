@@ -1,12 +1,10 @@
 package handlers_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -21,7 +19,6 @@ import (
 	"github.com/autobrr/brrewery/internal/apps/ansible"
 	"github.com/autobrr/brrewery/internal/apps/detect"
 	"github.com/autobrr/brrewery/internal/apps/jobs"
-	"github.com/autobrr/brrewery/internal/auth"
 	"github.com/autobrr/brrewery/internal/system"
 	"github.com/autobrr/brrewery/internal/vnstat"
 )
@@ -44,39 +41,15 @@ func (c *captureRunner) Run(_ context.Context, req ansible.RunRequest) error {
 func newSysctlClient(t *testing.T, runner *captureRunner) (*http.Client, string) {
 	t.Helper()
 
-	dir := t.TempDir()
-	store := auth.NewFileStore(filepath.Join(dir, "users.json"))
-	hash, err := auth.HashPassword("password123")
-	require.NoError(t, err)
-	require.NoError(t, store.CreateAdmin(auth.User{
-		ID:           "admin-1",
-		Username:     "admin",
-		PasswordHash: hash,
-	}))
-
-	session := auth.NewSessionManager(nil)
-	authService := auth.NewService(store, session)
+	authService, session := newAdminAuthService(t)
 	logger := zerolog.New(io.Discard)
 	appsService := appsdomain.NewServiceWithDeps(detect.NewEvaluator(), runner, jobs.NewStore())
 
-	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), vnstat.NewCollector(), runner, nil)
+	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), vnstat.NewCollector(), runner, nil, nil, nil)
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
-	client := &http.Client{Jar: jar}
-
-	loginBody, _ := json.Marshal(map[string]string{"username": "admin", "password": "password123"})
-	loginReq, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/api/v1/auth/login", bytes.NewReader(loginBody))
-	require.NoError(t, err)
-	loginReq.Header.Set("Content-Type", "application/json")
-	loginRes, err := client.Do(loginReq)
-	require.NoError(t, err)
-	loginRes.Body.Close()
-	require.Equal(t, http.StatusOK, loginRes.StatusCode)
-
-	return client, ts.URL
+	return loginAsAdmin(t, ts.URL), ts.URL
 }
 
 func TestSysctlGet(t *testing.T) {

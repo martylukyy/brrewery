@@ -76,6 +76,18 @@ func (s *Store) Get(id string) (model.Job, bool) {
 	return record.job, true
 }
 
+// List returns a snapshot of all known jobs, in no particular order.
+func (s *Store) List() []model.Job {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]model.Job, 0, len(s.jobs))
+	for _, record := range s.jobs {
+		out = append(out, record.job)
+	}
+	return out
+}
+
 func (s *Store) Logs(id string) ([]string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

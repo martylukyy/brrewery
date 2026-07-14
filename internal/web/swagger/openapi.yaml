@@ -232,7 +232,7 @@ components:
             $ref: '#/components/schemas/AppStatus'
     JobAction:
       type: string
-      enum: [install, upgrade, remove]
+      enum: [install, upgrade, remove, self-update]
     JobStatus:
       type: string
       enum: [queued, running, succeeded, failed]
@@ -292,6 +292,36 @@ components:
           type: array
           items:
             type: string
+    UpdateStatus:
+      type: object
+      required: [current_version, update_available]
+      properties:
+        current_version:
+          type: string
+          description: Version of the running brrewery binary.
+        latest_version:
+          type: string
+          description: Newest published release version, without the leading v.
+        latest_tag:
+          type: string
+          description: Newest published release tag (e.g. v1.2.0).
+        update_available:
+          type: boolean
+        checked_at:
+          type: string
+          format: date-time
+          description: When GitHub was last queried successfully.
+        error:
+          type: string
+          description: Failure of the most recent check; the other fields keep the last successful result.
+    StartUpdateRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
+          description: Operator account password, verified as a confirmation gate before updating.
     LoadAvg:
       type: object
       properties:
@@ -777,6 +807,82 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/update:
+    get:
+      summary: Self-update status
+      description: >-
+        Cached result of the periodic GitHub release check. Pass refresh=1 to
+        query GitHub before answering; a failed refresh still returns 200 with
+        the stale cache and its error field set.
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          description: When "1", query GitHub before answering.
+          schema:
+            type: string
+            enum: ["1"]
+      responses:
+        '200':
+          description: Update status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateStatus'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Start self-update job
+      description: >-
+        Downloads the newest release archive, verifies its checksum and installs
+        everything it ships (binary, web assets, ansible playbooks, nginx and
+        systemd config), then restarts the brrewery service. Progress is polled
+        via the jobs endpoints; the restart signs every session out.
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartUpdateRequest'
+      responses:
+        '202':
+          description: Update job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallResponse'
+        '400':
+          description: Missing password or invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized or incorrect password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: An update is already in progress or no update is available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Self-update not supported for this installation (e.g. development build)
           content:
             application/json:
               schema:

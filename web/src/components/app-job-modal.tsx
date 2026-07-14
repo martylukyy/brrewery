@@ -18,13 +18,13 @@ import {
   getJob,
   getJobLogs,
   startAppJob,
-  type JobAction,
+  type AppJobAction,
   type JobStatus,
   type AppStatus,
 } from "@/lib/api";
 
 type Props = {
-  action: JobAction;
+  action: AppJobAction;
   appIds: string[];
   apps: AppStatus[];
   extraVars?: Record<string, string>;
@@ -36,7 +36,7 @@ type Props = {
 
 const TERMINAL: JobStatus[] = ["succeeded", "failed"];
 
-const ACTION_LABELS: Record<JobAction, { title: string; running: string; failedStart: string }> = {
+const ACTION_LABELS: Record<AppJobAction, { title: string; running: string; failedStart: string }> = {
   install: {
     title: "Installing",
     running: "Installing…",

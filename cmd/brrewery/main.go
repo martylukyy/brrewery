@@ -29,6 +29,7 @@ import (
 	"github.com/autobrr/brrewery/internal/auth"
 	"github.com/autobrr/brrewery/internal/buildinfo"
 	"github.com/autobrr/brrewery/internal/paths"
+	"github.com/autobrr/brrewery/internal/selfupdate"
 	"github.com/autobrr/brrewery/internal/system"
 	"github.com/autobrr/brrewery/internal/vnstat"
 	webapp "github.com/autobrr/brrewery/internal/web"
@@ -69,11 +70,26 @@ func runServe() *cobra.Command {
 			// One runner escalates privileges for both app playbooks and the
 			// system sysctl playbook, using the password entered in the web UI.
 			runner := ansible.NewRunner(paths.ResolveAnsibleRoot())
+			// The job store is shared between app installs and self-update, so
+			// the update job survives the restart and the /jobs endpoints serve
+			// its progress.
+			jobStore := jobs.NewStoreAt(paths.ResolveJobsDir())
 			appsService := appsdomain.NewServiceWithDeps(
 				detect.NewEvaluator(),
 				runner,
-				jobs.NewStoreAt(paths.ResolveJobsDir()),
+				jobStore,
 			)
+
+			updateCfg := selfupdate.DefaultConfig()
+			checker := selfupdate.NewChecker(updateCfg.Repo)
+			updater := selfupdate.NewUpdater(&updateCfg, jobStore, checker, &logger)
+			// Resolve the job a previous self-update left running before the
+			// API starts answering job polls.
+			updater.ReconcileOnStartup()
+
+			checkerCtx, stopChecker := context.WithCancel(context.Background())
+			defer stopChecker()
+			go checker.Run(checkerCtx, selfupdate.DefaultCheckInterval)
 
 			embedFS, err := webapp.DistFS()
 			if err != nil {
@@ -88,6 +104,8 @@ func runServe() *cobra.Command {
 				system.NewCollector(),
 				vnstat.NewCollector(),
 				runner,
+				checker,
+				updater,
 				embedFS,
 			)
 			httpServer := &http.Server{

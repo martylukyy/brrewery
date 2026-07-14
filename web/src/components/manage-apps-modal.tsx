@@ -11,10 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { JobAction, AppStatus } from "@/lib/api";
+import type { AppJobAction, AppStatus } from "@/lib/api";
 
 export type ManageAppsConfirm = {
-  action: JobAction;
+  action: AppJobAction;
   appIds: string[];
 };
 
@@ -39,7 +39,7 @@ function canUpgradeOrRemove(app: AppStatus): boolean {
 export function ManageAppsModal({ apps, onClose, onConfirm }: Props) {
   const catalog = useMemo(() => sortedApps(apps), [apps]);
 
-  function handleAction(action: JobAction, id: string) {
+  function handleAction(action: AppJobAction, id: string) {
     onConfirm({ action, appIds: [id] });
   }
 

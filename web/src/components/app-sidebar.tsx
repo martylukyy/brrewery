@@ -1,4 +1,10 @@
-import { IconBrandSpeedtest, IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
+import {
+  IconBrandSpeedtest,
+  IconDownload,
+  IconLogout,
+  IconServerCog,
+  IconUser,
+} from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -32,8 +38,14 @@ type Props = {
   // VersionInfo) exposes no identity field, so this is usually undefined and the
   // footer falls back to a generic "Signed in" label rather than inventing one.
   user?: string;
+  // A newer brrewery release is available; shows the update entry in the
+  // footer menu.
+  updateAvailable?: boolean;
+  // The available release version (e.g. "1.2.0"), shown on the update entry.
+  latestVersion?: string;
   onManageClick: () => void;
   onTuneSysctl: () => void;
+  onUpdateClick?: () => void;
   onLogout: () => void;
   // Toggle an installed app's systemd service. `enabled` is the requested
   // target state (true = start & enable, false = stop & disable).
@@ -131,8 +143,11 @@ export function AppSidebar({
   errorMessage,
   version,
   user,
+  updateAvailable = false,
+  latestVersion,
   onManageClick,
   onTuneSysctl,
+  onUpdateClick,
   onLogout,
   onToggleService,
   pendingServiceAppId,
@@ -253,6 +268,18 @@ export function AppSidebar({
 
       <SidebarFooter>
         <SidebarMenu>
+          {updateAvailable && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip={`Update brrewery to ${latestVersion ?? "the latest version"}`}
+                onClick={onUpdateClick}
+                className="text-emerald-500 hover:text-emerald-400 group-data-[collapsible=icon]:p-1!"
+              >
+                <IconDownload className="size-6!" />
+                <span>Update to {latestVersion ?? "latest"}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Manage apps"

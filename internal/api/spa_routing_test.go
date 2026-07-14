@@ -44,6 +44,8 @@ func newSPATestServer(t *testing.T) *httptest.Server {
 		system.NewCollector(),
 		vnstat.NewCollector(),
 		nil,
+		nil,
+		nil,
 		dist,
 	)
 
