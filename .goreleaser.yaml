@@ -23,7 +23,8 @@ archives:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
-      # install.sh deploys the SPA bundle to the nginx web root from here.
+      - src: ansible/**
+      - src: contrib/**
       - src: internal/web/dist/**
         dst: web/dist
 

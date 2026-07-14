@@ -15,11 +15,6 @@ QBT_PATCHES_DIR="/var/lib/brrewery/patches/qbittorrent"
 SSL_DIR="/etc/ssl/brrewery"
 NGINX_ETC="/etc/nginx"
 REPO_URL="${BRREWERY_REPO_URL:-https://github.com/martylukyy/brrewery.git}"
-# Git ref for the config clone (ansible playbooks, nginx/systemd files). Empty
-# defaults to the release tag resolved by fetch_release, so config and binary
-# come from the same version.
-REPO_REF="${BRREWERY_REPO_REF:-}"
-CLONE_DIR="${BRREWERY_CLONE_DIR:-/etc/brrewery}"
 # Release tag to install (e.g. v1.2.0 or v1.2.0-rc.1). Empty resolves the
 # newest published GitHub release, pre-releases included.
 RELEASE_TAG="${BRREWERY_VERSION:-}"
@@ -101,23 +96,9 @@ run_with_log() {
   echo
 }
 
-# Requires fetch_release to have run first so $RELEASE_TAG is resolved.
-bootstrap_source() {
-  if [[ -f "$ROOT/Makefile" && -d "$ROOT/ansible" && -d "$ROOT/contrib" ]]; then
-    SOURCE_DIR="$ROOT"
-    return
-  fi
-
-  local ref="${REPO_REF:-$RELEASE_TAG}"
-  run_with_log "Fetching brrewery source (${ref})" bash -c "
-      rm -rf \"$CLONE_DIR\" &&
-        git clone --depth 1 --branch \"$ref\" \"$REPO_URL\" \"$CLONE_DIR\"
-    "
-  SOURCE_DIR="$CLONE_DIR"
-}
-
-# Download the brrewery release archive (binary + web assets) built by the
-# Release GitHub workflow, verify its checksum and unpack it to $RELEASE_DIR.
+# Download the brrewery release archive (binary, web assets, ansible playbooks
+# and contrib config) built by the Release GitHub workflow, verify its checksum
+# and unpack it to $RELEASE_DIR.
 fetch_release() {
   if [[ "$(uname -m)" != "x86_64" ]]; then
     echo "Unsupported architecture: $(uname -m) (release binaries are linux/amd64 only)" >&2
@@ -179,7 +160,12 @@ else
 fi
 
 fetch_release
-bootstrap_source
+
+# Prefer a local source checkout (developer install) for the ansible playbooks
+# and contrib config; otherwise use the copies shipped in the release archive.
+if [[ ! -d "$SOURCE_DIR/ansible" || ! -d "$SOURCE_DIR/contrib" ]]; then
+  SOURCE_DIR="$RELEASE_DIR"
+fi
 
 run_with_spinner "Creating directories" bash -c "
   install -d -m 0750 \"$LIB_DIR\" \"$LIB_DIR/jobs\" \"$LOG_DIR\" \"$WEB_ROOT\" \"$ANSIBLE_DEST\" \"$VENDOR_DEST\" \"$QBT_PATCHES_DIR\" \"$SSL_DIR\" &&
