@@ -7,14 +7,9 @@ Repository guidelines for AI coding agents (Codex, Claude Code, etc.) working on
 brrewery is a web interface for accessing, installing, managing, updating/upgrading and removing apps.
 It is driven by a Go backend and a React + Vite + TypeScript + TailwindCSS + TanStack frontend.
 It is supposed to be a successor to https://github.com/swizzin/swizzin but only supporting amd64 archiectures.
-It's project structure should adhere to related projects in the https://github.com/autobrr org on GitHub like:
-- https://github.com/autobrr/autobrr
-- https://github.com/autobrr/qui
-- https://github.com/autobrr/netronome
-- https://github.com/autobrr/dashbrr
-- https://github.com/autobrr/librrary
-Unlike related projects, brrewery does not use a SQLite or PostgreSQL database due to the nature of the project.
-Unlike related projects, brrewery should only log to a logfile and should not use a config.toml since it's dashboard should always be served by a nginx webserver at `/`.
+It's project structure should adhere to related projects in the https://github.com/autobrr org on GitHub.
+Unlike related projects, brrewery does not use a SQLite or PostgreSQL database due to the nature of the project
+and should only log to a logfile and should not use a config.toml since it's dashboard should always be served by a nginx webserver at `/`.
 For the nginx configuration use a configuration structure like https://github.com/digitalocean/nginxconfig.io does.
 Do not keep track of apps installed via JSON files which could be tampered with but by querying the filesystem if the executables or dependencies for a certain exists.
 For setup we need a sh/bash install script that installs all the dependencies for brrewery and autostarts the daemon for brrewery
