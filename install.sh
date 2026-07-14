@@ -19,9 +19,31 @@ REPO_URL="${BRREWERY_REPO_URL:-https://github.com/martylukyy/brrewery.git}"
 REPO_REF="${BRREWERY_REPO_REF:-develop}"
 CLONE_DIR="${BRREWERY_CLONE_DIR:-/etc/brrewery}"
 NODE_INSTALL_DIR="/usr/local/lib/nodejs"
+ACME_HOME="/root/.acme.sh"
 
 if [[ "${EUID:-}" -ne 0 ]]; then
   echo "Run as root: sudo $0" >&2
+  exit 1
+fi
+
+# Domain for the Let's Encrypt certificate. Pass BRREWERY_DOMAIN=<fqdn> for
+# non-interactive runs; an empty value skips issuance.
+DOMAIN="${BRREWERY_DOMAIN:-}"
+if [[ -z "$DOMAIN" && -t 0 ]]; then
+  echo "Enter the domain to issue a Let's Encrypt certificate for. It must already"
+  echo "resolve to this host (e.g. brrewery.example.com). Leave empty to skip."
+  read -r -p "Domain: " DOMAIN || true
+fi
+DOMAIN="${DOMAIN//[[:space:]]/}"
+if [[ -z "$DOMAIN" ]]; then
+  echo
+  echo "! No domain provided — no Let's Encrypt certificate will be generated and"
+  echo "  TLS encryption will not be handled by brrewery. The dashboard falls back"
+  echo "  to a self-signed placeholder certificate (browsers will warn). Re-run"
+  echo "  this installer with BRREWERY_DOMAIN=<domain> to add one later."
+  echo
+elif [[ ! "$DOMAIN" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]; then
+  echo "Invalid domain: $DOMAIN" >&2
   exit 1
 fi
 
@@ -150,7 +172,7 @@ if command -v apt >/dev/null 2>&1; then
   run_with_spinner "Installing dependencies" bash -c '
     apt update -qq &&
       DEBIAN_FRONTEND=noninteractive apt install -y -qq \
-        nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3 golang-go
+        nginx git vnstat sudo ansible openssl make curl ca-certificates xz-utils python3 golang-go cron
   '
 else
   echo "Unsupported distro: apt is required." >&2
@@ -244,6 +266,49 @@ run_with_spinner "Configuring nginx" bash -c "
     systemctl enable nginx &&
     (systemctl reload nginx || systemctl start nginx)
 "
+
+if [[ -n "$DOMAIN" ]]; then
+  # acme.sh --nginx mode only accepts a plain-HTTP server block whose
+  # server_name contains the domain, so write it into the installed vhost.
+  run_with_spinner "Setting nginx server_name to $DOMAIN" bash -c "
+    sed -i \"s/server_name _;/server_name $DOMAIN;/\" \"$NGINX_ETC/sites-available/default\" &&
+      nginx -t &&
+      systemctl reload nginx
+  "
+
+  if [[ ! -x "$ACME_HOME/acme.sh" ]]; then
+    run_with_spinner "Installing acme.sh" bash -c "
+      systemctl enable --now cron &&
+        rm -rf /tmp/brrewery-acme.sh &&
+        git clone --depth 1 https://github.com/acmesh-official/acme.sh /tmp/brrewery-acme.sh &&
+        cd /tmp/brrewery-acme.sh &&
+        ./acme.sh --install --home \"$ACME_HOME\" &&
+        rm -rf /tmp/brrewery-acme.sh
+    "
+  fi
+
+  # Exit code 2 means a valid cert already exists and renewal was skipped —
+  # treat it as success so re-running the installer stays idempotent.
+  if run_with_spinner "Requesting Let's Encrypt certificate for $DOMAIN" bash -c "
+    \"$ACME_HOME/acme.sh\" --home \"$ACME_HOME\" --issue --server letsencrypt \
+      --nginx \"$NGINX_ETC/sites-available/default\" -d \"$DOMAIN\" ||
+      { rc=\$?; [[ \$rc -eq 2 ]] || exit \$rc; }
+  "; then
+    # --install-cert persists the file targets and reloadcmd in the acme.sh
+    # domain config, so the cron job installed above re-deploys the renewed
+    # cert into $SSL_DIR and reloads nginx automatically.
+    run_with_spinner "Deploying Let's Encrypt certificate" bash -c "
+      \"$ACME_HOME/acme.sh\" --home \"$ACME_HOME\" --install-cert -d \"$DOMAIN\" \
+        --key-file \"$SSL_DIR/privkey.pem\" \
+        --fullchain-file \"$SSL_DIR/fullchain.pem\" \
+        --reloadcmd \"chmod 0640 $SSL_DIR/privkey.pem; chmod 0644 $SSL_DIR/fullchain.pem; systemctl reload nginx\"
+    "
+  else
+    echo "! Let's Encrypt issuance for $DOMAIN failed (does the domain resolve to" >&2
+    echo "  this host and is port 80 reachable?). Continuing with the self-signed" >&2
+    echo "  certificate — fix DNS/firewall and re-run the installer to retry." >&2
+  fi
+fi
 
 run_with_spinner "Configuring systemd unit" bash -c "
   install -m 0644 \"$SOURCE_DIR/contrib/systemd/brrewery.service\" /etc/systemd/system/brrewery.service &&

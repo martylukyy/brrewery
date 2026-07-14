@@ -4,7 +4,14 @@ server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name _;
-    return 301 https://$host$request_uri;
+
+    # The HTTPS redirect lives in a location, not as a server-level return:
+    # a server-level return runs in the rewrite phase before location matching
+    # and would shadow the ACME-challenge location that acme.sh --nginx mode
+    # temporarily injects after server_name during issuance and renewals.
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 
 server {
