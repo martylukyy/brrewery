@@ -1,6 +1,7 @@
 # Build
 /brrewery
 /build/
+/dist/
 /tmp/
 *.exe
 *.exe~

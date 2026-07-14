@@ -1,0 +1,35 @@
+version: 2
+
+project_name: brrewery
+
+builds:
+  - id: brrewery
+    main: ./cmd/brrewery
+    binary: brrewery
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+      - -X github.com/autobrr/brrewery/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/autobrr/brrewery/internal/buildinfo.Commit={{ .Commit }}
+      - -X github.com/autobrr/brrewery/internal/buildinfo.Date={{ .Date }}
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next.{{ .ShortCommit }}"
+
+release:
+  # Tags with a pre-release suffix (e.g. v1.2.0-rc.1) are published as
+  # GitHub pre-releases, stable tags as regular releases.
+  prerelease: auto

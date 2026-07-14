@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "24"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  goreleaser:
+    name: Build & release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # GoReleaser needs the full history and tags to derive the version.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      # The binary embeds the SPA via `//go:embed all:dist` in internal/web,
+      # so the frontend bundle has to exist before the Go build runs.
+      - name: Build frontend
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Copy frontend assets
+        run: |
+          rm -rf internal/web/dist
+          cp -r web/dist internal/web/
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # Tag pushes publish a (pre-)release with the archive attached;
+      # pushes to main only produce a snapshot build.
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean ${{ github.ref_type != 'tag' && '--snapshot' || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: brrewery-linux-amd64
+          path: |
+            dist/*.tar.gz
+            dist/checksums.txt
+          if-no-files-found: error
