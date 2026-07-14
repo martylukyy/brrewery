@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -17,11 +18,12 @@ import (
 	"github.com/autobrr/brrewery/internal/auth"
 	"github.com/autobrr/brrewery/internal/system"
 	"github.com/autobrr/brrewery/internal/vnstat"
-	"github.com/autobrr/brrewery/internal/web"
 )
 
-// newSPATestServer builds a server with the real embedded frontend mounted so
-// the SPA catch-all route is wired up the same way it is in production.
+// newSPATestServer builds a server with a fixture frontend bundle mounted so
+// the SPA catch-all route is wired up the same way it is in production. The
+// fixture mirrors the real Vite output (index.html carrying the TanStack app
+// mount point <div id="root">) without depending on the frontend build.
 func newSPATestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
@@ -30,8 +32,9 @@ func newSPATestServer(t *testing.T) *httptest.Server {
 	authService := auth.NewService(store, session)
 	logger := zerolog.New(io.Discard)
 
-	dist, err := web.DistFS()
-	require.NoError(t, err)
+	dist := fstest.MapFS{
+		"index.html": {Data: []byte(`<!doctype html><html><body><div id="root"></div></body></html>`)},
+	}
 
 	srv := api.NewServer(
 		&logger,

@@ -8,7 +8,6 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/autobrr/brrewery/internal/web"
 )
@@ -127,24 +126,4 @@ func TestServeSPA_NilFSNotBuilt(t *testing.T) {
 	body, _ := io.ReadAll(res.Body)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.Contains(t, string(body), "Frontend not built")
-}
-
-func TestServeSPA_RealDist(t *testing.T) {
-	dist, err := web.DistFS()
-	require.NoError(t, err)
-	h := web.NewHandler(dist)
-
-	for _, route := range []string{"/", "/login"} {
-		res := serve(t, h, http.MethodGet, route)
-		body, _ := io.ReadAll(res.Body)
-		res.Body.Close()
-		assert.Equal(t, http.StatusOK, res.StatusCode, route)
-		assert.Contains(t, string(body), `id="root"`, route)
-	}
-
-	res404 := serve(t, h, http.MethodGet, "/notvalid/")
-	body, _ := io.ReadAll(res404.Body)
-	res404.Body.Close()
-	assert.Equal(t, http.StatusNotFound, res404.StatusCode)
-	assert.Contains(t, string(body), `id="root"`)
 }
