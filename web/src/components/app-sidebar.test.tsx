@@ -275,20 +275,30 @@ describe("AppSidebar", () => {
     });
   });
 
-  describe("self-update entry", () => {
+  describe("update banner", () => {
     it("is hidden when no update is available", () => {
       renderSidebar();
 
-      expect(screen.queryByText(/Update to/)).not.toBeInTheDocument();
+      expect(screen.queryByText("Update Available")).not.toBeInTheDocument();
     });
 
-    it("shows the available version and calls onUpdateClick", async () => {
+    it("names the available version and installs via onUpdateClick", async () => {
       const user = userEvent.setup();
       const onUpdateClick = vi.fn();
       renderSidebar({ updateAvailable: true, latestVersion: "1.2.0", onUpdateClick });
 
-      await user.click(screen.getByRole("button", { name: "Update to 1.2.0" }));
+      expect(screen.getByText("Version 1.2.0 is now available")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Install Update" }));
       expect(onUpdateClick).toHaveBeenCalledOnce();
+    });
+
+    it("can be dismissed for the session", async () => {
+      const user = userEvent.setup();
+      renderSidebar({ updateAvailable: true, latestVersion: "1.2.0" });
+
+      await user.click(screen.getByRole("button", { name: "Dismiss" }));
+      expect(screen.queryByText("Update Available")).not.toBeInTheDocument();
     });
   });
 });

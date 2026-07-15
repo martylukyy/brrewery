@@ -1,12 +1,7 @@
-import {
-  IconBrandSpeedtest,
-  IconDownload,
-  IconLogout,
-  IconServerCog,
-  IconUser,
-} from "@tabler/icons-react";
+import { IconBrandSpeedtest, IconLogout, IconServerCog, IconUser } from "@tabler/icons-react";
 
 import { AppIcon } from "@/components/app-icon";
+import { UpdateBanner } from "@/components/update-banner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
@@ -270,14 +265,7 @@ export function AppSidebar({
         <SidebarMenu>
           {updateAvailable && (
             <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip={`Update brrewery to ${latestVersion ?? "the latest version"}`}
-                onClick={onUpdateClick}
-                className="text-emerald-500 hover:text-emerald-400 group-data-[collapsible=icon]:p-1!"
-              >
-                <IconDownload className="size-6!" />
-                <span>Update to {latestVersion ?? "latest"}</span>
-              </SidebarMenuButton>
+              <UpdateBanner latestVersion={latestVersion} onInstall={onUpdateClick} />
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
