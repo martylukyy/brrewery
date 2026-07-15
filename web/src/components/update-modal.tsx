@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { IconAlertTriangle, IconCheck, IconRefresh } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconRefresh, IconX } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,11 @@ const RESTART_POLL_MS = 2_000;
 
 const TERMINAL = ["succeeded", "failed"];
 
+// One row of the progress list: a finished step (check), the step currently
+// in flight (spinner), or the step that broke the update (cross).
+type StepState = "done" | "active" | "failed";
+type Step = { text: string; state: StepState };
+
 export function UpdateModal({ status, onClose }: Props) {
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<Phase>("confirm");
@@ -63,7 +68,7 @@ export function UpdateModal({ status, onClose }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [restartRequesting, setRestartRequesting] = useState(false);
   const [restartError, setRestartError] = useState<string | null>(null);
-  const logRef = useRef<HTMLPreElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
 
   const job = useQuery({
     queryKey: ["job", jobId],
@@ -137,12 +142,13 @@ export function UpdateModal({ status, onClose }: Props) {
     };
   }, [phase]);
 
+  const lineCount = logs.data?.lines.length ?? 0;
   useEffect(() => {
     if (!logRef.current) {
       return;
     }
     logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [logs.data?.lines.length]);
+  }, [lineCount, phase]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -218,7 +224,27 @@ export function UpdateModal({ status, onClose }: Props) {
   }
 
   const versionLabel = status.latest_version ?? "the latest version";
-  const logText = (logs.data?.lines ?? []).join("\n");
+
+  // The whole progress story in one list. The install steps come from the
+  // backend job log; the restart tail is client-side because the backend
+  // cannot stream logs across its own restart — the list renders both
+  // identically so the seam is invisible.
+  const steps: Step[] = (logs.data?.lines ?? []).map((text): Step => ({ text, state: "done" }));
+  if (steps.length > 0) {
+    if (jobFailed) {
+      steps[steps.length - 1].state = "failed";
+    } else if (phase === "running" && !jobSucceeded) {
+      steps[steps.length - 1].state = "active";
+    }
+  }
+  if (phase === "restarting") {
+    steps.push({ text: "Restarting brrewery", state: "active" });
+  } else if (phase === "done") {
+    steps.push({ text: "Restarting brrewery", state: "done" });
+    steps.push({ text: "Update finished. Please sign in again to continue.", state: "done" });
+  } else if (phase === "timeout") {
+    steps.push({ text: "Restarting brrewery", state: "failed" });
+  }
 
   const restartButton = (
     <Button onClick={handleRestart} disabled={restartRequesting}>
@@ -240,7 +266,7 @@ export function UpdateModal({ status, onClose }: Props) {
         className={
           phase === "confirm"
             ? "flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-md"
-            : "flex h-full max-h-[90vh] w-full sm:!max-w-[45vw] flex-col gap-0 p-0"
+            : "flex h-[50vh] max-h-[90vh] w-full sm:!max-w-[45vw] flex-col gap-0 p-0"
         }
       >
         {phase === "confirm" && status.restart_pending ? (
@@ -264,11 +290,6 @@ export function UpdateModal({ status, onClose }: Props) {
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <DialogHeader className="gap-1 border-b border-border px-5 py-4">
               <DialogTitle className="text-base">Update brrewery</DialogTitle>
-              <DialogDescription>
-                Update from version {status.current_version} to {versionLabel}. The update is
-                installed in the background; brrewery keeps running until you confirm the
-                restart afterwards.
-              </DialogDescription>
             </DialogHeader>
 
             <div className="scrollbar-zinc min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -313,13 +334,9 @@ export function UpdateModal({ status, onClose }: Props) {
                   installed={jobSucceeded}
                 />
               </div>
-              <DialogDescription className="sr-only">
-                Live output for the brrewery update
-              </DialogDescription>
               {jobSucceeded && phase === "running" && (
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  Update installed successfully. Restart brrewery to start using{" "}
-                  {versionLabel} — you will be signed out.
+                  Update installed successfully. Restart brrewery to start using the new version.
                 </p>
               )}
               {jobFailed && job.data?.error && (
@@ -339,16 +356,38 @@ export function UpdateModal({ status, onClose }: Props) {
               )}
             </DialogHeader>
 
-            <pre
+            <div
               ref={logRef}
               className="scrollbar-zinc min-h-0 flex-1 overflow-y-auto bg-muted px-5 py-3 font-mono text-xs leading-relaxed text-muted-foreground"
             >
-              {phase === "done"
-                ? `${logText ? logText + "\n" : ""}Update installed — sign in to continue.`
-                : phase === "restarting"
-                  ? `${logText ? logText + "\n" : ""}Restarting brrewery…`
-                  : logText || "Waiting for job output…"}
-            </pre>
+              {steps.length === 0 ? (
+                "Waiting for job output…"
+              ) : (
+                <ol>
+                  {steps.map((step, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      {step.state === "active" ? (
+                        <Spinner
+                          aria-label="Step in progress"
+                          className="size-4 shrink-0"
+                        />
+                      ) : step.state === "failed" ? (
+                        <IconX
+                          aria-hidden
+                          className="size-4 shrink-0"
+                        />
+                      ) : (
+                        <IconCheck
+                          aria-hidden
+                          className="size-4 shrink-0 text-green-600 dark:text-green-400"
+                        />
+                      )}
+                      <span>{step.text}</span>                 
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
 
             <DialogFooter className="border-t border-border px-5 py-4">
               {phase === "done" ? (

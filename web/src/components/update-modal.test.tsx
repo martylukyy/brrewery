@@ -72,12 +72,11 @@ describe("UpdateModal", () => {
     });
   });
 
-  it("names both versions in the confirmation", () => {
+  it("opens with the password confirmation", () => {
     renderModal();
 
-    expect(
-      screen.getByText(/Update from version 1\.0\.0 to 1\.1\.0/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Update brrewery")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 
   it("requires a password before starting", async () => {
@@ -118,6 +117,21 @@ describe("UpdateModal", () => {
     expect(screen.getByRole("button", { name: "Updating…" })).toBeDisabled();
   });
 
+  it("spins on the current step and checks off finished ones", async () => {
+    vi.mocked(api.getJobLogs).mockResolvedValue({
+      lines: ["downloading brrewery 1.1.0", "verifying checksum"],
+    });
+    renderModal();
+
+    await submitPassword();
+    await screen.findByText("verifying checksum");
+
+    // Only the last (in-flight) step spins; the ones before are checked off.
+    const active = screen.getByRole("status", { name: "Step in progress" });
+    expect(active.parentElement).toHaveTextContent("verifying checksum");
+    expect(active.parentElement).not.toHaveTextContent("downloading");
+  });
+
   it("surfaces a failed job and allows closing", async () => {
     vi.mocked(api.getJob).mockResolvedValue({
       ...runningJob,
@@ -146,11 +160,10 @@ describe("UpdateModal", () => {
 
     await submitPassword();
 
-    // The install finished but nothing restarts on its own.
+    // The install finished but nothing restarts on its own; no step is left
+    // spinning either — everything reads as completed.
     expect(await screen.findByText("Installed")).toBeInTheDocument();
-    expect(
-      await screen.findByText(/Update installed successfully/),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Step in progress" })).not.toBeInTheDocument();
     expect(api.finishSelfUpdate).not.toHaveBeenCalled();
 
     // New process comes up right after the restart: session probe answers 401.

@@ -189,7 +189,7 @@ func (u *Updater) run(ctx context.Context, jobID, tag string) {
 
 	if err := u.install(ctx, jobID, tag); err != nil {
 		u.logger.Error().Err(err).Str("tag", tag).Msg("self-update failed")
-		u.jobs.AppendLog(jobID, "error: "+err.Error())
+		u.jobs.AppendLog(jobID, "Error: "+err.Error())
 		u.jobs.SetStatus(jobID, model.JobStatusFailed, err.Error())
 		_ = os.RemoveAll(u.cfg.StagingDir)
 		u.running.Store(false)
@@ -223,7 +223,7 @@ func (u *Updater) Restart(ctx context.Context) error {
 		return ErrNoPendingRestart
 	}
 
-	u.log(marker.JobID, "restarting brrewery to finish the update")
+	u.log(marker.JobID, "Restarting brrewery to finish the update")
 	if out, err := u.cfg.RunCmd(ctx, "systemctl", "--no-block", "restart", "brrewery"); err != nil {
 		// systemctl runs inside brrewery's own cgroup, so the restart it
 		// triggers tears it down along with the service before it can exit
@@ -267,34 +267,32 @@ func (u *Updater) log(jobID, format string, args ...any) {
 func (u *Updater) install(ctx context.Context, jobID, tag string) error {
 	version := strings.TrimPrefix(tag, "v")
 
-	u.log(jobID, "updating brrewery %s -> %s", u.cfg.CurrentVersion, version)
-
 	extractDir, err := u.fetchRelease(ctx, jobID, tag, version)
 	if err != nil {
 		return err
 	}
 
-	u.log(jobID, "installing ansible playbooks to %s", u.cfg.AnsibleRoot)
+	u.log(jobID, "Updating ansible playbooks")
 	if err := swapDir(filepath.Join(extractDir, "ansible"), u.cfg.AnsibleRoot); err != nil {
 		return err
 	}
 
-	u.log(jobID, "installing web assets to %s", u.cfg.WebRoot)
+	u.log(jobID, "Updating web assets")
 	if err := swapDir(filepath.Join(extractDir, "web", "dist"), u.cfg.WebRoot); err != nil {
 		return err
 	}
 
-	u.log(jobID, "installing nginx configuration")
+	u.log(jobID, "Updating nginx configuration")
 	if err := u.installNginx(ctx, jobID, extractDir); err != nil {
 		return err
 	}
 
-	u.log(jobID, "installing binary to %s", u.cfg.BinaryPath)
+	u.log(jobID, "Updating binary")
 	if err := u.installBinary(extractDir); err != nil {
 		return err
 	}
 
-	u.log(jobID, "installing systemd unit")
+	u.log(jobID, "Updating systemd unit")
 	if err := copyFile(filepath.Join(extractDir, filepath.FromSlash(systemdUnitArchivePath)), u.cfg.SystemdUnitPath, 0o644); err != nil {
 		return err
 	}
@@ -313,7 +311,7 @@ func (u *Updater) install(ctx context.Context, jobID, tag string) error {
 		return fmt.Errorf("write pending marker: %w", err)
 	}
 
-	u.log(jobID, "update installed — restart brrewery to start version %s", version)
+	u.log(jobID, "Update installed. Please restart brrewery to finish the update.")
 	return nil
 }
 
@@ -336,7 +334,7 @@ func (u *Updater) fetchRelease(ctx context.Context, jobID, tag, version string) 
 	archivePath := filepath.Join(u.cfg.StagingDir, archiveName)
 	checksumsPath := filepath.Join(u.cfg.StagingDir, "checksums.txt")
 
-	u.log(jobID, "downloading %s", baseURL+"/"+archiveName)
+	u.log(jobID, "Downloading release archive")
 	if err := downloadFile(ctx, u.client, baseURL+"/"+archiveName, archivePath); err != nil {
 		return "", err
 	}
@@ -344,13 +342,13 @@ func (u *Updater) fetchRelease(ctx context.Context, jobID, tag, version string) 
 		return "", err
 	}
 
-	u.log(jobID, "verifying checksum")
+	u.log(jobID, "Verifying checksum")
 	if err := verifyChecksum(archivePath, checksumsPath, archiveName); err != nil {
 		return "", err
 	}
 
 	extractDir := filepath.Join(u.cfg.StagingDir, "extract")
-	u.log(jobID, "extracting release archive")
+	u.log(jobID, "Extracting release archive")
 	if err := extractTarGz(archivePath, extractDir); err != nil {
 		return "", err
 	}
@@ -414,7 +412,7 @@ func (u *Updater) installNginx(ctx context.Context, jobID, extractDir string) er
 		}
 	}
 	if serverName != "" {
-		u.log(jobID, "preserving nginx server_name %s", serverName)
+		u.log(jobID, "Preserving nginx server_name %s", serverName)
 		if err := applyServerName(vhostPath, serverName); err != nil {
 			return err
 		}
@@ -425,7 +423,7 @@ func (u *Updater) installNginx(ctx context.Context, jobID, extractDir string) er
 	}
 
 	if out, err := u.cfg.RunCmd(ctx, "nginx", "-t"); err != nil {
-		u.log(jobID, "nginx config test failed, restoring previous configuration")
+		u.log(jobID, "Nginx config test failed, restoring previous configuration")
 		u.restoreNginxBackups(jobID, backupDir, existed)
 		_, _ = u.cfg.RunCmd(ctx, "nginx", "-t")
 		return fmt.Errorf("nginx config test failed: %s: %w", out, err)
@@ -492,7 +490,7 @@ func (u *Updater) restoreNginxBackups(jobID, backupDir string, existed map[strin
 			continue
 		}
 		if err := copyFile(filepath.Join(backupDir, rel), target, 0o644); err != nil {
-			u.log(jobID, "failed to restore %s: %v", target, err)
+			u.log(jobID, "Failed to restore %s: %v", target, err)
 		}
 	}
 }
@@ -534,10 +532,10 @@ func (u *Updater) ReconcileOnStartup() {
 		var marker pendingMarker
 		if jsonErr := json.Unmarshal(data, &marker); jsonErr == nil && marker.JobID != "" {
 			if marker.TargetVersion == u.cfg.CurrentVersion {
-				u.jobs.AppendLog(marker.JobID, "restarted, now running version "+u.cfg.CurrentVersion)
+				u.jobs.AppendLog(marker.JobID, "Restarted, now running version "+u.cfg.CurrentVersion)
 				u.logger.Info().Str("version", u.cfg.CurrentVersion).Msg("self-update finished")
 			} else {
-				msg := fmt.Sprintf("restarted but still running version %s (expected %s)", u.cfg.CurrentVersion, marker.TargetVersion)
+				msg := fmt.Sprintf("Restarted but still running version %s (expected %s)", u.cfg.CurrentVersion, marker.TargetVersion)
 				u.jobs.AppendLog(marker.JobID, msg)
 				u.jobs.SetStatus(marker.JobID, model.JobStatusFailed, msg)
 				u.logger.Error().Str("expected", marker.TargetVersion).Str("running", u.cfg.CurrentVersion).Msg("self-update did not take effect")
