@@ -41,7 +41,7 @@ export function UpdateBanner({ latestVersion, onInstall }: Props) {
           <IconDownload className="mt-0.5 size-4 shrink-0 text-green-600 dark:text-green-400" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-green-800 dark:text-green-200">
-              Update Available
+              Update Available!
             </p>
             <p className="mt-1 text-xs text-green-700 dark:text-green-300">
               {latestVersion ? `Version ${latestVersion}` : "A new version"}

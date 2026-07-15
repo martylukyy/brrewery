@@ -263,11 +263,6 @@ export function AppSidebar({
 
       <SidebarFooter>
         <SidebarMenu>
-          {updateAvailable && (
-            <SidebarMenuItem>
-              <UpdateBanner latestVersion={latestVersion} onInstall={onUpdateClick} />
-            </SidebarMenuItem>
-          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Manage apps"
@@ -322,6 +317,11 @@ export function AppSidebar({
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {updateAvailable && (
+            <SidebarMenuItem>
+              <UpdateBanner latestVersion={latestVersion} onInstall={onUpdateClick} />
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
