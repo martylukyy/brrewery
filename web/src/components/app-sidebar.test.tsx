@@ -287,7 +287,8 @@ describe("AppSidebar", () => {
       const onUpdateClick = vi.fn();
       renderSidebar({ updateAvailable: true, latestVersion: "1.2.0", onUpdateClick });
 
-      expect(screen.getByText("Version 1.2.0 is now available")).toBeInTheDocument();
+      expect(screen.getByText("Version 1.2.0")).toBeInTheDocument();
+      expect(screen.getByText("is available!")).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: "Install Update" }));
       expect(onUpdateClick).toHaveBeenCalledOnce();
