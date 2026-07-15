@@ -339,6 +339,9 @@ export type UpdateStatus = {
   // Failure of the most recent check; the other fields keep the last
   // successful result.
   error?: string;
+  // An update has been installed and is waiting for the service restart that
+  // activates it (see finishSelfUpdate).
+  restart_pending?: boolean;
 };
 
 export function getUpdateStatus(refresh = false) {
@@ -347,7 +350,8 @@ export function getUpdateStatus(refresh = false) {
 
 // startSelfUpdate launches the brrewery self-update job. The account password
 // is required as a confirmation gate. Progress is polled via the jobs
-// endpoints; the update ends in a service restart that signs every session out.
+// endpoints; the job succeeds once everything is installed, and the new
+// version only starts serving after finishSelfUpdate triggers the restart.
 export function startSelfUpdate(password: string) {
   return apiFetch<AppJobResponse>("/update", {
     method: "POST",
@@ -355,16 +359,11 @@ export function startSelfUpdate(password: string) {
   });
 }
 
-// checkHealth probes the unauthenticated /health endpoint. Used to detect the
-// server coming back after the self-update restart, when the session cookie is
-// no longer valid.
-export async function checkHealth(): Promise<boolean> {
-  try {
-    const res = await fetch("/health", { cache: "no-store" });
-    return res.ok;
-  } catch {
-    return false;
-  }
+// finishSelfUpdate restarts brrewery so an installed update starts serving.
+// Only allowed while an update is waiting (restart_pending); the restart signs
+// every session out.
+export function finishSelfUpdate() {
+  return apiFetch<{ status: string }>("/update/restart", { method: "POST" });
 }
 
 export type SysctlKind = "integer" | "integer_list" | "enum";

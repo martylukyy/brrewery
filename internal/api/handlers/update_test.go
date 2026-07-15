@@ -43,10 +43,13 @@ func (f *fakeUpdateChecker) Refresh(_ context.Context) (selfupdate.Status, error
 }
 
 type fakeUpdateStarter struct {
-	mu     sync.Mutex
-	job    model.Job
-	err    error
-	called bool
+	mu             sync.Mutex
+	job            model.Job
+	err            error
+	called         bool
+	restartErr     error
+	restartCalled  bool
+	restartPending bool
 }
 
 func (f *fakeUpdateStarter) Start(_ context.Context) (model.Job, error) {
@@ -56,10 +59,29 @@ func (f *fakeUpdateStarter) Start(_ context.Context) (model.Job, error) {
 	return f.job, f.err
 }
 
+func (f *fakeUpdateStarter) Restart(_ context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.restartCalled = true
+	return f.restartErr
+}
+
+func (f *fakeUpdateStarter) RestartPending() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.restartPending
+}
+
 func (f *fakeUpdateStarter) wasCalled() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.called
+}
+
+func (f *fakeUpdateStarter) wasRestartCalled() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.restartCalled
 }
 
 func newUpdateClient(t *testing.T, checker *fakeUpdateChecker, starter *fakeUpdateStarter) (client *http.Client, baseURL string) {
@@ -123,6 +145,23 @@ func TestUpdateStatus(t *testing.T) {
 		require.True(t, checker.refreshed)
 	})
 
+	t.Run("reports an installed update waiting for a restart", func(t *testing.T) {
+		t.Parallel()
+		checker := &fakeUpdateChecker{status: availableStatus()}
+		client, baseURL := newUpdateClient(t, checker, &fakeUpdateStarter{restartPending: true})
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/api/v1/update", http.NoBody)
+		require.NoError(t, err)
+		res, err := client.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var status selfupdate.Status
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&status))
+		require.True(t, status.RestartPending)
+	})
+
 	t.Run("requires auth", func(t *testing.T) {
 		t.Parallel()
 		checker := &fakeUpdateChecker{status: availableStatus()}
@@ -134,6 +173,45 @@ func TestUpdateStatus(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+}
+
+func TestUpdateRestart(t *testing.T) {
+	t.Parallel()
+
+	t.Run("restarts when an update is pending", func(t *testing.T) {
+		t.Parallel()
+		starter := &fakeUpdateStarter{restartPending: true}
+		client, baseURL := newUpdateClient(t, &fakeUpdateChecker{}, starter)
+
+		res := postJSON(t, client, baseURL+"/api/v1/update/restart", map[string]any{})
+		defer res.Body.Close()
+		require.Equal(t, http.StatusAccepted, res.StatusCode)
+		require.True(t, starter.wasRestartCalled())
+	})
+
+	t.Run("conflicts when nothing is pending", func(t *testing.T) {
+		t.Parallel()
+		starter := &fakeUpdateStarter{restartErr: selfupdate.ErrNoPendingRestart}
+		client, baseURL := newUpdateClient(t, &fakeUpdateChecker{}, starter)
+
+		res := postJSON(t, client, baseURL+"/api/v1/update/restart", map[string]any{})
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+	})
+
+	t.Run("requires auth", func(t *testing.T) {
+		t.Parallel()
+		starter := &fakeUpdateStarter{restartPending: true}
+		_, baseURL := newUpdateClient(t, &fakeUpdateChecker{}, starter)
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+"/api/v1/update/restart", http.NoBody)
+		require.NoError(t, err)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		require.False(t, starter.wasRestartCalled())
 	})
 }
 

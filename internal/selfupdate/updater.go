@@ -28,6 +28,7 @@ var (
 	ErrUpdateInProgress = errors.New("update already in progress")
 	ErrNoUpdate         = errors.New("no update available")
 	ErrUnsupported      = errors.New("self-update is not supported for this installation")
+	ErrNoPendingRestart = errors.New("no installed update is waiting for a restart")
 )
 
 // selfUpdateAppID is the pseudo app id self-update jobs carry in the shared
@@ -169,10 +170,15 @@ func (u *Updater) supported() error {
 	if err != nil {
 		return fmt.Errorf("%w: cannot resolve running binary: %w", ErrUnsupported, err)
 	}
+	// A staged update renames the running binary to brrewery.bak until the
+	// restart, and /proc/self/exe follows that rename — with a " (deleted)"
+	// suffix once a further staging removes the backup. Both still identify
+	// the installed binary, so updating again before the restart stays allowed.
+	exe = strings.TrimSuffix(exe, " (deleted)")
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
-	if exe != u.cfg.BinaryPath {
+	if exe != u.cfg.BinaryPath && exe != u.cfg.BinaryPath+".bak" {
 		return fmt.Errorf("%w: running binary %s is not %s", ErrUnsupported, exe, u.cfg.BinaryPath)
 	}
 	return nil
@@ -189,8 +195,67 @@ func (u *Updater) run(ctx context.Context, jobID, tag string) {
 		u.running.Store(false)
 		return
 	}
-	// Success: systemd is restarting us. The job stays "running" on disk until
-	// the new process reconciles it against the pending marker.
+
+	// Everything is installed; the job is done. The old process keeps serving
+	// until the operator confirms the result and triggers Restart, so nobody
+	// is kicked out of their session mid-review.
+	u.jobs.SetStatus(jobID, model.JobStatusSucceeded, "")
+	_ = os.RemoveAll(u.cfg.StagingDir)
+	u.running.Store(false)
+}
+
+// Restart finishes an installed update by restarting the brrewery service.
+// It is gated on the pending marker the install wrote, so it can only ever
+// complete a staged update, never bounce the service on its own.
+func (u *Updater) Restart(ctx context.Context) error {
+	// A marker from an already-installed update may still be on disk while a
+	// newer install is running; restarting now would cut that install short.
+	if u.running.Load() {
+		return ErrUpdateInProgress
+	}
+
+	data, err := os.ReadFile(u.cfg.MarkerPath)
+	if err != nil {
+		return ErrNoPendingRestart
+	}
+	var marker pendingMarker
+	if err := json.Unmarshal(data, &marker); err != nil || marker.JobID == "" {
+		return ErrNoPendingRestart
+	}
+
+	u.log(marker.JobID, "restarting brrewery to finish the update")
+	if out, err := u.cfg.RunCmd(ctx, "systemctl", "--no-block", "restart", "brrewery"); err != nil {
+		// systemctl runs inside brrewery's own cgroup, so the restart it
+		// triggers tears it down along with the service before it can exit
+		// cleanly. A child killed by that shutdown is the restart working,
+		// not a failure — only report commands that ran and refused.
+		if killedByShutdown(err) {
+			return nil
+		}
+		return fmt.Errorf("systemctl restart brrewery: %s: %w", out, err)
+	}
+	return nil
+}
+
+// killedByShutdown reports whether a command died from SIGTERM/SIGKILL rather
+// than failing on its own — the signature of the service shutdown reaping the
+// command's process along with the rest of the cgroup.
+func killedByShutdown(err error) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	waitStatus, ok := exitErr.Sys().(syscall.WaitStatus)
+	if !ok || !waitStatus.Signaled() {
+		return false
+	}
+	return waitStatus.Signal() == syscall.SIGTERM || waitStatus.Signal() == syscall.SIGKILL
+}
+
+// RestartPending reports whether an installed update is waiting for a restart.
+func (u *Updater) RestartPending() bool {
+	_, err := os.Stat(u.cfg.MarkerPath)
+	return err == nil
 }
 
 func (u *Updater) log(jobID, format string, args ...any) {
@@ -237,6 +302,8 @@ func (u *Updater) install(ctx context.Context, jobID, tag string) error {
 		return fmt.Errorf("systemctl daemon-reload: %s: %w", out, err)
 	}
 
+	// The marker survives the restart and tells the new process which job the
+	// finished update belongs to; its presence is also what arms Restart.
 	marker := pendingMarker{JobID: jobID, TargetVersion: version, StartedAt: time.Now().UTC()}
 	payload, err := json.Marshal(marker)
 	if err != nil {
@@ -246,11 +313,7 @@ func (u *Updater) install(ctx context.Context, jobID, tag string) error {
 		return fmt.Errorf("write pending marker: %w", err)
 	}
 
-	u.log(jobID, "restarting brrewery to finish the update")
-	if out, err := u.cfg.RunCmd(ctx, "systemctl", "--no-block", "restart", "brrewery"); err != nil {
-		_ = os.Remove(u.cfg.MarkerPath)
-		return fmt.Errorf("systemctl restart brrewery: %s: %w", out, err)
-	}
+	u.log(jobID, "update installed — restart brrewery to start version %s", version)
 	return nil
 }
 
@@ -460,9 +523,11 @@ func (u *Updater) installBinary(extractDir string) error {
 	return nil
 }
 
-// ReconcileOnStartup resolves the self-update job the previous process left
-// running: succeeded when the target version is now running, failed otherwise.
-// Self-update jobs with no marker (crash before restart) are swept to failed.
+// ReconcileOnStartup cleans up after the restart that finished an update. The
+// job was already marked succeeded when the install completed; here the new
+// process only confirms the running version, clears the marker, and demotes
+// the job to failed if the restart somehow brought the old version back.
+// Self-update jobs still queued/running (crash mid-install) are swept to failed.
 func (u *Updater) ReconcileOnStartup() {
 	data, err := os.ReadFile(u.cfg.MarkerPath)
 	if err == nil {
@@ -470,7 +535,6 @@ func (u *Updater) ReconcileOnStartup() {
 		if jsonErr := json.Unmarshal(data, &marker); jsonErr == nil && marker.JobID != "" {
 			if marker.TargetVersion == u.cfg.CurrentVersion {
 				u.jobs.AppendLog(marker.JobID, "restarted, now running version "+u.cfg.CurrentVersion)
-				u.jobs.SetStatus(marker.JobID, model.JobStatusSucceeded, "")
 				u.logger.Info().Str("version", u.cfg.CurrentVersion).Msg("self-update finished")
 			} else {
 				msg := fmt.Sprintf("restarted but still running version %s (expected %s)", u.cfg.CurrentVersion, marker.TargetVersion)

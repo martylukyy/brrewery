@@ -10,9 +10,10 @@ import type { AppJob, UpdateStatus } from "@/lib/api";
 vi.mock("@/lib/api", () => ({
   verifyPassword: vi.fn(),
   startSelfUpdate: vi.fn(),
+  finishSelfUpdate: vi.fn(),
   getJob: vi.fn(),
   getJobLogs: vi.fn(),
-  checkHealth: vi.fn(),
+  checkSession: vi.fn(),
   ApiError: class ApiError extends Error {
     status: number;
     path: string;
@@ -39,13 +40,14 @@ const runningJob: AppJob = {
   started_at: "2026-01-01T00:00:00Z",
 };
 
-function renderModal(onClose = () => {}) {
+function renderModal(onClose = () => {}, modalStatus: UpdateStatus = status) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  render(
     <QueryClientProvider client={client}>
-      <UpdateModal status={status} onClose={onClose} />
+      <UpdateModal status={modalStatus} onClose={onClose} />
     </QueryClientProvider>,
   );
+  return client;
 }
 
 async function submitPassword(password = "password123") {
@@ -59,9 +61,15 @@ describe("UpdateModal", () => {
     vi.clearAllMocks();
     vi.mocked(api.verifyPassword).mockResolvedValue(undefined);
     vi.mocked(api.startSelfUpdate).mockResolvedValue({ job_id: "job-1" });
+    vi.mocked(api.finishSelfUpdate).mockResolvedValue({ status: "restarting" });
     vi.mocked(api.getJob).mockResolvedValue(runningJob);
     vi.mocked(api.getJobLogs).mockResolvedValue({ lines: [] });
-    vi.mocked(api.checkHealth).mockResolvedValue(false);
+    // Old process still serving: the session probe answers with version info.
+    vi.mocked(api.checkSession).mockResolvedValue({
+      version: "1.0.0",
+      commit: "",
+      date: "",
+    });
   });
 
   it("names both versions in the confirmation", () => {
@@ -132,14 +140,25 @@ describe("UpdateModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("treats job-poll failures as the restart and finishes on a healthy probe", async () => {
-    // The service went down for the restart: job polling fails, then /health
-    // answers once the new process is up.
-    vi.mocked(api.getJob).mockRejectedValue(new api.ApiError("Bad Gateway", 502, "/jobs/job-1"));
-    vi.mocked(api.checkHealth).mockResolvedValue(true);
+  it("shows success and only restarts after the operator confirms", async () => {
+    vi.mocked(api.getJob).mockResolvedValue({ ...runningJob, status: "succeeded" });
     renderModal();
 
     await submitPassword();
+
+    // The install finished but nothing restarts on its own.
+    expect(await screen.findByText("Installed")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Update installed successfully/),
+    ).toBeInTheDocument();
+    expect(api.finishSelfUpdate).not.toHaveBeenCalled();
+
+    // New process comes up right after the restart: session probe answers 401.
+    vi.mocked(api.checkSession).mockResolvedValue(null);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Restart brrewery" }));
+    expect(api.finishSelfUpdate).toHaveBeenCalledOnce();
 
     expect(await screen.findByText("Restarting")).toBeInTheDocument();
     expect(
@@ -147,4 +166,70 @@ describe("UpdateModal", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Updated")).toBeInTheDocument();
   }, 10_000);
+
+  it("treats a dropped restart request as the restart happening", async () => {
+    vi.mocked(api.getJob).mockResolvedValue({ ...runningJob, status: "succeeded" });
+    // The restart killed the connection before the response arrived.
+    vi.mocked(api.finishSelfUpdate).mockRejectedValue(new TypeError("Failed to fetch"));
+    renderModal();
+
+    await submitPassword();
+    await screen.findByText("Installed");
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Restart brrewery" }));
+
+    expect(await screen.findByText("Restarting")).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to restart/)).not.toBeInTheDocument();
+  });
+
+  it("shows a real backend refusal of the restart", async () => {
+    vi.mocked(api.getJob).mockResolvedValue({ ...runningJob, status: "succeeded" });
+    vi.mocked(api.finishSelfUpdate).mockRejectedValue(
+      new api.ApiError("An update is still in progress", 409, "/update/restart"),
+    );
+    renderModal();
+
+    await submitPassword();
+    await screen.findByText("Installed");
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Restart brrewery" }));
+
+    expect(await screen.findByText("An update is still in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Restarting")).not.toBeInTheDocument();
+  });
+
+  it("can be closed after a successful install without restarting", async () => {
+    vi.mocked(api.getJob).mockResolvedValue({ ...runningJob, status: "succeeded" });
+    const onClose = vi.fn();
+    const client = renderModal(onClose);
+    client.setQueryData(["update-status"], status);
+
+    await submitPassword();
+    await screen.findByText("Installed");
+
+    // The install flipped restart_pending server-side; the cached status must
+    // be refetched so reopening the modal offers the restart, not a reinstall.
+    expect(client.getQueryState(["update-status"])?.isInvalidated).toBe(true);
+
+    const closeButtons = screen.getAllByRole("button", { name: "Close" });
+    const user = userEvent.setup();
+    await user.click(closeButtons[closeButtons.length - 1]);
+
+    expect(onClose).toHaveBeenCalled();
+    expect(api.finishSelfUpdate).not.toHaveBeenCalled();
+  });
+
+  it("offers the restart directly when an update is already installed", async () => {
+    renderModal(() => {}, { ...status, restart_pending: true });
+
+    expect(screen.getByText(/already been installed/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Restart brrewery" }));
+    expect(api.finishSelfUpdate).toHaveBeenCalledOnce();
+    expect(await screen.findByText("Restarting")).toBeInTheDocument();
+  });
 });

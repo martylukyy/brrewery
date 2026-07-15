@@ -20,10 +20,13 @@ type UpdateChecker interface {
 	Refresh(ctx context.Context) (selfupdate.Status, error)
 }
 
-// UpdateStarter launches the self-update job. *selfupdate.Updater satisfies
-// it; tests substitute a fake.
-type UpdateStarter interface {
+// UpdateRunner launches the self-update job and finishes an installed update
+// by restarting the service. *selfupdate.Updater satisfies it; tests
+// substitute a fake.
+type UpdateRunner interface {
 	Start(ctx context.Context) (model.Job, error)
+	Restart(ctx context.Context) error
+	RestartPending() bool
 }
 
 // UpdateHandler exposes the self-update check and trigger. Starting an update
@@ -31,11 +34,11 @@ type UpdateStarter interface {
 // changes use.
 type UpdateHandler struct {
 	checker UpdateChecker
-	updater UpdateStarter
+	updater UpdateRunner
 	auth    *auth.Service
 }
 
-func NewUpdateHandler(checker UpdateChecker, updater UpdateStarter, authService *auth.Service) *UpdateHandler {
+func NewUpdateHandler(checker UpdateChecker, updater UpdateRunner, authService *auth.Service) *UpdateHandler {
 	return &UpdateHandler{checker: checker, updater: updater, auth: authService}
 }
 
@@ -50,7 +53,12 @@ func (h *UpdateHandler) Status(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("refresh") == "1" {
 		_, _ = h.checker.Refresh(r.Context())
 	}
-	httputil.WriteJSON(w, http.StatusOK, h.checker.Status())
+
+	status := h.checker.Status()
+	if h.updater != nil {
+		status.RestartPending = h.updater.RestartPending()
+	}
+	httputil.WriteJSON(w, http.StatusOK, status)
 }
 
 type startUpdateRequest struct {
@@ -98,5 +106,28 @@ func (h *UpdateHandler) Start(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteError(w, http.StatusNotImplemented, err.Error())
 	default:
 		httputil.WriteError(w, http.StatusInternalServerError, "Failed to start update: "+err.Error())
+	}
+}
+
+// Restart finishes an installed update by restarting the brrewery service.
+// No password re-check here: the install that armed it was already
+// password-gated, and the updater refuses unless that install's marker is on
+// disk, so this endpoint cannot bounce the service on its own.
+func (h *UpdateHandler) Restart(w http.ResponseWriter, r *http.Request) {
+	if h.updater == nil {
+		httputil.WriteError(w, http.StatusServiceUnavailable, "Updater not configured")
+		return
+	}
+
+	err := h.updater.Restart(r.Context())
+	switch {
+	case err == nil:
+		httputil.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "restarting"})
+	case errors.Is(err, selfupdate.ErrNoPendingRestart):
+		httputil.WriteError(w, http.StatusConflict, "No installed update is waiting for a restart")
+	case errors.Is(err, selfupdate.ErrUpdateInProgress):
+		httputil.WriteError(w, http.StatusConflict, "An update is still in progress")
+	default:
+		httputil.WriteError(w, http.StatusInternalServerError, "Failed to restart: "+err.Error())
 	}
 }

@@ -29,7 +29,7 @@ type Server struct {
 	vnstat         *vnstat.Collector
 	sysctlRunner   handlers.PlaybookRunner
 	updateChecker  handlers.UpdateChecker
-	updateStarter  handlers.UpdateStarter
+	updateStarter  handlers.UpdateRunner
 	embedFS        fs.FS
 }
 
@@ -42,7 +42,7 @@ func NewServer(
 	vnstatCollector *vnstat.Collector,
 	sysctlRunner handlers.PlaybookRunner,
 	updateChecker handlers.UpdateChecker,
-	updateStarter handlers.UpdateStarter,
+	updateStarter handlers.UpdateRunner,
 	embedFS fs.FS,
 ) *Server {
 	return &Server{
@@ -105,6 +105,7 @@ func (s *Server) Handler() http.Handler {
 			update := handlers.NewUpdateHandler(s.updateChecker, s.updateStarter, s.authService)
 			r.Get("/update", update.Status)
 			r.Post("/update", update.Start)
+			r.Post("/update/restart", update.Restart)
 
 			vn := handlers.NewVnstatHandler(s.vnstat)
 			r.Get("/traffic/vnstat", vn.Get)

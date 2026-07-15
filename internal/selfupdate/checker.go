@@ -51,6 +51,10 @@ type Status struct {
 	UpdateAvailable bool       `json:"update_available"`
 	CheckedAt       *time.Time `json:"checked_at,omitempty"`
 	Error           string     `json:"error,omitempty"`
+	// RestartPending is not part of the release check: the update handler
+	// overlays it from Updater.RestartPending, so the UI knows an installed
+	// update is waiting for its restart.
+	RestartPending bool `json:"restart_pending"`
 }
 
 // Checker polls the GitHub releases API and caches the newest release. A

@@ -314,6 +314,16 @@ components:
         error:
           type: string
           description: Failure of the most recent check; the other fields keep the last successful result.
+        restart_pending:
+          type: boolean
+          description: An update has been installed and is waiting for the service restart that activates it.
+    UpdateRestartResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [restarting]
     StartUpdateRequest:
       type: object
       required: [password]
@@ -846,8 +856,9 @@ paths:
       description: >-
         Downloads the newest release archive, verifies its checksum and installs
         everything it ships (binary, web assets, ansible playbooks, nginx and
-        systemd config), then restarts the brrewery service. Progress is polled
-        via the jobs endpoints; the restart signs every session out.
+        systemd config). Progress is polled via the jobs endpoints; the job
+        succeeds once everything is installed. The new version only starts
+        serving after the separate restart endpoint is called.
       security:
         - SessionAuth: []
       requestBody:
@@ -883,6 +894,36 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '501':
           description: Self-update not supported for this installation (e.g. development build)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/update/restart:
+    post:
+      summary: Restart brrewery to finish an installed update
+      description: >-
+        Restarts the brrewery service so the previously installed update starts
+        serving. Only allowed while an installed update is waiting (see
+        restart_pending on the update status); the restart signs every session
+        out. No password re-check — the install that armed it was already
+        password-gated.
+      security:
+        - SessionAuth: []
+      responses:
+        '202':
+          description: Restart issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateRestartResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: No installed update is waiting for a restart, or an update is still in progress
           content:
             application/json:
               schema:
