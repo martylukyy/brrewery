@@ -37,6 +37,7 @@
       ansible.builtin.get_url:
         url: "{{ qui_download_url }}"
         dest: /tmp/qui.tar.gz
+        force: true
         mode: "0644"
 
     - name: Ensure qui extract directory exists

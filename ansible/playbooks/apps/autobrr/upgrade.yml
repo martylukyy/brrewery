@@ -4,6 +4,7 @@
   become: true
   gather_facts: true
   vars:
+    autobrr_bin: /usr/local/bin/autobrr
     autobrr_port: 7474
   roles:
     - brrewery_user
@@ -17,6 +18,54 @@
     - name: Set brrewery home directory fact
       ansible.builtin.set_fact:
         brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    - name: Fetch latest autobrr release metadata
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/autobrr/autobrr/releases/latest
+        return_content: true
+      register: autobrr_release
+
+    - name: Resolve autobrr linux amd64 download URL
+      ansible.builtin.set_fact:
+        autobrr_download_url: >-
+          {{ autobrr_release.json.assets
+             | selectattr('name', 'search', 'linux_x86_64')
+             | map(attribute='browser_download_url')
+             | first }}
+
+    - name: Download autobrr release archive
+      ansible.builtin.get_url:
+        url: "{{ autobrr_download_url }}"
+        dest: /tmp/autobrr.tar.gz
+        force: true
+        mode: "0644"
+
+    - name: Ensure autobrr extract directory exists
+      ansible.builtin.file:
+        path: /tmp/autobrr-extract
+        state: directory
+        mode: "0755"
+
+    - name: Extract autobrr binaries
+      ansible.builtin.unarchive:
+        src: /tmp/autobrr.tar.gz
+        dest: /tmp/autobrr-extract
+        remote_src: true
+
+    - name: Install autobrr binary
+      ansible.builtin.copy:
+        src: /tmp/autobrr-extract/autobrr
+        dest: "{{ autobrr_bin }}"
+        mode: "0755"
+        remote_src: true
+      notify: Restart autobrr
+
+    - name: Install autobrrctl binary
+      ansible.builtin.copy:
+        src: /tmp/autobrr-extract/autobrrctl
+        dest: /usr/local/bin/autobrrctl
+        mode: "0755"
+        remote_src: true
 
     - name: Ensure autobrr baseUrl is configured
       ansible.builtin.lineinfile:

@@ -41,6 +41,7 @@
       ansible.builtin.get_url:
         url: "{{ filebrowser_download_url }}"
         dest: /tmp/filebrowser.tar.gz
+        force: true
         mode: "0644"
 
     - name: Ensure filebrowser extract directory exists

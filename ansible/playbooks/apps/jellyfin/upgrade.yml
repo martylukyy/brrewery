@@ -47,6 +47,7 @@
       ansible.builtin.get_url:
         url: "{{ jellyfin_key_url }}"
         dest: "{{ jellyfin_key_tmp }}"
+        force: true
         mode: "0644"
 
     - name: Ensure gnupg is installed for the dearmor step

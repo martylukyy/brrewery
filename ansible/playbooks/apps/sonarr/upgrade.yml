@@ -31,6 +31,7 @@
       ansible.builtin.get_url:
         url: "{{ sonarr_download_url }}"
         dest: /tmp/sonarr.tar.gz
+        force: true
         mode: "0644"
 
     - name: Stop Sonarr before upgrade
