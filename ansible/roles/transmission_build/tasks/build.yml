@@ -46,11 +46,15 @@
     chdir: "{{ transmission_build_root }}/transmission"
     creates: "{{ transmission_build_root }}/transmission/build/daemon/transmission-daemon"
 
+# No `creates:` guard here: the prefix path is unversioned, so the previous
+# version's binary would satisfy it and the freshly built daemon would never
+# be installed on upgrade. The expensive steps above are guarded on scratch
+# paths that are reset every run; re-running the install copy is cheap.
 - name: Install transmission-daemon and WebUI assets
   ansible.builtin.command:
     cmd: cmake --install build
     chdir: "{{ transmission_build_root }}/transmission"
-    creates: "{{ transmission_prefix }}/bin/transmission-daemon"
+  changed_when: true
 
 - name: Verify transmission-daemon was installed
   ansible.builtin.stat:

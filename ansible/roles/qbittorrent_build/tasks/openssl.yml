@@ -42,11 +42,14 @@
     chdir: "{{ qbittorrent_build_root }}/openssl"
     creates: "{{ qbittorrent_build_root }}/openssl/libssl.so"
 
+# No `creates:` guard: the prefix path is unversioned, so a previously
+# installed libssl would satisfy it and a manifest version bump would build the
+# new libs but never install them. Re-running the install copy is cheap.
 - name: Install vendored OpenSSL (libraries and headers)
   ansible.builtin.command:
     cmd: make install_sw
     chdir: "{{ qbittorrent_build_root }}/openssl"
-    creates: "{{ qbittorrent_prefix }}/lib/libssl.so.3"
+  changed_when: true
 
 # `make install_sw` also drops the openssl(1) CLI and c_rehash into <prefix>/bin.
 # Only the libraries and headers are needed to link qbittorrent-nox, and

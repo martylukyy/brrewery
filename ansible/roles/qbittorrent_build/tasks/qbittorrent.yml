@@ -74,11 +74,15 @@
     creates: "{{ qbittorrent_build_root }}/qbittorrent/build/qbittorrent-nox"
   when: qbt_build_system == 'cmake'
 
+# No `creates:` guard on the install steps: the prefix path is unversioned, so
+# the previous version's binary would satisfy it and an upgrade would rebuild
+# everything yet never install the result. The compile steps above are guarded
+# on scratch paths that are reset every run; re-running the install is cheap.
 - name: Install qbittorrent-nox (cmake)
   ansible.builtin.command:
     cmd: cmake --install build
     chdir: "{{ qbittorrent_build_root }}/qbittorrent"
-    creates: "{{ qbittorrent_prefix }}/bin/qbittorrent-nox"
+  changed_when: true
   when: qbt_build_system == 'cmake'
 
 # --- autotools build (qBittorrent 4.3) -----------------------------------------
@@ -120,7 +124,7 @@
   ansible.builtin.command:
     cmd: make install
     chdir: "{{ qbittorrent_build_root }}/qbittorrent"
-    creates: "{{ qbittorrent_prefix }}/bin/qbittorrent-nox"
+  changed_when: true
   when: qbt_build_system == 'autotools'
 
 - name: Verify qbittorrent-nox is installed

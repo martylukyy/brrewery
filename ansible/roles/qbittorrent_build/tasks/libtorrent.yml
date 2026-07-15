@@ -101,11 +101,14 @@
     chdir: "{{ qbittorrent_build_root }}/libtorrent"
     creates: "{{ qbittorrent_build_root }}/libtorrent/build/libtorrent-rasterbar.a"
 
+# No `creates:` guard: the prefix path is unversioned, so a previously
+# installed libtorrent would satisfy it and a branch/patch change would build
+# the new lib but never install it — qbittorrent would keep linking the old one.
 - name: Install libtorrent
   ansible.builtin.command:
     cmd: cmake --install build
     chdir: "{{ qbittorrent_build_root }}/libtorrent"
-    creates: "{{ qbittorrent_prefix }}/lib/libtorrent-rasterbar.a"
+  changed_when: true
 
 # libtorrent 1.2.x's CMake leaks the Iconv::Iconv imported-target name into the
 # generated .pc as the literal linker token "-lIconv::Iconv", which breaks any
