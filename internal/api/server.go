@@ -65,7 +65,6 @@ func (s *Server) Handler() http.Handler {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
 	r.Use(s.sessionManager.LoadAndSave)
-	r.Use(secureCookieMiddleware)
 
 	health := handlers.NewHealthHandler()
 	r.Get("/health", health.Health)
@@ -129,13 +128,4 @@ func (s *Server) Handler() http.Handler {
 	}
 
 	return r
-}
-
-func secureCookieMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("X-Forwarded-Proto") == "https" {
-			r = r.WithContext(r.Context())
-		}
-		next.ServeHTTP(w, r)
-	})
 }

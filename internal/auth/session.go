@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
 
+	"github.com/autobrr/brrewery/internal/buildinfo"
 	"github.com/autobrr/brrewery/internal/paths"
 )
 
@@ -53,7 +55,12 @@ func NewSessionManager(secret []byte) *scs.SessionManager {
 	manager.Cookie.Name = "brrewery_session"
 	manager.Cookie.HttpOnly = true
 	manager.Cookie.SameSite = http.SameSiteLaxMode
-	manager.Cookie.Secure = false
+	// The session cookie is a long-lived, root-equivalent credential, so it must
+	// only ever travel over TLS. Production always serves the dashboard over
+	// HTTPS (nginx terminates TLS in front of the 127.0.0.1 backend), so Secure
+	// is on. It is relaxed only for local development, where the app is served
+	// over plain HTTP and a Secure cookie would never be stored by the browser.
+	manager.Cookie.Secure = secureCookies()
 	// Persist defaults to true, which forces every cookie to carry the full
 	// Lifetime expiry. Disable it so persistence is decided per login via the
 	// "Remember me" choice: RememberMe(true) keeps the long-lived cookie, while
@@ -62,6 +69,26 @@ func NewSessionManager(secret []byte) *scs.SessionManager {
 	manager.Codec = scs.GobCodec{}
 	_ = secret // reserved for persistent session signing (M2)
 	return manager
+}
+
+// secureCookies reports whether the session cookie must carry the Secure
+// attribute. It is on for every real (release) build and off only for dev
+// builds, which are served over plain HTTP. BRREWERY_INSECURE_COOKIES=1 forces
+// it off as an explicit escape hatch for non-standard local setups; there is no
+// way to force it on beyond shipping a release build, so production cannot
+// accidentally end up with an insecure cookie.
+func secureCookies() bool {
+	if v := strings.TrimSpace(os.Getenv("BRREWERY_INSECURE_COOKIES")); v == "1" || strings.EqualFold(v, "true") {
+		return false
+	}
+	return !isDevBuild(buildinfo.Version)
+}
+
+// isDevBuild mirrors selfupdate.IsDevBuild without importing it: a binary built
+// without a release version (make dev / go build without ldflags) is a dev
+// build. Kept in sync with internal/selfupdate/checker.go.
+func isDevBuild(version string) bool {
+	return version == "" || version == "0.0.0-dev"
 }
 
 func SessionKey() string { return "authenticated" }
