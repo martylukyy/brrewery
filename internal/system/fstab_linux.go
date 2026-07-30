@@ -18,7 +18,7 @@ type fstabEntry struct {
 }
 
 // monitoredFstabMounts returns unique mount points from /etc/fstab that should be
-// monitored (swap and EFI partitions are excluded).
+// monitored (swap and boot/EFI partitions are excluded).
 func monitoredFstabMounts() ([]string, error) {
 	data, err := os.ReadFile("/etc/fstab")
 	if err != nil {
@@ -146,7 +146,7 @@ func shouldMonitorFstabEntry(entry fstabEntry) bool {
 	if !isSupportedMonitoredFSType(entry.fstype) {
 		return false
 	}
-	if isEFIFstabEntry(entry) {
+	if isBootFstabEntry(entry) {
 		return false
 	}
 	return true
@@ -173,9 +173,13 @@ func isSupportedMonitoredFSType(fsType string) bool {
 	}
 }
 
-func isEFIFstabEntry(entry fstabEntry) bool {
+// isBootFstabEntry reports whether the entry backs the boot process: /boot
+// itself, anything nested under it (/boot/efi, /boot/firmware), or a standalone
+// EFI system partition. These are small fixed-size volumes the user cannot act
+// on from here, so they get no disk section.
+func isBootFstabEntry(entry fstabEntry) bool {
 	mount := strings.ToLower(entry.mount)
-	if mount == "/boot/efi" || mount == "/efi" || strings.HasPrefix(mount, "/boot/efi/") {
+	if mount == "/boot" || mount == "/efi" || strings.HasPrefix(mount, "/boot/") {
 		return true
 	}
 

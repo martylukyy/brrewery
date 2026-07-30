@@ -15,6 +15,7 @@ func TestMonitoredMountsFromFstab(t *testing.T) {
 	const sample = `
 # comment
 UUID=root-uuid / ext4 errors=remount-ro 0 1
+UUID=boot-uuid /boot ext4 defaults 0 2
 UUID=efi-uuid /boot/efi vfat umask=0077 0 1
 UUID=swap-uuid none swap sw 0 0
 UUID=data-uuid /mnt/storage ext4 defaults 0 2
@@ -30,6 +31,7 @@ func TestMonitoredFstabMounts_readsHostFstab(t *testing.T) {
 	mounts, err := monitoredFstabMounts()
 	require.NoError(t, err)
 	require.Contains(t, mounts, "/")
+	assert.NotContains(t, mounts, "/boot")
 	assert.NotContains(t, mounts, "/boot/efi")
 
 	deviceByMount, err := mountedDeviceByMount()
@@ -101,6 +103,11 @@ func TestShouldMonitorFstabEntry(t *testing.T) {
 			want:  false,
 		},
 		{
+			name:  "boot partition",
+			entry: fstabEntry{mount: "/boot", fstype: "ext4"},
+			want:  false,
+		},
+		{
 			name:  "efi partition",
 			entry: fstabEntry{mount: "/boot/efi", fstype: "vfat"},
 			want:  false,
@@ -109,6 +116,21 @@ func TestShouldMonitorFstabEntry(t *testing.T) {
 			name:  "efi path prefix",
 			entry: fstabEntry{mount: "/boot/efi/custom", fstype: "vfat"},
 			want:  false,
+		},
+		{
+			name:  "boot firmware partition",
+			entry: fstabEntry{mount: "/boot/firmware", fstype: "ext4"},
+			want:  false,
+		},
+		{
+			name:  "standalone efi partition",
+			entry: fstabEntry{mount: "/efi", fstype: "vfat"},
+			want:  false,
+		},
+		{
+			name:  "unrelated mount with boot prefix kept",
+			entry: fstabEntry{mount: "/bootstrap", fstype: "ext4"},
+			want:  true,
 		},
 		{
 			name:  "data mount",
