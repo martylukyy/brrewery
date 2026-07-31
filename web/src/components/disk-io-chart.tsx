@@ -12,6 +12,7 @@ import {
   padSeriesRight,
   sliceHistoryForInterval,
 } from "@/lib/chart-interval";
+import { smoothSeries } from "@/lib/chart-smoothing";
 import { formatRate } from "@/lib/format";
 
 type Props = {
@@ -32,11 +33,11 @@ export function DiskIOChart({ history, chartIdSuffix, mountPoint }: Props) {
   const pointCount = interval.maxPoints;
 
   const read = padSeriesRight(
-    sliced.map((s) => s.readPerSec),
+    smoothSeries(sliced.map((s) => s.readPerSec), interval.pollMs),
     pointCount,
   );
   const write = padSeriesRight(
-    sliced.map((s) => s.writePerSec),
+    smoothSeries(sliced.map((s) => s.writePerSec), interval.pollMs),
     pointCount,
   );
 

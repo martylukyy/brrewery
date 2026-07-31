@@ -13,6 +13,7 @@ import {
   padSeriesRight,
   sliceHistoryForInterval,
 } from "@/lib/chart-interval";
+import { smoothSeries } from "@/lib/chart-smoothing";
 import { formatRate } from "@/lib/format";
 import {
   DEFAULT_NETWORK_SCALE,
@@ -43,11 +44,11 @@ export function NetworkThroughputChart({ history }: Props) {
   const pointCount = interval.maxPoints;
 
   const rx = padSeriesRight(
-    sliced.map((s) => s.rxPerSec),
+    smoothSeries(sliced.map((s) => s.rxPerSec), interval.pollMs),
     pointCount,
   );
   const tx = padSeriesRight(
-    sliced.map((s) => s.txPerSec),
+    smoothSeries(sliced.map((s) => s.txPerSec), interval.pollMs),
     pointCount,
   );
 
