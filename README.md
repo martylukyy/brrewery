@@ -61,12 +61,10 @@ Missing an app? Playbooks live in [`ansible/playbooks/apps`](ansible/playbooks/a
 
 ### Install Script
 
-Download and run the installer as root:
+As root or sudo, run:
 
 ```bash
-git clone https://github.com/autobrr/brrewery.git
-cd brrewery
-sudo ./install.sh
+bash <(curl -sL https://raw.githubusercontent.com/martylukyy/brrewery/main/install.sh)
 ```
 
 The installer fetches the latest release, installs all dependencies (nginx, Ansible, vnstat, and friends), configures nginx and TLS, sets up the systemd service, and prompts you to create the initial admin user. When it finishes, open `https://your-server` and log in with the account you just created.
@@ -88,7 +86,7 @@ The install script accepts a few optional environment variables for non-interact
 Example:
 
 ```bash
-sudo BRREWERY_DOMAIN=brrewery.example.com ./install.sh
+BRREWERY_DOMAIN=brrewery.example.com bash <(curl -sL https://raw.githubusercontent.com/martylukyy/brrewery/main/install.sh)
 ```
 
 The brrewery daemon itself needs no environment variables or CLI flags in production — everything is set up by the installer.
