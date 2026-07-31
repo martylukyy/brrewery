@@ -5,9 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	osuser "os/user"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,6 +40,17 @@ import (
 )
 
 var errOSPasswordVerificationFailed = errors.New("OS password verification failed")
+
+const (
+	maxPromptAttempts = 3
+	// minPasswordLength mirrors the floor auth.CreateAdmin enforces, so a new OS
+	// account cannot be created with a password the dashboard would then reject.
+	minPasswordLength = 8
+)
+
+// newUsernamePattern is the portable subset of useradd's NAME_REGEX, so a name
+// accepted at the prompt is one useradd will also take.
+var newUsernamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,30}$`)
 
 func main() {
 	root := &cobra.Command{
@@ -167,7 +182,7 @@ func runCreateAdmin() *cobra.Command {
 				return nil
 			}
 
-			username, password, err := promptCredentials()
+			username, password, err := promptCredentials(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -236,58 +251,77 @@ func setupLogger() zerolog.Logger {
 	return log.Logger
 }
 
-func promptCredentials() (username, password string, err error) {
-	if term.IsTerminal(int(os.Stdin.Fd())) {
-		username, err = promptOSUserSelection()
-		if err != nil {
-			return "", "", err
-		}
-	} else {
-		fmt.Print("Username: ")
-		if _, err = fmt.Scanln(&username); err != nil {
-			return "", "", fmt.Errorf("read username: %w", err)
-		}
-		username = strings.TrimSpace(username)
+func promptCredentials(ctx context.Context) (username, password string, err error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return promptPipedCredentials()
 	}
 
-	if username == "" {
-		return "", "", errors.New("username cannot be empty")
+	users, err := listOSUsers()
+	if err != nil {
+		return "", "", err
+	}
+	// A freshly provisioned host often carries nothing but root, which is never
+	// offered as a dashboard account. Create the missing login user instead of
+	// dead-ending the installer.
+	if len(users) == 0 {
+		return createOSUser(ctx)
 	}
 
-	const maxPasswordAttempts = 3
-	for attempt := 1; attempt <= maxPasswordAttempts; attempt++ {
-		fmt.Printf("Password for '%s': ", username)
-		password, err = readPassword()
-		if err != nil {
-			return "", "", err
-		}
-		fmt.Println()
+	username, err = promptOSUserSelection(users)
+	if err != nil {
+		return "", "", err
+	}
 
-		if err := verifyOSPassword(username, password); err != nil {
-			if !errors.Is(err, errOSPasswordVerificationFailed) {
-				return "", "", err
-			}
-			if attempt == maxPasswordAttempts {
-				return "", "", err
-			}
-			fmt.Fprintf(os.Stderr, "Wrong password, try again (%d/%d)\n", attempt, maxPasswordAttempts)
-			continue
-		}
-		break
+	password, err = promptExistingOSPassword(username)
+	if err != nil {
+		return "", "", err
 	}
 
 	return username, password, nil
 }
 
-func promptOSUserSelection() (string, error) {
-	users, err := listOSUsers()
-	if err != nil {
-		return "", err
-	}
-	if len(users) == 0 {
-		return "", errors.New("no OS users found")
+func promptPipedCredentials() (username, password string, err error) {
+	fmt.Print("Username: ")
+	if _, err := fmt.Scanln(&username); err != nil {
+		return "", "", fmt.Errorf("read username: %w", err)
 	}
 
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return "", "", errors.New("username cannot be empty")
+	}
+
+	password, err = promptExistingOSPassword(username)
+	if err != nil {
+		return "", "", err
+	}
+
+	return username, password, nil
+}
+
+func promptExistingOSPassword(username string) (string, error) {
+	for attempt := 1; attempt <= maxPromptAttempts; attempt++ {
+		fmt.Printf("Password for '%s': ", username)
+		password, err := readPassword()
+		if err != nil {
+			return "", err
+		}
+		fmt.Println()
+
+		err = verifyOSPassword(username, password)
+		if err == nil {
+			return password, nil
+		}
+		if !errors.Is(err, errOSPasswordVerificationFailed) || attempt == maxPromptAttempts {
+			return "", err
+		}
+		fmt.Fprintf(os.Stderr, "Wrong password, try again (%d/%d)\n", attempt, maxPromptAttempts)
+	}
+
+	return "", errOSPasswordVerificationFailed
+}
+
+func promptOSUserSelection(users []string) (string, error) {
 	fmt.Println("Select OS user for initial admin account:")
 	for i, user := range users {
 		fmt.Printf("  %d) %s\n", i+1, user)
@@ -325,6 +359,141 @@ func promptOSUserSelection() (string, error) {
 	}
 
 	return users[choice-1], nil
+}
+
+// createOSUser bootstraps the first regular login account and returns the
+// credentials the dashboard admin is then created with. The installer runs
+// create-admin as root, which is what makes useradd and friends available here.
+func createOSUser(ctx context.Context) (username, password string, err error) {
+	fmt.Println("No regular login user found — this host only has root.")
+	fmt.Println("brrewery never binds the dashboard to root, so create one now.")
+	fmt.Println("It gets a home directory, a login shell and sudo access, and its")
+	fmt.Println("password doubles as the dashboard password.")
+
+	username, err = promptNewUsername()
+	if err != nil {
+		return "", "", err
+	}
+
+	password, err = promptNewPassword(username)
+	if err != nil {
+		return "", "", err
+	}
+
+	if err := addOSUser(ctx, username, password); err != nil {
+		return "", "", err
+	}
+
+	fmt.Printf("Created OS user '%s' with sudo access.\n", username)
+	return username, password, nil
+}
+
+func promptNewUsername() (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+
+	for attempt := 1; attempt <= maxPromptAttempts; attempt++ {
+		fmt.Print("New username: ")
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", fmt.Errorf("read username: %w", err)
+		}
+		username := strings.TrimSpace(line)
+
+		if err := validateNewUsername(username); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			continue
+		}
+		if _, err := osuser.Lookup(username); err == nil {
+			fmt.Fprintf(os.Stderr, "User '%s' already exists, pick another name\n", username)
+			continue
+		}
+
+		return username, nil
+	}
+
+	return "", errors.New("no valid username provided")
+}
+
+func validateNewUsername(username string) error {
+	if username == "" {
+		return errors.New("username cannot be empty")
+	}
+	if !newUsernamePattern.MatchString(username) {
+		return errors.New("invalid username: start with a lowercase letter or '_', followed by lowercase letters, digits, '-' or '_' (31 characters max)")
+	}
+	return nil
+}
+
+func promptNewPassword(username string) (string, error) {
+	for attempt := 1; attempt <= maxPromptAttempts; attempt++ {
+		fmt.Printf("Password for '%s': ", username)
+		password, err := readPassword()
+		if err != nil {
+			return "", err
+		}
+		fmt.Println()
+
+		fmt.Print("Repeat password: ")
+		confirmation, err := readPassword()
+		if err != nil {
+			return "", err
+		}
+		fmt.Println()
+
+		switch {
+		case len(password) < minPasswordLength:
+			fmt.Fprintf(os.Stderr, "Password must be at least %d characters\n", minPasswordLength)
+		case password != confirmation:
+			fmt.Fprintln(os.Stderr, "Passwords do not match")
+		default:
+			return password, nil
+		}
+	}
+
+	return "", errors.New("no valid password provided")
+}
+
+func addOSUser(ctx context.Context, username, password string) error {
+	if err := runOSCommand(ctx, nil, "useradd", "--create-home", "--shell", "/bin/bash", username); err != nil {
+		return err
+	}
+
+	// Only a password-carrying account with sudo is any use to brrewery, so a
+	// partial setup is torn down instead of left behind for the next run to
+	// stumble over.
+	if err := configureOSUser(ctx, username, password); err != nil {
+		_ = runOSCommand(ctx, nil, "userdel", "--remove", username)
+		return err
+	}
+
+	return nil
+}
+
+func configureOSUser(ctx context.Context, username, password string) error {
+	// chpasswd reads the pair from stdin so the password never reaches the
+	// process table. Without it the account fails /etc/shadow verification on
+	// every later login.
+	if err := runOSCommand(ctx, strings.NewReader(username+":"+password+"\n"), "chpasswd"); err != nil {
+		return err
+	}
+
+	// App playbooks escalate with this account, so sudo is not optional.
+	return runOSCommand(ctx, nil, "usermod", "--append", "--groups", "sudo", username)
+}
+
+func runOSCommand(ctx context.Context, stdin io.Reader, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Stdin = stdin
+
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	if message := strings.TrimSpace(string(out)); message != "" {
+		return fmt.Errorf("%s: %w: %s", name, err, message)
+	}
+
+	return fmt.Errorf("%s: %w", name, err)
 }
 
 func listOSUsers() ([]string, error) {
