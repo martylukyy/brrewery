@@ -128,9 +128,18 @@
     remote_src: true
     mode: "0755"
 
+# The import itself is the real check; the version is read only to report it.
+# Read it from __version__ with lt.version as the fallback: RC_2_1 builds exclude
+# functions deprecated since 1.1, and plain `version` is one of them, so probing
+# it there fails the BUILD on a module that is actually fine. __version__ is what
+# Deluge's own deluge/_libtorrent.py reads (and gates REQUIRED_VERSION on), so a
+# module missing it would break Deluge regardless of what this task printed.
 - name: Verify the libtorrent module imports under the venv interpreter
   ansible.builtin.command:
-    cmd: "{{ deluge_venv }}/bin/python -c 'import libtorrent as lt; print(lt.version)'"
+    cmd: >-
+      {{ deluge_venv }}/bin/python -c
+      "import libtorrent as lt;
+      print(getattr(lt, '__version__', None) or getattr(lt, 'version', 'unknown'))"
   environment:
     LD_LIBRARY_PATH: "{{ dz_legacy_ld }}"
   register: dz_lt_import

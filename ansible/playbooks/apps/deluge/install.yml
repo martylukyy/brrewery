@@ -45,11 +45,18 @@
         name: deluge_build
         tasks_from: service_unit.yml
 
-    - name: Enable and start the Deluge daemon for brrewery user
+    # restarted, not started: this playbook also runs as a re-install, and the
+    # deluge_build role wipes and rebuilds the venv underneath a daemon that may
+    # still be running. `started` is a no-op against a live unit, which leaves
+    # deluged executing the deleted pre-rebuild code — reporting the new version
+    # from disk while the process still holds the old libtorrent — until the next
+    # unrelated restart kills it. Restarting always lands the rebuilt venv. On a
+    # fresh install the unit is not running, where restart is simply a start.
+    - name: Enable and (re)start the Deluge daemon for brrewery user
       ansible.builtin.systemd:
         name: "deluged@{{ brrewery_user }}.service"
         enabled: true
-        state: started
+        state: restarted
         daemon_reload: true
 
     - name: Wait for the Deluge daemon RPC port to listen

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { IconX } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,29 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
     }
     return branchOption.when.one_of.includes(version);
   }, [branchOption, version]);
+
+  // Individual choices can be gated too: a libtorrent branch is only offered on
+  // the release lines that can build against it (e.g. RC_2_1 on the newer Deluge
+  // lines). An ungated choice is always offered.
+  const branchChoices = useMemo(
+    () =>
+      (branchOption?.choices ?? []).filter(
+        (choice) => !choice.when?.one_of || choice.when.one_of.includes(version),
+      ),
+    [branchOption, version],
+  );
+
+  // Changing the version can retire the selected branch; fall back to the first
+  // one the new version allows so the request never carries a branch the backend
+  // will reject.
+  useEffect(() => {
+    if (branchChoices.length === 0) {
+      return;
+    }
+    if (!branchChoices.some((choice) => choice.value === branch)) {
+      setBranch(branchChoices[0].value);
+    }
+  }, [branchChoices, branch]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
@@ -175,7 +198,7 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
                 {branchVisible && (
                   <fieldset className="space-y-2">
                     <legend className="mb-1 block text-sm text-foreground">libtorrent version</legend>
-                    {branchOption?.choices?.map((choice) => (
+                    {branchChoices.map((choice) => (
                       <label
                         key={choice.value}
                         className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2 hover:bg-accent/50"

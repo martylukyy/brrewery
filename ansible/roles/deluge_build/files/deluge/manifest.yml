@@ -16,8 +16,15 @@
 #
 # Boost is pinned per libtorrent branch because its compatibility is tied to the
 # branch: 1.86 is the newest Boost that still ships boost::asio::io_service, which
-# libtorrent RC_1_2/RC_1_1 consume (1.87 removed it). One Boost source tree is
-# built per install and reused for that install's libtorrent build.
+# libtorrent RC_1_2/RC_1_1 consume (1.87 removed it). RC_2_0/RC_2_1 dropped it and
+# only require >= 1.75, so they stay on the same 1.86 pin — one Boost source tree
+# is built per install and reused for that install's libtorrent build.
+#
+# RC_2_1 is offered only on the Deluge lines that can run it. libtorrent 2.1
+# excludes functions deprecated since 1.1 from its default build; Deluge stopped
+# calling those in 2.1.0 ("Remove libtorrent deprecated functions"), which is why
+# 2.2.x and 2.1.x list the branch and 2.0.x does not. 1.3.x is Python 2 and is
+# RC_1_1-only regardless.
 #
 # compiler_flags is host-tuned but ISA-portable. -mtune=native optimizes
 # scheduling for the build host without emitting instructions beyond the x86-64
@@ -51,6 +58,9 @@ lines:
         RC_2_0:
           tag: "v2.0.11"
           boost: "1_86_0"
+        RC_2_1:
+          tag: "v2.1.0"
+          boost: "1_86_0"
 
   - version: "2.1.x"
     series: "2.1"
@@ -67,6 +77,9 @@ lines:
           boost: "1_86_0"
         RC_2_0:
           tag: "v2.0.11"
+          boost: "1_86_0"
+        RC_2_1:
+          tag: "v2.1.0"
           boost: "1_86_0"
 
   - version: "2.0.x"

@@ -33,6 +33,7 @@ func TestResolveSelectionModernLine(t *testing.T) {
 	assert.True(t, line.HasBranchChoice())
 	assert.True(t, line.AllowsBranch(BranchRC12))
 	assert.True(t, line.AllowsBranch(BranchRC20))
+	assert.True(t, line.AllowsBranch(BranchRC21))
 	assert.False(t, line.AllowsBranch(BranchRC11))
 
 	// libtorrent and its Boost are pinned per branch (lockfile-style) rather than
@@ -41,6 +42,28 @@ func TestResolveSelectionModernLine(t *testing.T) {
 	assert.Equal(t, "1_86_0", line.Libtorrent.Branches[BranchRC12].Boost)
 	assert.Equal(t, "v2.0.11", line.Libtorrent.Branches[BranchRC20].Tag)
 	assert.Equal(t, "1_86_0", line.Libtorrent.Branches[BranchRC20].Boost)
+	assert.Equal(t, "v2.1.0", line.Libtorrent.Branches[BranchRC21].Tag)
+	assert.Equal(t, "1_86_0", line.Libtorrent.Branches[BranchRC21].Boost)
+}
+
+// RC_2_1 drops the libtorrent functions Deluge only stopped calling in 2.1.0, so
+// the 2.0.x line must not offer it even though it is a python3 line.
+func TestResolveSelectionRC21NotOnOldLines(t *testing.T) {
+	m, err := LoadManifest()
+	require.NoError(t, err)
+
+	line, err := m.ResolveSelection("2.1.x")
+	require.NoError(t, err)
+	assert.True(t, line.AllowsBranch(BranchRC21))
+
+	line, err = m.ResolveSelection("2.0.x")
+	require.NoError(t, err)
+	assert.True(t, line.HasBranchChoice())
+	assert.False(t, line.AllowsBranch(BranchRC21))
+
+	line, err = m.ResolveSelection("1.3.x")
+	require.NoError(t, err)
+	assert.False(t, line.AllowsBranch(BranchRC21))
 }
 
 func TestResolveSelectionLegacyLine(t *testing.T) {
@@ -88,7 +111,16 @@ func TestInstallOptions(t *testing.T) {
 	require.NotNil(t, opts[1].When)
 	assert.Equal(t, extravars.DelugeVersion, opts[1].When.Key)
 	assert.Equal(t, []string{"2.2.x", "2.1.x", "2.0.x"}, opts[1].When.OneOf)
-	require.Len(t, opts[1].Choices, 2)
+	require.Len(t, opts[1].Choices, 3)
 	assert.Equal(t, BranchRC12, opts[1].Choices[0].Value)
 	assert.Equal(t, BranchRC20, opts[1].Choices[1].Value)
+	assert.Equal(t, BranchRC21, opts[1].Choices[2].Value)
+
+	// Branches every gated line allows are offered unconditionally; RC_2_1 is
+	// offered on a subset, so it carries its own When for the picker to filter on.
+	assert.Nil(t, opts[1].Choices[0].When)
+	assert.Nil(t, opts[1].Choices[1].When)
+	require.NotNil(t, opts[1].Choices[2].When)
+	assert.Equal(t, extravars.DelugeVersion, opts[1].Choices[2].When.Key)
+	assert.Equal(t, []string{"2.2.x", "2.1.x"}, opts[1].Choices[2].When.OneOf)
 }

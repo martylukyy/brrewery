@@ -23,12 +23,19 @@ import (
 const AppID = "deluge"
 
 // Libtorrent branch identifiers. RC_1_1 is the last branch with Python 2
-// bindings (Deluge 1.3); RC_1_2 and RC_2_0 are the Python 3 choices.
+// bindings (Deluge 1.3); the rest are the Python 3 choices. RC_2_1 is not
+// offered on every Python 3 line — see branchOrder and the manifest.
 const (
 	BranchRC11 = "RC_1_1"
 	BranchRC12 = "RC_1_2"
 	BranchRC20 = "RC_2_0"
+	BranchRC21 = "RC_2_1"
 )
+
+// branchOrder is the display order for the libtorrent picker. Which branches a
+// given Deluge line actually allows comes from the manifest; this only fixes the
+// ordering, since a map has none. A branch missing here sorts last.
+var branchOrder = []string{BranchRC12, BranchRC20, BranchRC21}
 
 var (
 	// ErrManifestUnavailable indicates the vendored manifest could not be read.

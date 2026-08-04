@@ -75,6 +75,58 @@ function renderModal(onConfirm = vi.fn()) {
   return onConfirm;
 }
 
+// Deluge offers a libtorrent branch on every python3 line, but RC_2_1 only on
+// the lines that can run it — a choice-level `when`, unlike qBittorrent's
+// option-level one above.
+const delugeApps: AppStatus[] = [
+  {
+    id: "deluge",
+    name: "Deluge",
+    description: "",
+    category: "download",
+    installed: false,
+    dependencies_satisfied: true,
+    install_options: [
+      {
+        key: "deluge_version",
+        label: "Deluge version",
+        type: "select",
+        choices: [
+          { value: "2.2.x", label: "2.2.x" },
+          { value: "2.0.x", label: "2.0.x" },
+        ],
+      },
+      {
+        key: "libtorrent_branch",
+        label: "libtorrent version",
+        type: "select",
+        choices: [
+          { value: "RC_1_2", label: "libtorrent 1.2" },
+          { value: "RC_2_0", label: "libtorrent 2.0" },
+          {
+            value: "RC_2_1",
+            label: "libtorrent 2.1",
+            when: { key: "deluge_version", one_of: ["2.2.x"] },
+          },
+        ],
+        when: { key: "deluge_version", one_of: ["2.2.x", "2.0.x"] },
+      },
+    ],
+  },
+];
+
+function renderDelugeModal(onConfirm = vi.fn()) {
+  render(
+    <InstallOptionsModal
+      appIds={["deluge"]}
+      apps={delugeApps}
+      onClose={() => {}}
+      onConfirm={onConfirm}
+    />,
+  );
+  return onConfirm;
+}
+
 function renderRtorrentModal(onConfirm = vi.fn()) {
   render(
     <InstallOptionsModal
@@ -179,5 +231,57 @@ describe("InstallOptionsModal", () => {
     await user.click(screen.getByRole("button", { name: "Start install" }));
 
     expect(onConfirm).toHaveBeenCalledWith({ rtorrent_version: "0.9.6" });
+  });
+
+  it("offers a gated libtorrent branch only on the versions that allow it", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDelugeModal();
+
+    await user.click(screen.getByRole("radio", { name: "2.2.x" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("radio", { name: "libtorrent 2.1" })).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "libtorrent 2.1" }));
+    await user.click(screen.getByRole("button", { name: "Start install" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      deluge_version: "2.2.x",
+      libtorrent_branch: "RC_2_1",
+    });
+  });
+
+  it("hides a gated libtorrent branch on versions that do not allow it", async () => {
+    const user = userEvent.setup();
+    renderDelugeModal();
+
+    await user.click(screen.getByRole("radio", { name: "2.0.x" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("radio", { name: "libtorrent 1.2" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "libtorrent 2.0" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "libtorrent 2.1" })).toBeNull();
+  });
+
+  // Selecting RC_2_1 and then going back to a line that forbids it must not
+  // submit the stale branch — the backend would reject the combination.
+  it("drops a gated branch selection when the version stops allowing it", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDelugeModal();
+
+    await user.click(screen.getByRole("radio", { name: "2.2.x" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("radio", { name: "libtorrent 2.1" }));
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("radio", { name: "2.0.x" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("radio", { name: "libtorrent 1.2" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Start install" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      deluge_version: "2.0.x",
+      libtorrent_branch: "RC_1_2",
+    });
   });
 });

@@ -97,6 +97,9 @@ export type InstallSecret = {
 export type InstallOptionChoice = {
   value: string;
   label: string;
+  // Present when the choice is only valid for some values of another option
+  // (e.g. a libtorrent branch offered on a subset of the release lines).
+  when?: InstallOptionWhen;
 };
 
 export type InstallOptionWhen = {

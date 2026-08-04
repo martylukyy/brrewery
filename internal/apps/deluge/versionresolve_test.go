@@ -141,8 +141,19 @@ func TestValidate(t *testing.T) {
 		extravars.DelugeVersion: "1.3.x",
 	}))
 
+	require.NoError(t, Validate(AppID, map[string]string{
+		extravars.DelugeVersion: "2.2.x", extravars.LibtorrentBranch: BranchRC21,
+	}))
+
 	err := Validate(AppID, map[string]string{
 		extravars.DelugeVersion: "1.3.x", extravars.LibtorrentBranch: BranchRC20,
+	})
+	require.ErrorIs(t, err, ErrBranchNotAllowed)
+
+	// RC_2_1 is offered on 2.2.x/2.1.x only; the picker hides it elsewhere and
+	// the server must reject it if a request carries it anyway.
+	err = Validate(AppID, map[string]string{
+		extravars.DelugeVersion: "2.0.x", extravars.LibtorrentBranch: BranchRC21,
 	})
 	require.ErrorIs(t, err, ErrBranchNotAllowed)
 

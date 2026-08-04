@@ -23,14 +23,18 @@ type InstallSecret struct {
 	DisablePasswordManager bool `json:"disable_password_manager,omitempty" yaml:"disable_password_manager,omitempty"`
 }
 
-// InstallOptionChoice is a single selectable value for an InstallOption.
+// InstallOptionChoice is a single selectable value for an InstallOption. When
+// gates the individual choice, for options whose choices are not all valid for
+// every selection (e.g. libtorrent RC_2_1 builds only on the newer Deluge
+// lines); a nil When means the choice is always offered.
 type InstallOptionChoice struct {
-	Value string `json:"value" yaml:"value"`
-	Label string `json:"label" yaml:"label"`
+	Value string             `json:"value" yaml:"value"`
+	Label string             `json:"label" yaml:"label"`
+	When  *InstallOptionWhen `json:"when,omitempty" yaml:"when,omitempty"`
 }
 
-// InstallOptionWhen gates an option so it is only shown when another option's
-// value is one of the listed values.
+// InstallOptionWhen gates an option (or a single choice) so it is only shown
+// when another option's value is one of the listed values.
 type InstallOptionWhen struct {
 	Key   string   `json:"key" yaml:"key"`
 	OneOf []string `json:"one_of,omitempty" yaml:"one_of,omitempty"`
