@@ -57,10 +57,13 @@ export function LineChart({ series, height = 180, pointCount, maxValue, formatVa
 
   return (
     <div className="flex h-full flex-col">
+      {/* grow (basis auto) rather than flex-1 (basis 0) so the plot keeps a
+          definite height in an auto-height panel — recharts sizes its surface
+          from a percentage height and collapses to 0 without one. */}
       <ChartContainer
         config={config}
-        className="aspect-auto w-full flex-1"
-        style={{ minHeight: height }}
+        className="aspect-auto w-full grow"
+        style={{ height, minHeight: height }}
       >
         <RechartsLineChart
           accessibilityLayer

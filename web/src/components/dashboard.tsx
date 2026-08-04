@@ -127,7 +127,11 @@ export function Dashboard() {
       })}
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <NetworkThroughputChart history={networkHistory} />
+        {/* Wrapped so the panel's h-full resolves against this auto-height box
+            instead of the grid area, which the taller vnStat table stretches. */}
+        <div>
+          <NetworkThroughputChart history={networkHistory} />
+        </div>
         <VnstatPanel />
       </div>
     </div>
