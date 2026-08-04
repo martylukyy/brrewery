@@ -19,25 +19,30 @@
     creates: "{{ qbittorrent_build_root }}/libtorrent"
 
 # --- Patch resolution: uploaded (ephemeral) > operator file > vendored default -
-- name: Write uploaded libtorrent patch (ephemeral, this build only)
-  ansible.builtin.copy:
-    content: "{{ libtorrent_patch | b64decode }}"
-    dest: "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
-    mode: "0600"
-  no_log: true
+# The scratch build root is only removed after a successful build (the install
+# playbook runs cleanup.yml once the role returns), so the uploaded patch is
+# removed in `always:` — a patch that fails to apply must not leave the
+# operator's uploaded content in the build root. The apply failure still aborts
+# the build; `always` only guarantees the cleanup runs first.
+- name: Apply uploaded libtorrent patch (ephemeral, this build only)
   when: libtorrent_patch | length > 0
+  block:
+    - name: Write uploaded libtorrent patch
+      ansible.builtin.copy:
+        content: "{{ libtorrent_patch | b64decode }}"
+        dest: "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
+        mode: "0600"
+      no_log: true
 
-- name: Apply uploaded libtorrent patch (must apply cleanly)
-  ansible.builtin.command:
-    cmd: patch -p1 -i "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
-    chdir: "{{ qbittorrent_build_root }}/libtorrent"
-  when: libtorrent_patch | length > 0
-
-- name: Remove ephemeral uploaded patch
-  ansible.builtin.file:
-    path: "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
-    state: absent
-  when: libtorrent_patch | length > 0
+    - name: Apply uploaded libtorrent patch (must apply cleanly)
+      ansible.builtin.command:
+        cmd: patch -p1 -i "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
+        chdir: "{{ qbittorrent_build_root }}/libtorrent"
+  always:
+    - name: Remove ephemeral uploaded patch
+      ansible.builtin.file:
+        path: "{{ qbittorrent_build_root }}/libtorrent-upload.patch"
+        state: absent
 
 - name: Check for an operator libtorrent patch
   ansible.builtin.stat:
