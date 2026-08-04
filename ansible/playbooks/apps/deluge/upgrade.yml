@@ -19,8 +19,18 @@
       ansible.builtin.set_fact:
         deluge_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
 
-    # The build role removed and recreated the venv; the systemd units and
-    # symlinks point at fixed paths, so just restart to pick up the rebuild.
+    # The venv and symlink paths are fixed, but the unit *contents* are rendered
+    # per line: the 1.3 line needs the legacy LD_LIBRARY_PATH and has no
+    # deluge-web foreground flag, while the 2.x lines need neither the loader
+    # path nor a daemonizing deluge-web (dz_web_fg=-d). Re-render the units here
+    # so a cross-line upgrade does not leave the previous line's units in place —
+    # without this, 1.3 -> 2.x leaves deluge-web without -d, so it forks, the
+    # main process exits 0, and systemd tears the unit down as a clean exit.
+    - name: Re-render Deluge systemd template units for the new line
+      ansible.builtin.include_role:
+        name: deluge_build
+        tasks_from: service_unit.yml
+
     # Deliberately does not touch ~/.config/deluge so torrents/settings survive.
     - name: Restart Deluge services after rebuild
       ansible.builtin.systemd:
