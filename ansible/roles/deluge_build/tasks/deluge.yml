@@ -152,6 +152,45 @@
   changed_when: true
   when: dz_legacy | bool
 
+# The 2.x WebUI cannot install a plugin egg. Its ExtJS fileuploadfield was
+# reworked for multi-file torrent adds and now does, in js/extjs/ext-extensions:
+#     var value = this.fileInput.dom.files;   // a FileList, not a string
+#     this.setValue(value);                   // TextField coerces to a string
+# so the field's value becomes the literal "[object FileList]". The plugin
+# installer (InstallPluginWindow.onUploadSuccess) still assumes the old string
+# path and passes that value to the upload_plugin RPC as the destination
+# filename, which shutil.copyfile happily writes to
+# ~/.config/deluge/plugins/[object FileList]. scan_for_plugins() discovers via
+# pkg_resources, which only sees *.egg, so the egg is invisible: the upload
+# reports success and no plugin appears. Only the installer is affected — the
+# add-torrent window reads the FileList off the fileselected event instead.
+#
+# Two edits, both confined to the plugin window: show the real filename in the
+# field, and read the filename from the FileList at the point of use rather than
+# from the display element. Patch the installed venv copy (not the scratch source
+# tree) so the fix survives pip's wheel cache serving a stale build, matching the
+# base-path patch above. deluge-all-debug.js is the only bundle shipped (and the
+# only one the page loads), so there is no minified twin to keep in sync.
+- name: Show the selected egg's real filename in the plugin install field
+  ansible.builtin.lineinfile:
+    path: "{{ dz_venv_site }}/deluge/ui/web/js/deluge-all-debug.js"
+    insertafter: "emptyText: _\\('Select an egg'\\),"
+    line: "                    listeners: { fileselected: function (f, v) { var n = v && v.length ? v[0].name : String(v); f.setRawValue(n.substr(n.lastIndexOf('\\\\') + 1)); } },"
+    state: present
+  when: not dz_legacy | bool
+
+# The `.*` on the second line swallows the old basename split without this file
+# needing to spell its backslashes. Idempotent: the anchor is gone once replaced.
+- name: Derive the uploaded plugin filename from the FileList
+  ansible.builtin.replace:
+    path: "{{ dz_venv_site }}/deluge/ui/web/js/deluge-all-debug.js"
+    regexp: '^(\s*)var filename = this\.form\.getForm\(\)\.getFieldValues\(\)\.file;\n.*$'
+    replace: |-
+      \1var field = this.form.getForm().findField('file');
+      \1var files = field.fileInput ? field.fileInput.dom.files : null;
+      \1var filename = files && files.length ? files[0].name : field.getValue();
+  when: not dz_legacy | bool
+
 - name: Verify deluged runs and links the built libtorrent
   ansible.builtin.command:
     cmd: "{{ deluge_bin }} --version"
@@ -208,6 +247,33 @@
       deluge/ui/web/server.py; under our non-root base (-b {{ deluge_web_base }}) it
       would crash at startup with "Path segment must be bytes". The bytes patch in
       this role did not apply to Deluge {{ deluge_release }} — check the source layout.
+  when: not dz_legacy | bool
+
+# Guard the plugin-upload fix the same way: the installer must no longer take its
+# destination filename from the display element. This one fails silently in the
+# browser rather than at startup — the upload reports success and writes an egg
+# nobody can see — so there is no port wait_for to catch it downstream. Same grep
+# contract as above: 0 = still reading the field value (buggy), 1 = absent
+# (patched, or a future release that rewrote onUploadSuccess itself).
+- name: Check the WebUI plugin-upload filename patch applied to the installed bundle
+  ansible.builtin.command:
+    cmd: >-
+      grep -Fn "var filename = this.form.getForm().getFieldValues().file;"
+      {{ dz_venv_site }}/deluge/ui/web/js/deluge-all-debug.js
+  register: dz_web_plugin_grep
+  changed_when: false
+  failed_when: false
+  when: not dz_legacy | bool
+
+- name: Fail when the WebUI plugin-upload filename patch did not take
+  ansible.builtin.assert:
+    that:
+      - dz_web_plugin_grep.rc == 1
+    fail_msg: >-
+      The WebUI plugin installer still reads its filename from the upload field in
+      deluge/ui/web/js/deluge-all-debug.js; uploaded eggs would be written to
+      ~/.config/deluge/plugins/[object FileList] and never discovered. The patch in
+      this role did not apply to Deluge {{ deluge_release }} — check the bundle layout.
   when: not dz_legacy | bool
 
 # Same guard for the legacy 1.3 line, but checked against the LOADED bytecode rather
