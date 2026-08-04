@@ -1,14 +1,13 @@
 package qbittorrent_test
 
 import (
-	"encoding/base64"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/autobrr/brrewery/internal/apps/extravars"
+	"github.com/autobrr/brrewery/internal/apps/libtorrent"
 	"github.com/autobrr/brrewery/internal/apps/qbittorrent"
 )
 
@@ -63,37 +62,6 @@ func TestValidateInstallOptions(t *testing.T) {
 	}
 }
 
-func TestValidateLibtorrentPatch(t *testing.T) {
-	t.Parallel()
-
-	enc := func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
-	validDiff := "--- a/src/settings_pack.cpp\n+++ b/src/settings_pack.cpp\n@@ -1 +1 @@\n-old\n+new\n"
-
-	tests := []struct {
-		name    string
-		patch   string
-		wantErr error
-	}{
-		{name: "empty ok", patch: ""},
-		{name: "valid diff", patch: enc(validDiff)},
-		{name: "not base64", patch: "%%%not base64%%%", wantErr: qbittorrent.ErrPatchInvalid},
-		{name: "not a diff", patch: enc("just some text\nwith no diff markers\n"), wantErr: qbittorrent.ErrPatchInvalid},
-		{name: "too large", patch: enc(validDiff + strings.Repeat("x", qbittorrent.MaxLibtorrentPatchBytes)), wantErr: qbittorrent.ErrPatchTooLarge},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			err := qbittorrent.ValidateLibtorrentPatch(tt.patch)
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
-
 func TestValidate_NonQbittorrentAppPasses(t *testing.T) {
 	t.Parallel()
 
@@ -114,7 +82,7 @@ func TestValidate_QbittorrentChecksVersionAndPatch(t *testing.T) {
 		extravars.LibtorrentBranch:   qbittorrent.BranchRC20,
 		extravars.LibtorrentPatch:    "not-base64-$$$",
 	})
-	require.ErrorIs(t, err, qbittorrent.ErrPatchInvalid)
+	require.ErrorIs(t, err, libtorrent.ErrPatchInvalid)
 }
 
 func TestInstallOptions(t *testing.T) {
