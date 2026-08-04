@@ -12,6 +12,9 @@ deluge_vendor_root: /usr/share/brrewery/vendor/deluge
 deluge_vendor_root_default: /usr/share/brrewery/vendor/deluge
 deluge_build_root: /tmp/brrewery-deluge-build
 
+# Optional operator-supplied libtorrent patches (never written by the Web UI).
+deluge_operator_patches_dir: /var/lib/brrewery/patches/deluge
+
 # One Boost source tree is staged and reused for every libtorrent build (the
 # python bindings link Boost.Python statically out of it).
 deluge_boost_root: /opt
@@ -39,6 +42,8 @@ deluge_web_base: /deluge/
 # resolved Deluge tag version (e.g. "2.2.0"); libtorrent_branch is the chosen
 # libtorrent line (RC_1_2/RC_2_0/RC_1_1). The libtorrent version itself is not
 # passed here — it is pinned per branch in the manifest and read by the role.
+# libtorrent_patch is an optional, ephemeral base64 patch for a single build.
 deluge_version: ""
 deluge_release: ""
 libtorrent_branch: ""
+libtorrent_patch: ""

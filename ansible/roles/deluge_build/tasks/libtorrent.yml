@@ -61,6 +61,78 @@
         chdir: "{{ deluge_build_root }}/libtorrent"
       changed_when: true
 
+# --- Patch resolution: uploaded (ephemeral) > operator file > vendored default -
+# Applied after the RC_1_1 compatibility fixes above so a tuning patch never has
+# to carry them, and before the build below. The scratch tree is reset and
+# re-cloned at the top of this file, so the non-forward steps always patch a
+# pristine checkout. The filename these look for is
+# libtorrent-<branch>.patch, distinct from the RC_1_1 build-compat
+# libtorrent-RC_1_1-Jamfile.patch, so the two never collide.
+#
+# The vendored RC_1_2/RC_2_0 patches are byte-identical copies of the ones in
+# qbittorrent_build/files/qbittorrent/patches — both roles pin the same
+# libtorrent tags (v1.2.20 / v2.0.11) and the patches touch only
+# src/settings_pack.cpp, so the same tuning applies to either build. Keep the two
+# copies in sync when either is updated. The 1.3 line (RC_1_1) has no tuning
+# patch; that tier is simply skipped for it.
+# The scratch build root is never deleted (not even on success), so the uploaded
+# patch is removed in `always:` — a patch that fails to apply must not leave the
+# operator's uploaded content sitting in /tmp. The apply failure still aborts the
+# build; `always` only guarantees the cleanup runs first.
+- name: Apply uploaded libtorrent patch (ephemeral, this build only)
+  when: libtorrent_patch | length > 0
+  block:
+    - name: Write uploaded libtorrent patch
+      ansible.builtin.copy:
+        content: "{{ libtorrent_patch | b64decode }}"
+        dest: "{{ deluge_build_root }}/libtorrent-upload.patch"
+        mode: "0600"
+      no_log: true
+
+    - name: Apply uploaded libtorrent patch (must apply cleanly)
+      ansible.builtin.command:
+        cmd: patch -p1 -i "{{ deluge_build_root }}/libtorrent-upload.patch"
+        chdir: "{{ deluge_build_root }}/libtorrent"
+  always:
+    - name: Remove ephemeral uploaded patch
+      ansible.builtin.file:
+        path: "{{ deluge_build_root }}/libtorrent-upload.patch"
+        state: absent
+
+- name: Check for an operator libtorrent patch
+  ansible.builtin.stat:
+    path: "{{ deluge_operator_patches_dir }}/libtorrent-{{ dz_libtorrent_branch }}.patch"
+  register: dz_operator_patch
+  when: libtorrent_patch | length == 0
+
+- name: Apply operator libtorrent patch (must apply cleanly)
+  ansible.builtin.command:
+    cmd: patch -p1 -i "{{ deluge_operator_patches_dir }}/libtorrent-{{ dz_libtorrent_branch }}.patch"
+    chdir: "{{ deluge_build_root }}/libtorrent"
+  when:
+    - libtorrent_patch | length == 0
+    - dz_operator_patch.stat.exists | default(false)
+
+- name: Check for the vendored default libtorrent patch
+  ansible.builtin.stat:
+    path: "{{ deluge_vendor_root }}/patches/libtorrent-{{ dz_libtorrent_branch }}.patch"
+  register: dz_default_patch
+  when:
+    - libtorrent_patch | length == 0
+    - not (dz_operator_patch.stat.exists | default(false))
+
+- name: Apply the vendored default libtorrent patch (best effort)
+  ansible.builtin.command:
+    cmd: patch -p1 --forward -i "{{ deluge_vendor_root }}/patches/libtorrent-{{ dz_libtorrent_branch }}.patch"
+    chdir: "{{ deluge_build_root }}/libtorrent"
+  register: dz_default_patch_apply
+  changed_when: dz_default_patch_apply.rc == 0
+  failed_when: false
+  when:
+    - libtorrent_patch | length == 0
+    - not (dz_operator_patch.stat.exists | default(false))
+    - dz_default_patch.stat.exists | default(false)
+
 - name: Write the b2 user-config.jam (gcc + the target python interpreter)
   ansible.builtin.copy:
     dest: "{{ deluge_build_root }}/user-config.jam"
