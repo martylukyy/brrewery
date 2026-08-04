@@ -115,6 +115,52 @@ func TestHistoryKeepsGapsWiderThanOneBucket(t *testing.T) {
 	}
 }
 
+func TestHistoryKeepsPastBucketsStableAsTheWindowSlides(t *testing.T) {
+	h := newHistory(2048)
+	// Rates that vary sample to sample, so regrouping samples into different
+	// buckets would visibly change the averages.
+	rates := make([]float64, 901)
+	for i := range rates {
+		rates[i] = float64((i % 7) * 1000)
+	}
+	recordSeconds(h, rates)
+
+	// 15 minutes over 640 points gives 1406ms buckets — a width the one-second
+	// poll interval does not divide evenly, which is what used to reshuffle the
+	// history on every request.
+	query := HistoryQuery{Window: 15 * time.Minute, Points: 640}
+	first := queryAt(h, 900, query)
+	firstPoints := seriesPoints(t, first, SeriesRx)
+
+	for second := 901; second <= 905; second++ {
+		later := queryAt(h, second, query)
+		laterPoints := seriesPoints(t, later, SeriesRx)
+
+		// Aligned grids differ only by whole buckets, so the same instant is
+		// found by shifting the index.
+		bucketMs := int64(later.BucketSeconds * 1000)
+		if (later.StartMs-first.StartMs)%bucketMs != 0 {
+			t.Fatalf("grid drifted by a partial bucket at second %d", second)
+		}
+		shift := (later.StartMs - first.StartMs) / bucketMs
+
+		// The newest bucket of the earlier report was still filling, so compare
+		// everything before it.
+		for i := shift; i < int64(len(firstPoints))-1; i++ {
+			before, after := firstPoints[i], laterPoints[i-shift]
+			if math.IsNaN(before) && math.IsNaN(after) {
+				continue
+			}
+			if before != after {
+				t.Fatalf(
+					"bucket at index %d changed after %ds: %v -> %v",
+					i, second-900, before, after,
+				)
+			}
+		}
+	}
+}
+
 func TestHistoryDownsamplesToRequestedPoints(t *testing.T) {
 	h := newHistory(128)
 	rates := make([]float64, 61)

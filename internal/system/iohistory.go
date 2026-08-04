@@ -286,14 +286,27 @@ func resolveBucketWindow(now time.Time, query HistoryQuery) bucketWindow {
 	// points than there are samples just yields empty buckets.
 	points = min(points, int(windowMs/SampleInterval.Milliseconds()))
 	points = max(points, 1)
+	bucketMs := max(windowMs/int64(points), 1)
 
-	endMs := now.UnixMilli()
+	// Anchor the grid to absolute time rather than to now. Buckets tied to the
+	// query time slide by the poll interval, which does not divide the bucket
+	// width once the width comes from the chart's pixels rather than the sample
+	// rate; every sample would then regroup with different neighbours a second
+	// later and the whole plotted history would shimmer. Snapped to absolute
+	// time a sample always lands in the same bucket, so only the newest, still
+	// filling bucket changes between requests.
+	endMs := ceilTo(now.UnixMilli(), bucketMs)
 	return bucketWindow{
-		startMs:  endMs - windowMs,
+		startMs:  endMs - int64(points)*bucketMs,
 		endMs:    endMs,
-		bucketMs: max(windowMs/int64(points), 1),
+		bucketMs: bucketMs,
 		points:   points,
 	}
+}
+
+// ceilTo rounds ms up to the next multiple of step.
+func ceilTo(ms, step int64) int64 {
+	return (ms + step - 1) / step * step
 }
 
 // downsample walks the retained samples once, smoothing each with a trailing
