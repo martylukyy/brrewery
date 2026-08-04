@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { CartesianGrid, Line, LineChart as RechartsLineChart, XAxis, YAxis } from "recharts";
 
 import {
@@ -35,25 +36,51 @@ function latestValue(values: (number | null)[]): number {
   return 0;
 }
 
-export function LineChart({ series, height = 180, pointCount, maxValue, formatValue }: Props) {
+function peakValue(series: LineSeries[]): number {
+  let peak = 1;
+  for (const s of series) {
+    for (const value of s.values) {
+      if (value != null && value > peak) {
+        peak = value;
+      }
+    }
+  }
+  return peak;
+}
+
+/**
+ * Memoized: the dashboard re-renders every second for its gauges, and rebuilding
+ * a row object per plotted point on each of those renders is the one thing that
+ * makes a wide time range feel sluggish. With stable `series` props this only
+ * runs when the points themselves change.
+ */
+export const LineChart = memo(function LineChart({
+  series,
+  height = 180,
+  pointCount,
+  maxValue,
+  formatValue,
+}: Props) {
   const slots = pointCount ?? series[0]?.values.length ?? 0;
-  const numericValues = series.flatMap((s) =>
-    s.values.filter((value): value is number => value != null),
-  );
-  const max = maxValue ?? Math.max(...numericValues, 1);
+  const max = maxValue ?? peakValue(series);
 
   // recharts keys each line by a stable dataKey; map series index -> "s0", "s1"…
-  const keys = series.map((_, index) => `s${index}`);
-  const config: ChartConfig = Object.fromEntries(
-    series.map((s, index) => [keys[index], { label: s.label, color: s.color }]),
+  const keys = useMemo(() => series.map((_, index) => `s${index}`), [series]);
+  const config: ChartConfig = useMemo(
+    () => Object.fromEntries(series.map((s, index) => [keys[index], { label: s.label, color: s.color }])),
+    [series, keys],
   );
-  const data = Array.from({ length: slots }, (_, index) => {
-    const row: Record<string, number | null> = { index };
-    series.forEach((s, seriesIndex) => {
-      row[keys[seriesIndex]] = s.values[index] ?? null;
-    });
-    return row;
-  });
+  const data = useMemo(
+    () =>
+      Array.from({ length: slots }, (_, index) => {
+        const row: Record<string, number | null> = { index };
+        series.forEach((s, seriesIndex) => {
+          row[keys[seriesIndex]] = s.values[index] ?? null;
+        });
+        return row;
+      }),
+    [series, keys, slots],
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -142,4 +169,4 @@ export function LineChart({ series, height = 180, pointCount, maxValue, formatVa
       </div>
     </div>
   );
-}
+});

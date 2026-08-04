@@ -309,6 +309,40 @@ export function getSystemInfo() {
   return apiFetch<SystemInfo>("/system");
 }
 
+// IOHistorySeries is one line of a throughput chart. A bucket with no sample is
+// null so the chart can leave a gap instead of drawing a zero.
+export type IOHistorySeries = {
+  key: "rx" | "tx" | "read" | "write";
+  points: (number | null)[];
+};
+
+// IOHistoryReport is the daemon's retained throughput history, already smoothed
+// and downsampled to the requested bucket count. Bucket i covers
+// start_ms + i * bucket_seconds.
+export type IOHistoryReport = {
+  start_ms: number;
+  end_ms: number;
+  bucket_seconds: number;
+  sample_seconds: number;
+  smoothing_seconds: number;
+  series: IOHistorySeries[];
+};
+
+export function getIOHistory(params: {
+  range: string;
+  points: number;
+  mount?: string;
+}) {
+  const query = new URLSearchParams({
+    range: params.range,
+    points: String(params.points),
+  });
+  if (params.mount) {
+    query.set("mount", params.mount);
+  }
+  return apiFetch<IOHistoryReport>(`/system/io-history?${query.toString()}`);
+}
+
 export type TrafficPeriod = {
   label: string;
   rx_bytes: number;

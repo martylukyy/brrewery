@@ -102,9 +102,16 @@ func runServe() *cobra.Command {
 			// API starts answering job polls.
 			updater.ReconcileOnStartup()
 
-			checkerCtx, stopChecker := context.WithCancel(context.Background())
-			defer stopChecker()
-			go checker.Run(checkerCtx, selfupdate.DefaultCheckInterval)
+			backgroundCtx, stopBackground := context.WithCancel(context.Background())
+			defer stopBackground()
+			go checker.Run(backgroundCtx, selfupdate.DefaultCheckInterval)
+
+			// The daemon samples I/O counters itself so the dashboard charts can
+			// show the full retained window the moment a browser connects,
+			// instead of only what one open tab managed to observe.
+			systemCollector := system.NewCollector()
+			ioHistory := system.NewHistory()
+			go ioHistory.Run(backgroundCtx, systemCollector, system.SampleInterval, &logger)
 
 			embedFS, err := webapp.DistFS()
 			if err != nil {
@@ -116,7 +123,8 @@ func runServe() *cobra.Command {
 				authService,
 				session,
 				appsService,
-				system.NewCollector(),
+				systemCollector,
+				ioHistory,
 				vnstat.NewCollector(),
 				runner,
 				checker,
