@@ -70,16 +70,22 @@ export const LineChart = memo(function LineChart({
     () => Object.fromEntries(series.map((s, index) => [keys[index], { label: s.label, color: s.color }])),
     [series, keys],
   );
+  // With a fixed scale, plot values clamped to it so an over-scale spike runs
+  // flat along the top instead of stretching the line past the axis. The raw
+  // value rides along as "<key>Raw" so the tooltip still reports it.
   const data = useMemo(
     () =>
       Array.from({ length: slots }, (_, index) => {
         const row: Record<string, number | null> = { index };
         series.forEach((s, seriesIndex) => {
-          row[keys[seriesIndex]] = s.values[index] ?? null;
+          const value = s.values[index] ?? null;
+          const key = keys[seriesIndex];
+          row[key] = value != null && maxValue != null ? Math.min(value, maxValue) : value;
+          row[`${key}Raw`] = value;
         });
         return row;
       }),
-    [series, keys, slots],
+    [series, keys, slots, maxValue],
   );
 
   return (
@@ -117,8 +123,12 @@ export const LineChart = memo(function LineChart({
             content={
               <ChartTooltipContent
                 hideLabel
-                formatter={(value, name) => {
+                formatter={(value, name, entry) => {
                   const item = config[name as string];
+                  const raw = (entry?.payload as Record<string, number | null> | undefined)?.[
+                    `${name}Raw`
+                  ];
+                  const shown = raw === undefined ? value : raw;
                   return (
                     <div className="flex w-full items-center gap-2">
                       <span
@@ -127,11 +137,11 @@ export const LineChart = memo(function LineChart({
                       />
                       <span className="text-muted-foreground">{item?.label ?? name}</span>
                       <span className="ml-auto font-mono font-medium tabular-nums text-foreground">
-                        {value == null
+                        {shown == null
                           ? "—"
                           : formatValue
-                            ? formatValue(Number(value))
-                            : Number(value).toLocaleString()}
+                            ? formatValue(Number(shown))
+                            : Number(shown).toLocaleString()}
                       </span>
                     </div>
                   );
