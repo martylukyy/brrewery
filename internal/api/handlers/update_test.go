@@ -91,7 +91,7 @@ func newUpdateClient(t *testing.T, checker *fakeUpdateChecker, starter *fakeUpda
 	logger := zerolog.New(io.Discard)
 	appsService := appsdomain.NewServiceWithDeps(detect.NewEvaluator(), nil, jobs.NewStore())
 
-	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), vnstat.NewCollector(), nil, checker, starter, nil)
+	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), system.NewHistory(), vnstat.NewCollector(), nil, checker, starter, nil)
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 

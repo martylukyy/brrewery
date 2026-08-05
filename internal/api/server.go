@@ -26,6 +26,7 @@ type Server struct {
 	sessionManager *scs.SessionManager
 	apps           *appsdomain.Service
 	system         *system.Collector
+	ioHistory      *system.History
 	vnstat         *vnstat.Collector
 	sysctlRunner   handlers.PlaybookRunner
 	updateChecker  handlers.UpdateChecker
@@ -39,6 +40,7 @@ func NewServer(
 	sessionManager *scs.SessionManager,
 	appsService *appsdomain.Service,
 	systemCollector *system.Collector,
+	ioHistory *system.History,
 	vnstatCollector *vnstat.Collector,
 	sysctlRunner handlers.PlaybookRunner,
 	updateChecker handlers.UpdateChecker,
@@ -51,6 +53,7 @@ func NewServer(
 		sessionManager: sessionManager,
 		apps:           appsService,
 		system:         systemCollector,
+		ioHistory:      ioHistory,
 		vnstat:         vnstatCollector,
 		sysctlRunner:   sysctlRunner,
 		updateChecker:  updateChecker,
@@ -96,6 +99,9 @@ func (s *Server) Handler() http.Handler {
 
 			sys := handlers.NewSystemHandler(s.system)
 			r.Get("/system", sys.Get)
+
+			ioHistory := handlers.NewIOHistoryHandler(s.ioHistory)
+			r.Get("/system/io-history", ioHistory.Get)
 
 			sysctl := handlers.NewSysctlHandler(s.sysctlRunner, s.authService)
 			r.Get("/system/sysctl", sysctl.Get)

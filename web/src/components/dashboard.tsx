@@ -4,7 +4,6 @@ import { DiskIOChart } from "@/components/disk-io-chart";
 import { GaugePanel } from "@/components/gauge-panel";
 import { NetworkThroughputChart } from "@/components/network-throughput-chart";
 import { VnstatPanel } from "@/components/vnstat-panel";
-import { useIOHistory } from "@/hooks/use-io-history";
 import { useKeepaliveInterval } from "@/hooks/use-keepalive-interval";
 import { getSystemInfo, type LoadAvg } from "@/lib/api";
 import { formatBytes, formatUptime } from "@/lib/format";
@@ -32,11 +31,11 @@ export function Dashboard() {
   });
   // Drive polling from a worker-backed interval rather than React Query's
   // refetchInterval, which the browser throttles to ~2s once the tab is
-  // backgrounded — leaving gaps in the throughput history.
+  // backgrounded — leaving the gauges stale on return. The throughput charts
+  // need no such treatment: the daemon records their history either way.
   useKeepaliveInterval(() => {
     void system.refetch();
   }, SYSTEM_POLL_MS);
-  const { networkHistory, diskHistoryByMount } = useIOHistory(system.data);
 
   if (system.isLoading) {
     return <p className="text-muted-foreground">Loading system metrics…</p>;
@@ -115,11 +114,7 @@ export function Dashboard() {
                 }
               />
               <div className="md:col-span-2 xl:col-span-2">
-                <DiskIOChart
-                  history={diskHistoryByMount[disk.mount] ?? []}
-                  chartIdSuffix={chartIdSuffix}
-                  mountPoint={disk.mount}
-                />
+                <DiskIOChart chartIdSuffix={chartIdSuffix} mountPoint={disk.mount} />
               </div>
             </div>
           </section>
@@ -130,7 +125,7 @@ export function Dashboard() {
         {/* Wrapped so the panel's h-full resolves against this auto-height box
             instead of the grid area, which the taller vnStat table stretches. */}
         <div>
-          <NetworkThroughputChart history={networkHistory} />
+          <NetworkThroughputChart />
         </div>
         <VnstatPanel />
       </div>

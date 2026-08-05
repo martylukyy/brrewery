@@ -37,6 +37,43 @@ describe("LineChart", () => {
     expect(ticks).toContain("100 B/s");
   });
 
+  it("flattens over-scale points at the top of a fixed scale", () => {
+    const { container } = render(
+      <LineChart
+        maxValue={100}
+        formatValue={formatRate}
+        series={[{ label: "Down", color: "var(--color-sky-400)", values: [50, 400, 50] }]}
+      />,
+    );
+
+    const line = container.querySelector(".recharts-line-curve");
+    // "M x,y C c1 c2 x,y …" — every third coordinate pair is a real point,
+    // the two between are bezier control handles.
+    const ys = (line?.getAttribute("d") ?? "")
+      .match(/-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?/g)
+      ?.map((pair) => Number(pair.split(",")[1]))
+      .filter((_, index) => index % 3 === 0);
+
+    // Y grows downward: the over-scale point sits at the plot top, level with
+    // where a value of exactly maxValue would land, never above it.
+    expect(ys).toHaveLength(3);
+    const top = Math.min(...(ys ?? []));
+    expect(ys?.[1]).toBe(top);
+    expect(top).toBeGreaterThanOrEqual(0);
+  });
+
+  it("reports the raw value in the legend when it exceeds the scale", () => {
+    const { getByText } = render(
+      <LineChart
+        maxValue={100}
+        formatValue={formatRate}
+        series={[{ label: "Down", color: "var(--color-sky-400)", values: [50, 400] }]}
+      />,
+    );
+
+    expect(getByText("400 B/s")).toBeInTheDocument();
+  });
+
   it("shows the latest value per series in the legend", () => {
     const { getByText } = render(
       <LineChart

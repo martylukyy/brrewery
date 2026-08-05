@@ -1,85 +1,68 @@
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
-import type { NetworkCounters, SystemInfo } from "@/lib/api";
-import { CHART_HISTORY_MAX_POINTS } from "@/lib/chart-interval";
+import { getIOHistory, type IOHistorySeries } from "@/lib/api";
+import {
+  CHART_SAMPLE_SECONDS,
+  chartPointBudget,
+  type ChartIntervalId,
+} from "@/lib/chart-interval";
 
-export type NetworkSample = {
-  rxPerSec: number;
-  txPerSec: number;
+const REFETCH_MS = CHART_SAMPLE_SECONDS * 1000;
+
+export type IOChartData = {
+  /** One entry per requested bucket; null where no sample was recorded. */
+  seriesByKey: Record<string, (number | null)[]>;
+  pointCount: number;
+  hasSamples: boolean;
+  error: Error | null;
 };
 
-export type DiskIOSample = {
-  readPerSec: number;
-  writePerSec: number;
-};
+const EMPTY_SERIES: Record<string, (number | null)[]> = {};
 
-type Snapshot = {
-  at: number;
-  network: NetworkCounters;
-  diskByMount: Record<string, { readBytes: number; writeBytes: number }>;
-};
-
-function ratePerSec(current: number, previous: number, seconds: number): number {
-  if (seconds <= 0 || current < previous) {
-    return 0;
-  }
-  return (current - previous) / seconds;
+function indexSeries(series: IOHistorySeries[]): Record<string, (number | null)[]> {
+  return Object.fromEntries(series.map((entry) => [entry.key, entry.points]));
 }
 
-export function useIOHistory(info: SystemInfo | undefined): {
-  networkHistory: NetworkSample[];
-  diskHistoryByMount: Record<string, DiskIOSample[]>;
-} {
-  const previous = useRef<Snapshot | null>(null);
-  const [networkHistory, setNetworkHistory] = useState<NetworkSample[]>([]);
-  const [diskHistoryByMount, setDiskHistoryByMount] = useState<Record<string, DiskIOSample[]>>({});
+/**
+ * Loads the daemon-side throughput history for one chart.
+ *
+ * The daemon retains 24h of one-second samples and does the smoothing and
+ * downsampling, so the browser holds nothing but the points it draws: a range
+ * change is a request, not a wait for history to accumulate, and a backgrounded
+ * tab misses nothing.
+ *
+ * `mount` selects a disk; omit it for network throughput.
+ */
+export function useIOHistory(
+  intervalId: ChartIntervalId,
+  widthPx: number,
+  mount?: string,
+): IOChartData {
+  const points = chartPointBudget(intervalId, widthPx);
 
-  useEffect(() => {
-    if (!info) {
-      return;
-    }
+  const query = useQuery({
+    queryKey: ["io-history", mount ?? "network", intervalId, points],
+    queryFn: () => getIOHistory({ range: intervalId, points, mount }),
+    refetchInterval: REFETCH_MS,
+    // Keep the previous range's points on screen while the new range loads,
+    // instead of blanking the chart on every range change.
+    placeholderData: (previous) => previous,
+  });
 
-    const now = Date.now();
-    const prev = previous.current;
-    const diskByMount = Object.fromEntries(
-      (info.disks ?? []).map((disk) => [disk.mount, {
-        readBytes: disk.read_bytes,
-        writeBytes: disk.write_bytes,
-      }]),
-    );
-
-    if (prev) {
-      const seconds = (now - prev.at) / 1000;
-      const networkSample: NetworkSample = {
-        rxPerSec: ratePerSec(info.network.rx_bytes, prev.network.rx_bytes, seconds),
-        txPerSec: ratePerSec(info.network.tx_bytes, prev.network.tx_bytes, seconds),
-      };
-      setNetworkHistory((current) => [...current, networkSample].slice(-CHART_HISTORY_MAX_POINTS));
-
-      setDiskHistoryByMount((current) => {
-        const next: Record<string, DiskIOSample[]> = {};
-        for (const [mount, counters] of Object.entries(diskByMount)) {
-          const prevDisk = prev.diskByMount[mount];
-          if (!prevDisk) {
-            next[mount] = current[mount] ?? [];
-            continue;
-          }
-          const sample: DiskIOSample = {
-            readPerSec: ratePerSec(counters.readBytes, prevDisk.readBytes, seconds),
-            writePerSec: ratePerSec(counters.writeBytes, prevDisk.writeBytes, seconds),
-          };
-          next[mount] = [...(current[mount] ?? []), sample].slice(-CHART_HISTORY_MAX_POINTS);
-        }
-        return next;
-      });
-    }
-
-    previous.current = {
-      at: now,
-      network: info.network,
-      diskByMount,
+  // Derived once per response rather than per render: the dashboard re-renders
+  // every second and these arrays are as long as the chart is wide.
+  const data = useMemo(() => {
+    const seriesByKey = query.data ? indexSeries(query.data.series ?? []) : EMPTY_SERIES;
+    const values = Object.values(seriesByKey);
+    return {
+      seriesByKey,
+      // The daemon clamps the bucket count to the samples the range can hold,
+      // so trust its answer over the requested budget.
+      pointCount: values[0]?.length ?? points,
+      hasSamples: values.some((series) => series.some((value) => value != null)),
     };
-  }, [info]);
+  }, [query.data, points]);
 
-  return { networkHistory, diskHistoryByMount };
+  return { ...data, error: query.error };
 }

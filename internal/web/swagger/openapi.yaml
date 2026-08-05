@@ -459,6 +459,56 @@ components:
           description: Disk usage for fstab mount points (swap and EFI excluded).
         network:
           $ref: '#/components/schemas/NetworkCounters'
+    ThroughputSeries:
+      type: object
+      required: [key, points]
+      properties:
+        key:
+          type: string
+          enum: [rx, tx, read, write]
+          description: Which line of the chart this series draws. Network history returns rx/tx, disk history read/write.
+        points:
+          type: array
+          description: >-
+            Bucket values in bytes per second, oldest first. A bucket with no
+            sample is null so the chart leaves a gap rather than drawing a zero
+            that was never measured.
+          items:
+            type: integer
+            format: int64
+            nullable: true
+    IOHistoryReport:
+      type: object
+      required: [start_ms, end_ms, bucket_seconds, sample_seconds, smoothing_seconds, series]
+      description: >-
+        Throughput history the daemon keeps in memory, smoothed by a trailing
+        moving average and downsampled to the requested number of buckets.
+        Buckets are evenly spaced: bucket i starts at start_ms + i*bucket_seconds.
+      properties:
+        start_ms:
+          type: integer
+          format: int64
+          description: Unix milliseconds of the first bucket.
+        end_ms:
+          type: integer
+          format: int64
+          description: Unix milliseconds of the end of the last bucket.
+        bucket_seconds:
+          type: number
+          format: double
+          description: Seconds of history averaged into each returned point.
+        sample_seconds:
+          type: number
+          format: double
+          description: Interval at which the daemon reads the underlying counters.
+        smoothing_seconds:
+          type: number
+          format: double
+          description: Width of the trailing moving average applied before downsampling.
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThroughputSeries'
 paths:
   /health:
     get:
@@ -948,6 +998,61 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '501':
           description: Not available on this platform
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/system/io-history:
+    get:
+      summary: Network and disk throughput history
+      description: >-
+        Returns the in-memory throughput history for one chart. The daemon
+        samples counters once per second and retains 24 hours, so a dashboard
+        that just opened can draw the whole range immediately.
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: range
+          in: query
+          required: true
+          description: How far back to plot, as a duration between 1s and 24h (e.g. 5m, 24h).
+          schema:
+            type: string
+            example: 5m
+        - name: points
+          in: query
+          required: true
+          description: >-
+            How many buckets to return. Charts pass their plot width in pixels
+            so the response never carries more points than can be drawn.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4000
+        - name: mount
+          in: query
+          required: false
+          description: >-
+            Mount point to report disk throughput for. Omitted or empty returns
+            network throughput. A mount with no samples in the window returns
+            all-null series rather than an error.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Downsampled throughput history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IOHistoryReport'
+        '400':
+          description: Invalid or missing query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
           content:
             application/json:
               schema:

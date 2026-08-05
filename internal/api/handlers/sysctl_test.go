@@ -45,7 +45,7 @@ func newSysctlClient(t *testing.T, runner *captureRunner) (*http.Client, string)
 	logger := zerolog.New(io.Discard)
 	appsService := appsdomain.NewServiceWithDeps(detect.NewEvaluator(), runner, jobs.NewStore())
 
-	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), vnstat.NewCollector(), runner, nil, nil, nil)
+	srv := api.NewServer(&logger, authService, session, appsService, system.NewCollector(), system.NewHistory(), vnstat.NewCollector(), runner, nil, nil, nil)
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 

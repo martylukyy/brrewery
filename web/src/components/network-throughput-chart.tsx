@@ -1,17 +1,18 @@
+import { memo, useMemo } from "react";
+
 import { ChartIntervalSelect } from "@/components/chart-interval-select";
 import { ChartPanelControls } from "@/components/chart-panel-controls";
 import { ChartScaleSelect } from "@/components/chart-scale-select";
 import { ChartPanel } from "@/components/chart-panel";
 import { LineChart } from "@/components/line-chart";
+import { useChartWidth } from "@/hooks/use-chart-width";
+import { useIOHistory } from "@/hooks/use-io-history";
 import { useSetting } from "@/hooks/use-setting";
-import type { NetworkSample } from "@/hooks/use-io-history";
 import {
+  CHART_SAMPLE_SECONDS,
   DEFAULT_CHART_INTERVAL,
   type ChartIntervalId,
-  getChartInterval,
   isChartIntervalId,
-  padSeriesRight,
-  sliceHistoryForInterval,
 } from "@/lib/chart-interval";
 import { formatRate } from "@/lib/format";
 import {
@@ -22,11 +23,7 @@ import {
   networkScaleMaxBytes,
 } from "@/lib/network-scale";
 
-type Props = {
-  history: NetworkSample[];
-};
-
-export function NetworkThroughputChart({ history }: Props) {
+export const NetworkThroughputChart = memo(function NetworkThroughputChart() {
   const [networkScale, setNetworkScale] = useSetting<NetworkScaleId>(
     "network-chart-scale",
     DEFAULT_NETWORK_SCALE,
@@ -38,24 +35,22 @@ export function NetworkThroughputChart({ history }: Props) {
     isChartIntervalId,
   );
 
-  const interval = getChartInterval(intervalId);
-  const sliced = sliceHistoryForInterval(history, intervalId);
-  const pointCount = interval.maxPoints;
+  const { ref, width } = useChartWidth();
+  const { seriesByKey, pointCount, hasSamples } = useIOHistory(intervalId, width);
 
-  const rx = padSeriesRight(
-    sliced.map((s) => s.rxPerSec),
-    pointCount,
-  );
-  const tx = padSeriesRight(
-    sliced.map((s) => s.txPerSec),
-    pointCount,
+  const series = useMemo(
+    () => [
+      { label: "Download", color: "var(--color-sky-400)", values: seriesByKey.rx ?? [] },
+      { label: "Upload", color: "var(--color-emerald-400)", values: seriesByKey.tx ?? [] },
+    ],
+    [seriesByKey],
   );
 
   return (
     <ChartPanel
       title="Network throughput"
-      waiting={sliced.length < 2}
-      pollSeconds={interval.pollMs / 1000}
+      waiting={!hasSamples}
+      pollSeconds={CHART_SAMPLE_SECONDS}
       action={
         <ChartPanelControls
           leading={
@@ -77,15 +72,14 @@ export function NetworkThroughputChart({ history }: Props) {
         />
       }
     >
-      <LineChart
-        pointCount={pointCount}
-        series={[
-          { label: "Download", color: "var(--color-sky-400)", values: rx },
-          { label: "Upload", color: "var(--color-emerald-400)", values: tx },
-        ]}
-        maxValue={networkScaleMaxBytes(networkScale)}
-        formatValue={formatRate}
-      />
+      <div ref={ref} className="flex min-h-0 flex-1 flex-col">
+        <LineChart
+          pointCount={pointCount}
+          series={series}
+          maxValue={networkScaleMaxBytes(networkScale)}
+          formatValue={formatRate}
+        />
+      </div>
     </ChartPanel>
   );
-}
+});

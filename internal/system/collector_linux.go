@@ -78,7 +78,35 @@ func (c *Collector) Collect() (Info, error) {
 	return info, nil
 }
 
-func (c *Collector) readMonitoredDisks(uptime float64) ([]DiskUsage, error) {
+// CollectIOCounters reads only the cumulative counters the I/O history charts
+// need. It deliberately does not go through Collect: the CPU and I/O-busy
+// gauges are deltas against the previous Collect call, and a second caller
+// would split those deltas between them.
+func (c *Collector) CollectIOCounters() (IOCounters, error) {
+	network, err := readNetworkCounters()
+	if err != nil {
+		return IOCounters{}, err
+	}
+
+	mounts, err := monitoredMounts()
+	if err != nil {
+		return IOCounters{}, err
+	}
+
+	disks := make(map[string]DiskIOCounters, len(mounts))
+	for _, mount := range mounts {
+		counters, err := readMountIOCounters(mount)
+		if err != nil {
+			continue
+		}
+		disks[mount] = counters
+	}
+
+	return IOCounters{Network: network, Disks: disks}, nil
+}
+
+// monitoredMounts resolves the fstab mount points worth reporting on.
+func monitoredMounts() ([]string, error) {
 	mounts, err := monitoredFstabMounts()
 	if err != nil {
 		return nil, err
@@ -93,6 +121,15 @@ func (c *Collector) readMonitoredDisks(uptime float64) ([]DiskUsage, error) {
 	// unreadable, fall back to the unfiltered fstab list.
 	if deviceByMount, err := mountedDeviceByMount(); err == nil {
 		mounts = activeMonitoredMounts(mounts, deviceByMount)
+	}
+
+	return mounts, nil
+}
+
+func (c *Collector) readMonitoredDisks(uptime float64) ([]DiskUsage, error) {
+	mounts, err := monitoredMounts()
+	if err != nil {
+		return nil, err
 	}
 
 	disks := make([]DiskUsage, 0, len(mounts))
