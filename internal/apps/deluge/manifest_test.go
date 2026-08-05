@@ -35,11 +35,11 @@ func TestResolveSelectionModernLine(t *testing.T) {
 	assert.True(t, line.AllowsBranch(BranchRC20))
 	assert.False(t, line.AllowsBranch(BranchRC11))
 
-	// libtorrent and its Boost are pinned per branch (lockfile-style) rather than
+	// libtorrent and its Boost are pinned per branch rather than
 	// tracking the branch head, so the exact versions come from the manifest.
 	assert.Equal(t, "v1.2.20", line.Libtorrent.Branches[BranchRC12].Tag)
 	assert.Equal(t, "1_86_0", line.Libtorrent.Branches[BranchRC12].Boost)
-	assert.Equal(t, "v2.0.11", line.Libtorrent.Branches[BranchRC20].Tag)
+	assert.Equal(t, "v2.0.13", line.Libtorrent.Branches[BranchRC20].Tag)
 	assert.Equal(t, "1_86_0", line.Libtorrent.Branches[BranchRC20].Boost)
 }
 
