@@ -5,8 +5,13 @@
   gather_facts: true
   vars:
     plex_port: 32400
+    # See install.yml: nginx terminates TLS here and forwards to plex_port.
+    plex_tls_port: 32443
     plex_downloads_api: https://plex.tv/api/downloads/5.json
     plex_deb_path: /tmp/plexmediaserver.deb
+    plex_prefs_path: /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Preferences.xml
+    plex_publish_retries: 18
+    plex_publish_delay: 5
     plex_apt_source: /etc/apt/sources.list.d/plexmediaserver.list
     plex_build_by_arch:
       x86_64: linux-x86_64
@@ -100,6 +105,55 @@
         state: started
         daemon_reload: true
 
+    # Repairs the remote-access settings install.yml now writes, for servers
+    # installed before it did. Without them Plex registers with plex.tv as
+    # "ip=, port=0" and never publishes, so the server is missing from the
+    # owner's account and Plex Web answers "You do not have access to this
+    # server" — even though the claim itself succeeded.
+    - name: Wait for the Plex API to accept connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ plex_port }}"
+        timeout: 120
+
+    - name: Read the Plex preferences
+      # A claimed server requires its own token for preference writes, and the
+      # token only exists in this file. An unclaimed one accepts the write
+      # unauthenticated, in which case the token below resolves to empty.
+      ansible.builtin.slurp:
+        src: "{{ plex_prefs_path }}"
+      register: plex_prefs_raw
+      no_log: true
+
+    - name: Resolve the Plex online token
+      ansible.builtin.set_fact:
+        plex_online_token: >-
+          {{ (plex_prefs_raw.content | b64decode
+              | regex_search('PlexOnlineToken="([^"]+)"', '\1'))
+             | default([''], true) | first }}
+      no_log: true
+
+    - name: Publish Plex on its own port instead of waiting for a UPnP mapping
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ plex_port }}/:/prefs?PublishServerOnPlexOnlineKey=1&ManualPortMappingMode=1&ManualPortMappingPort={{ plex_port }}{{ ('&X-Plex-Token=' ~ plex_online_token) if plex_online_token | length > 0 else '' }}
+        method: PUT
+        status_code: [200]
+      register: plex_publish
+      until: plex_publish.status | default(0) | int == 200
+      retries: "{{ plex_publish_retries }}"
+      delay: "{{ plex_publish_delay }}"
+      failed_when: false
+      no_log: true
+
+    - name: Fail when Plex would not accept the remote-access settings
+      ansible.builtin.assert:
+        that:
+          - plex_publish.status | default(0) | int == 200
+        fail_msg: >-
+          Plex did not accept its remote-access settings (HTTP {{ plex_publish.status | default('no response') }}).
+          Without them the server never publishes to plex.tv and stays invisible in your account.
+
     - name: Add the plex service user to the brrewery group
       ansible.builtin.user:
         name: plex
@@ -129,6 +183,16 @@
       when:
         - brrewery_home_stat.stat.exists
         - brrewery_home_stat.stat.mode == "0700"
+
+    - name: Install the nginx TLS vhost for Plex
+      # Also repairs hosts installed before the vhost existed, whose dashboard
+      # link pointed at Plex's plaintext port and was unreachable behind HSTS.
+      ansible.builtin.include_role:
+        name: brrewery_nginx_server
+      vars:
+        brrewery_app_id: plex
+        brrewery_app_listen_port: "{{ plex_tls_port }}"
+        brrewery_app_upstream: http://127.0.0.1:{{ plex_port }}
 
   handlers:
     - name: Restart Plex

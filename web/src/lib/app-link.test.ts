@@ -13,6 +13,9 @@ describe("appUrl", () => {
   });
 
   it("links a port-form path to the current host on that port and scheme", () => {
+    expect(appUrl("https://:32443/web")).toBe(
+      `https://${window.location.hostname}:32443/web`,
+    );
     expect(appUrl("http://:32400/web")).toBe(
       `http://${window.location.hostname}:32400/web`,
     );

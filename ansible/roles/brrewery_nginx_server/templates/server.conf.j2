@@ -1,0 +1,50 @@
+# Managed by brrewery — {{ brrewery_app_id }}
+server {
+    listen {{ brrewery_app_listen_port }} ssl;
+    listen [::]:{{ brrewery_app_listen_port }} ssl;
+    http2 on;
+    server_name _;
+
+    ssl_certificate {{ brrewery_nginx_ssl_certificate }};
+    ssl_certificate_key {{ brrewery_nginx_ssl_certificate_key }};
+    include /etc/nginx/ssl.conf;
+
+    location / {
+        # Deliberately not the shared proxy.conf, which sets "Host $host" — that
+        # variable drops the port. An app on a non-standard port builds its
+        # absolute URLs from the Host header (Plex redirects an unclaimed server
+        # to /web/index.html#!/setup/<id>), so the port has to survive the hop or
+        # the browser follows the redirect to the dashboard vhost on :443 and
+        # gets its 404. Everything else here mirrors proxy.conf.
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # X-Forwarded-For is worth knowing about: Plex trusts it from a loopback
+        # peer and authorizes on it, so an *unclaimed* server refuses anything
+        # that looks remote ("You do not have access to this server"). Dropping
+        # the header would hide that, at the cost of every client looking like
+        # 127.0.0.1 forever — no real IPs in the logs, and LAN-vs-remote
+        # bandwidth rules never applying. brrewery claims the server from the
+        # install playbook instead (plex.tv/claim token, POSTed over loopback),
+        # so the browser never has to look local and the header can stay honest.
+        # Forwarded unconditionally, unlike the subpath role's opt-in flag: an app
+        # that needs a whole vhost of its own is a live one (Plex keeps an event
+        # channel at /:/websockets/notifications open for the session).
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $http_connection;
+        # Plex emits http:// in Location whatever X-Forwarded-Proto says, so the
+        # scheme is rewritten here. Without it the redirect arrives as plain HTTP
+        # on this TLS port and nginx answers 400. On a host with a domain, HSTS
+        # would paper over it; an IP-only install gets no such upgrade.
+        proxy_redirect http://$http_host/ https://$http_host/;
+        # Media servers stream over long-lived responses and keep event channels
+        # open for hours; nginx's 60s proxy defaults would cut both. Buffering
+        # off so playback starts immediately instead of filling a buffer first.
+        proxy_buffering off;
+        proxy_read_timeout 36000s;
+        proxy_send_timeout 36000s;
+        proxy_pass {{ brrewery_app_upstream }};
+    }
+}

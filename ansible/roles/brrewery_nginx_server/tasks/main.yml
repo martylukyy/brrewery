@@ -1,0 +1,61 @@
+---
+- name: Validate nginx server role variables
+  ansible.builtin.assert:
+    that:
+      - brrewery_app_id | length > 0
+      - brrewery_app_listen_port | string | length > 0
+      - brrewery_app_upstream | length > 0
+    fail_msg: brrewery_nginx_server requires brrewery_app_id, brrewery_app_listen_port, and brrewery_app_upstream
+
+- name: Ensure the nginx servers-enabled directory exists
+  ansible.builtin.file:
+    path: "{{ brrewery_nginx_servers_enabled }}"
+    state: directory
+    mode: "0755"
+
+- name: Include servers-enabled from nginx.conf
+  # contrib/nginx/nginx.conf ships this include, so on a host installed after
+  # this role landed the line is already there and this is a no-op. Hosts
+  # installed before it only get a new nginx.conf when install.sh is re-run, so
+  # the include is ensured here instead — the vhost is inert without it.
+  # Anchored before the dashboard vhost so both stay inside the http block.
+  ansible.builtin.lineinfile:
+    path: "{{ brrewery_nginx_conf }}"
+    line: "    include {{ brrewery_nginx_servers_enabled }}/*.conf;"
+    regexp: "^\\s*include {{ brrewery_nginx_servers_enabled | regex_escape }}/\\*\\.conf;"
+    insertbefore: "^\\s*include /etc/nginx/sites-enabled/default;"
+    firstmatch: true
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Install the app nginx vhost into servers-enabled
+  ansible.builtin.template:
+    src: server.conf.j2
+    dest: "{{ brrewery_nginx_servers_enabled }}/{{ brrewery_nginx_server_conf_name }}"
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Check the resulting nginx configuration
+  # Catches syntax errors in the vhost before the reload. It does not catch a
+  # port that is already taken: nginx -t parses without binding.
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Apply the pending nginx reload
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify nginx bound the vhost's TLS port
+  # The one failure mode nothing above sees. `nginx -s reload` exits 0 once the
+  # signal is delivered, and a master that then fails to bind logs the error and
+  # keeps serving its previous configuration — so a taken port leaves a healthy
+  # nginx, a happy Ansible run, and a dead link. Apps bind more than their
+  # documented ports (Plex holds 127.0.0.1:32401 for its own use), so the only
+  # reliable check is connecting to the port after the reload.
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ brrewery_app_listen_port }}"
+    timeout: 15
+    msg: >-
+      nginx did not bind port {{ brrewery_app_listen_port }} for {{ brrewery_app_id }}
+      after the reload — the port is most likely already in use. Check
+      `ss -lntp | grep {{ brrewery_app_listen_port }}` and /var/log/nginx/error.log.

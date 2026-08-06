@@ -5,6 +5,18 @@
   gather_facts: true
   vars:
     plex_port: 32400
+    # The TLS port nginx terminates on and forwards to plex_port. Plex only
+    # speaks plaintext on 32400, and the dashboard vhost's HSTS header
+    # (includeSubDomains) pins every port on this hostname to https, so a
+    # browser cannot reach 32400 directly. Kept clear of every port Plex takes
+    # for itself: 32400, 32401 (its own loopback listener — nginx cannot bind
+    # 0.0.0.0:32401 alongside it), 32410-32414 (GDM) and 32469 (DLNA).
+    plex_tls_port: 32443
+    # Claim retry budget: 18 x 5s = 90s of 503s tolerated while Plex's myPlex
+    # subsystem comes up. Kept well inside the token's four-minute life so a
+    # timeout still leaves the operator time to react.
+    plex_claim_retries: 18
+    plex_claim_delay: 5
     # Official Plex download API: lists the latest release for every platform.
     # We resolve the Debian .deb from here instead of adding Plex's apt repo.
     plex_downloads_api: https://plex.tv/api/downloads/5.json
@@ -27,6 +39,19 @@
         that:
           - ansible_os_family == "Debian"
         fail_msg: "Plex is installed from a .deb and requires a Debian/Ubuntu host (found {{ ansible_os_family }})"
+
+    - name: Require a Plex claim token
+      # The catalog manifest declares this a required install secret, so the
+      # install API always supplies it. Asserting it here holds a direct
+      # ansible-playbook run to the same contract instead of leaving behind a
+      # server that cannot be claimed from the dashboard. Checked before any
+      # work, so a missing token costs nothing but the run itself.
+      ansible.builtin.assert:
+        that:
+          - plex_claim_token | default('') | trim | length > 0
+        fail_msg: >-
+          plex_claim_token is required. Get one from https://www.plex.tv/claim/ while signed
+          in to Plex; it is single-use and expires four minutes after you fetch it.
 
     - name: Resolve the Plex build for this architecture
       ansible.builtin.set_fact:
@@ -99,6 +124,83 @@
         state: started
         daemon_reload: true
 
+    # The claim runs here, immediately after the service starts, rather than at
+    # the end of the play: a plex.tv/claim token expires four minutes after the
+    # operator fetches it, and the rest of the install must not eat that budget.
+    - name: Wait for the Plex API to accept connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ plex_port }}"
+        timeout: 120
+
+    - name: Publish Plex on its own port instead of waiting for a UPnP mapping
+      # A brrewery host has a public IP and no UPnP/NAT-PMP gateway, so Plex
+      # never works out a public address by itself. It then registers with
+      # plex.tv as "ip=, port=0", plex.tv answers 422, and the server sits in
+      # "Mapped - Not Published (Not Reachable)": absent from the owner's account
+      # and rejected by Plex Web with "You do not have access to this server",
+      # claimed or not. Naming the port Plex already listens on is what makes the
+      # registration valid.
+      #
+      # Deliberately before the claim: an unclaimed server accepts preference
+      # writes over loopback, so no X-Plex-Token is needed here.
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{ plex_port }}/:/prefs?PublishServerOnPlexOnlineKey=1&ManualPortMappingMode=1&ManualPortMappingPort={{ plex_port }}
+        method: PUT
+        status_code: [200]
+      register: plex_publish
+      until: plex_publish.status | default(0) | int == 200
+      retries: "{{ plex_claim_retries }}"
+      delay: "{{ plex_claim_delay }}"
+      failed_when: false
+
+    - name: Fail when Plex would not accept the remote-access settings
+      ansible.builtin.assert:
+        that:
+          - plex_publish.status | default(0) | int == 200
+        fail_msg: >-
+          Plex did not accept its remote-access settings (HTTP {{ plex_publish.status | default('no response') }}).
+          Without them the server never publishes to plex.tv and stays invisible in your account.
+
+    - name: Claim the Plex server with the supplied token
+      # Claiming over loopback is the supported server-side path (it is what the
+      # official Plex container does) and sidesteps Plex Web refusing to run the
+      # claim for a client it does not consider local.
+      #
+      # Plex serves HTTP before its myPlex subsystem can claim, and answers 503
+      # until it can — an open port is not readiness. A 503 consumes nothing, so
+      # this retries until Plex is ready or the budget runs out; any other status
+      # is a real verdict on the token and breaks out immediately.
+      #
+      # no_log keeps the token out of the job log; failed_when defers the verdict
+      # to the assert below, which reports a status without echoing the token.
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ plex_port }}/myplex/claim?token={{ plex_claim_token | urlencode }}"
+        method: POST
+        status_code: [200, 201]
+      register: plex_claim
+      until: plex_claim.status | default(0) | int != 503
+      retries: "{{ plex_claim_retries }}"
+      delay: "{{ plex_claim_delay }}"
+      failed_when: false
+      no_log: true
+
+    - name: Fail when the Plex claim did not succeed
+      ansible.builtin.assert:
+        that:
+          - plex_claim.status | default(0) | int >= 200
+          - plex_claim.status | default(0) | int < 300
+        # Each branch is one physical line on purpose: a folded scalar keeps the
+        # newlines of more-indented continuation lines, which would land inside
+        # the rendered message.
+        fail_msg: >-
+          {{
+            'Plex never became ready to claim: it still answered 503 after ' ~ (plex_claim_retries * plex_claim_delay) ~ ' seconds. Plex is installed and running — claim it from plex.tv/claim once it has settled.'
+            if plex_claim.status | default(0) | int == 503
+            else 'Plex rejected the claim token (HTTP ' ~ plex_claim.status | default('no response') ~ '). Tokens from plex.tv/claim are single-use and expire four minutes after you fetch them — get a fresh one and install again.'
+          }}
+
     - name: Add the plex service user to the brrewery group
       ansible.builtin.user:
         name: plex
@@ -129,14 +231,22 @@
         - brrewery_home_stat.stat.exists
         - brrewery_home_stat.stat.mode == "0700"
 
+    - name: Install the nginx TLS vhost for Plex
+      ansible.builtin.include_role:
+        name: brrewery_nginx_server
+      vars:
+        brrewery_app_id: plex
+        brrewery_app_listen_port: "{{ plex_tls_port }}"
+        brrewery_app_upstream: http://127.0.0.1:{{ plex_port }}
+
     - name: Apply pending handlers before reporting status
       ansible.builtin.meta: flush_handlers
 
-    - name: Claim Plex in your browser
+    - name: Report that Plex is claimed and ready
       ansible.builtin.debug:
         msg:
-          - "Plex is now installed and running."
-          - "Claim it by clicking the Plex app in the sidebar."
+          - "Plex is now installed, running and claimed to your account."
+          - "Open it from the Plex app in the sidebar."
 
   handlers:
     - name: Restart Plex

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +27,36 @@ const ACTION_COPY: Record<AppJobAction, { title: string; verb: string; submit: s
   upgrade: { title: "Confirm your password", verb: "upgrade", submit: "Continue upgrade" },
   remove: { title: "Confirm your password", verb: "remove", submit: "Continue remove" },
 };
+
+// Help text is authored in the app manifest as plain text. Bare URLs in it are
+// split out here so they render as real links rather than an address the
+// operator has to retype; the surrounding line breaks are preserved by
+// whitespace-pre-line on the paragraph. Trailing sentence punctuation stays with
+// the prose so a URL ending a sentence does not carry the full stop into href.
+function renderHelp(help: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+
+  for (const match of help.matchAll(/https?:\/\/\S+/g)) {
+    const url = match[0].replace(/[.,;:!?)]+$/, "");
+    parts.push(help.slice(cursor, match.index));
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+      >
+        {url}
+      </a>,
+    );
+    cursor = match.index + url.length;
+  }
+  parts.push(help.slice(cursor));
+
+  return parts;
+}
 
 export function InstallSecretsModal({ action, appIds, apps, onClose, onConfirm }: Props) {
   const secrets = useMemo(() => requiredSecrets(apps, appIds, action), [action, appIds, apps]);
@@ -115,6 +145,11 @@ export function InstallSecretsModal({ action, appIds, apps, onClose, onConfirm }
                       }));
                     }}
                   />
+                  {secret.help && (
+                    <p className="whitespace-pre-line text-xs text-muted-foreground">
+                      {renderHelp(secret.help)}
+                    </p>
+                  )}
                 </div>
               );
             })}

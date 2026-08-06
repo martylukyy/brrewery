@@ -111,6 +111,11 @@ components:
         disable_password_manager:
           type: boolean
           description: When true, the UI should not offer password-manager autofill or save prompts.
+        help:
+          type: string
+          description: >-
+            How to obtain the value, rendered under the field. Line breaks are
+            significant and bare URLs are rendered as links.
     InstallOptionChoice:
       type: object
       required: [value, label]

@@ -92,6 +92,7 @@ export type InstallSecret = {
   type: "password" | string;
   verify_brrewery_password?: boolean;
   disable_password_manager?: boolean;
+  help?: string;
 };
 
 export type InstallOptionChoice = {

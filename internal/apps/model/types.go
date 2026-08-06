@@ -21,6 +21,10 @@ type InstallSecret struct {
 	VerifyBrreweryPassword bool   `json:"verify_brrewery_password,omitempty" yaml:"verify_brrewery_password,omitempty"`
 	// DisablePasswordManager hints browsers and extensions not to autofill or save the value.
 	DisablePasswordManager bool `json:"disable_password_manager,omitempty" yaml:"disable_password_manager,omitempty"`
+	// Help instructs the operator how to obtain the value, for credentials that
+	// have to be fetched elsewhere first. Line breaks are significant and any
+	// bare URL is rendered as a link, so manifests write both plainly.
+	Help string `json:"help,omitempty" yaml:"help,omitempty"`
 }
 
 // InstallOptionChoice is a single selectable value for an InstallOption.

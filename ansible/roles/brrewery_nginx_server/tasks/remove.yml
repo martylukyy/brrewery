@@ -1,0 +1,14 @@
+---
+- name: Validate nginx server role variables
+  ansible.builtin.assert:
+    that:
+      - brrewery_app_id | length > 0
+    fail_msg: brrewery_nginx_server remove requires brrewery_app_id
+
+- name: Remove the app nginx vhost from servers-enabled
+  # The servers-enabled include stays in nginx.conf: it is harmless with no
+  # vhosts left, and another app may still have one.
+  ansible.builtin.file:
+    path: "{{ brrewery_nginx_servers_enabled }}/{{ brrewery_nginx_server_conf_name }}"
+    state: absent
+  notify: Reload nginx

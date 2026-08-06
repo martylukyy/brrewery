@@ -1,0 +1,19 @@
+# Whole-vhost siblings of brrewery_nginx_site's location snippets. An app whose
+# web client addresses the server at the origin root (Plex) cannot live under a
+# subpath of the dashboard vhost, so it gets its own TLS listener on a dedicated
+# port. Those are server blocks, which the dashboard vhost's
+# sites-enabled/*.conf include cannot hold — that include sits inside a server
+# block — so they live in their own directory included at the http level.
+brrewery_nginx_servers_enabled: /etc/nginx/servers-enabled
+brrewery_nginx_conf: /etc/nginx/nginx.conf
+brrewery_nginx_server_conf_name: "{{ brrewery_app_id }}.conf"
+brrewery_app_id: ""
+# The port the vhost terminates TLS on. Must not collide with the app's own
+# plaintext port, which keeps listening behind it.
+brrewery_app_listen_port: ""
+brrewery_app_upstream: ""
+# The dashboard's certificate, issued for this host by install.sh (acme.sh, or
+# self-signed when no domain was given). Reusing it keeps the app on the same
+# hostname as the dashboard, so the browser trusts it without a second prompt.
+brrewery_nginx_ssl_certificate: /etc/ssl/brrewery/fullchain.pem
+brrewery_nginx_ssl_certificate_key: /etc/ssl/brrewery/privkey.pem

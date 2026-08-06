@@ -15,6 +15,13 @@
           - ansible_os_family == "Debian"
         fail_msg: "Plex is managed as a .deb and requires a Debian/Ubuntu host (found {{ ansible_os_family }})"
 
+    - name: Remove the nginx TLS vhost for Plex
+      ansible.builtin.include_role:
+        name: brrewery_nginx_server
+        tasks_from: remove
+      vars:
+        brrewery_app_id: plex
+
     - name: Stop and disable the Plex service
       ansible.builtin.systemd:
         name: plexmediaserver.service

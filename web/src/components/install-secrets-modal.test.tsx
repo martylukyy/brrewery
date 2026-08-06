@@ -139,4 +139,79 @@ describe("InstallSecretsModal", () => {
     expect(await screen.findByText(/Incorrect password/i)).toBeInTheDocument();
     expect(onConfirm).not.toHaveBeenCalled();
   });
+
+  // Plex's claim token: the help text carries its own line breaks and a bare
+  // URL, both authored in the app manifest.
+  const helpApps: AppStatus[] = [
+    {
+      id: "plex",
+      name: "Plex",
+      description: "",
+      category: "media",
+      install_secrets: [
+        {
+          key: "ansible_become_password",
+          label: "Password",
+          type: "password",
+          verify_brrewery_password: true,
+        },
+        {
+          key: "plex_claim_token",
+          label: "Plex claim token",
+          type: "password",
+          help: "Go to https://www.plex.tv/claim/ and sign into your Plex account.\nCopy the claim-\u2026 code it shows and paste it here.",
+        },
+      ],
+      installed: false,
+      dependencies_satisfied: true,
+    },
+  ];
+
+  it("renders help text as a link plus prose, keeping its line breaks", () => {
+    render(
+      <InstallSecretsModal
+        action="install"
+        appIds={["plex"]}
+        apps={helpApps}
+        onClose={() => {}}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    // The bare URL becomes a real link that opens away from the install dialog
+    // rather than navigating out of a half-filled form.
+    const link = screen.getByRole("link", { name: "https://www.plex.tv/claim/" });
+    expect(link).toHaveAttribute("href", "https://www.plex.tv/claim/");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+
+    // The prose around it survives, newline included. Line breaks are rendered
+    // by whitespace-pre-line, so the \n has to still be in the text content.
+    const help = link.closest("p");
+    expect(help).toHaveClass("whitespace-pre-line");
+    expect(help?.textContent).toBe(
+      "Go to https://www.plex.tv/claim/ and sign into your Plex account.\nCopy the claim-\u2026 code it shows and paste it here.",
+    );
+  });
+
+  it("blocks submit when the claim token is left empty", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+
+    render(
+      <InstallSecretsModal
+        action="install"
+        appIds={["plex"]}
+        apps={helpApps}
+        onClose={() => {}}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Continue install" }));
+
+    expect(await screen.findByText("Plex claim token is required.")).toBeInTheDocument();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
 });

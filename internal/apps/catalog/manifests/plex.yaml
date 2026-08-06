@@ -2,18 +2,43 @@ id: plex
 name: Plex
 description: Media server
 category: media
-# Plex is not reverse-proxied (its web client addresses the server at the origin
-# root, which a subpath proxy cannot satisfy). Like swizzin, it is served on its
-# own port; the dashboard link opens the current host on :32400/web. The empty
-# host in this URL is the port form understood by the frontend's appUrl(), which
-# fills in the current hostname (plain HTTP avoids a cert prompt on the raw IP).
-web_path: "http://:32400/web"
+# Plex's web client addresses the server at the origin root, which a subpath
+# proxy cannot satisfy, so it is not proxied under the dashboard vhost. It gets
+# its own TLS listener on :32443 instead (the brrewery_nginx_server role),
+# forwarding to Plex's plaintext :32400. The empty host in this URL is the port
+# form understood by the frontend's appUrl(), which fills in the current
+# hostname. The scheme must be https: the dashboard vhost sends HSTS with
+# includeSubDomains, which pins every port on that hostname to TLS, so a browser
+# that has loaded the dashboard rewrites an http:// link here before it dials —
+# and Plex, speaking plaintext on :32400, drops the handshake
+# (ERR_CONNECTION_CLOSED). Terminating TLS with the dashboard's own certificate
+# keeps the link on the same trusted hostname, so there is no cert prompt.
+web_path: "https://:32443/web"
 # Plex is installed from the official Plex download API as a .deb and runs as the
 # system "plex" user the package creates — brrewery provisions no per-user
 # account. The shared password prompt is collected only to supply the sudo
 # (become) password the dpkg install needs; it is verified against the brrewery
 # account before the playbook runs.
 requires_account_password: true
+# A Plex server is unclaimed until it is bound to an account, and Plex Web
+# refuses to run that step for a client it does not consider local — reaching it
+# through this proxy is not enough, so the browser route ends at "You do not have
+# access to this server". The supported way around it is the claim token: the
+# install playbook POSTs it to Plex over loopback, which is what the official
+# container does. Required, so a server is never left installed but unclaimable
+# from the dashboard. Tokens are single-use and expire four minutes after issue.
+#
+# The help text is a literal block (|-), not a folded one (>-): the line breaks
+# are part of the copy and the modal renders them. Bare URLs in it are turned
+# into links by the frontend, so they are written plainly here.
+install_secrets:
+  - key: plex_claim_token
+    label: Plex claim token
+    type: password
+    disable_password_manager: true
+    help: |-
+      Go to https://www.plex.tv/claim/ and sign into your Plex account.
+      Copy the claim-… code it shows and paste it here.
 detection:
   systemd_units:
     - plexmediaserver.service
