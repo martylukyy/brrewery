@@ -1,5 +1,5 @@
 diff --git a/src/settings_pack.cpp b/src/settings_pack.cpp
-index 939e5a46a..1ce717856 100644
+index b785117b7..2ed241558 100644
 --- a/src/settings_pack.cpp
 +++ b/src/settings_pack.cpp
 @@ -130,13 +130,13 @@ constexpr int CLOSE_FILE_INTERVAL = 0;
@@ -52,6 +52,15 @@ index 939e5a46a..1ce717856 100644
  		SET(enable_outgoing_tcp, true, nullptr),
  		SET(enable_incoming_tcp, true, nullptr),
  		SET(ignore_resume_timestamps, false, nullptr),
+@@ -209,7 +209,7 @@ constexpr int CLOSE_FILE_INTERVAL = 0;
+ 		SET(proxy_tracker_connections, true, nullptr),
+ 		SET(enable_ip_notifier, true, &session_impl::update_ip_notifier),
+ 		SET(dht_prefer_verified_node_ids, true, &session_impl::update_dht_settings),
+-		SET(piece_extent_affinity, false, nullptr),
++		SET(piece_extent_affinity, true, nullptr),
+ 		SET(validate_https_trackers, true, &session_impl::update_validate_https),
+ 		SET(ssrf_mitigation, true, nullptr),
+ 		SET(allow_idna, false, nullptr),
 @@ -222,49 +222,49 @@ constexpr int CLOSE_FILE_INTERVAL = 0;
  		SET(stop_tracker_timeout, 5, nullptr),
  		SET(tracker_maximum_response_length, 1024*1024, nullptr),
@@ -73,7 +82,7 @@ index 939e5a46a..1ce717856 100644
 -		SET(file_pool_size, 40, nullptr),
 -		SET(max_failcount, 3, &session_impl::update_max_failcount),
 -		SET(min_reconnect_time, 60, nullptr),
-+		SET(file_pool_size, 2500, nullptr),
++		SET(file_pool_size, 250000, nullptr),
 +		SET(max_failcount, 1, &session_impl::update_max_failcount),
 +		SET(min_reconnect_time, 0, nullptr),
  		SET(peer_connect_timeout, 15, nullptr),
@@ -96,9 +105,9 @@ index 939e5a46a..1ce717856 100644
 -		SET(send_buffer_low_watermark, 10 * 1024, nullptr),
 -		SET(send_buffer_watermark, 500 * 1024, nullptr),
 -		SET(send_buffer_watermark_factor, 50, nullptr),
-+		SET(send_buffer_low_watermark, 1 * 512 * 1024, nullptr),
-+		SET(send_buffer_watermark, 7 * 1024 * 1024, nullptr),
-+		SET(send_buffer_watermark_factor, 150, nullptr),
++		SET(send_buffer_low_watermark, 2048, nullptr),
++		SET(send_buffer_watermark, 204800, nullptr),
++		SET(send_buffer_watermark_factor, 250, nullptr),
  		SET(choking_algorithm, settings_pack::fixed_slots_choker, nullptr),
 -		SET(seed_choking_algorithm, settings_pack::round_robin, nullptr),
 -		SET(cache_size, 2048, nullptr),
