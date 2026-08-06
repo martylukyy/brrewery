@@ -12,13 +12,12 @@
     cmd: cp -a "{{ rtorrent_vendor_root }}/sources/libtorrent/{{ libtorrent_release }}" "{{ rtorrent_build_root }}/libtorrent"
     creates: "{{ rtorrent_build_root }}/libtorrent"
 
-- name: Apply vendored libtorrent patches
+# Each patch must apply cleanly — a single rejected hunk fails the build rather
+# than silently producing an unpatched library.
+- name: Apply vendored libtorrent patches (must apply cleanly)
   ansible.builtin.command:
-    cmd: patch -p1 --forward -i "{{ rtorrent_vendor_root }}/patches/{{ item }}"
+    cmd: patch -p1 -i "{{ rtorrent_vendor_root }}/patches/{{ item }}"
     chdir: "{{ rtorrent_build_root }}/libtorrent"
-  register: rt_lt_patch
-  changed_when: rt_lt_patch.rc == 0
-  failed_when: rt_lt_patch.rc > 1
   loop: "{{ rt_libtorrent_patches }}"
 
 # Dist tarballs (release lines) ship ./configure; tag archives (0.9.6) do not.

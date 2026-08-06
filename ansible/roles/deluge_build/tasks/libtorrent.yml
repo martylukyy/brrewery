@@ -30,13 +30,10 @@
 - name: Apply RC_1_1 legacy build compatibility fixes
   when: dz_libtorrent_branch == 'RC_1_1'
   block:
-    - name: Apply vendored RC_1_1 Jamfile patch (adds install_module target)
+    - name: Apply vendored RC_1_1 Jamfile patch (must apply cleanly)
       ansible.builtin.command:
-        cmd: patch -p1 --forward -i "{{ deluge_vendor_root }}/patches/libtorrent-RC_1_1-Jamfile.patch"
+        cmd: patch -p1 -i "{{ deluge_vendor_root }}/patches/libtorrent-RC_1_1-Jamfile.patch"
         chdir: "{{ deluge_build_root }}/libtorrent"
-      register: dz_rc11_jamfile
-      changed_when: dz_rc11_jamfile.rc == 0
-      failed_when: dz_rc11_jamfile.rc > 1
 
     # torrent_info.hpp includes <vector>, rss.hpp only <string>; anchor on
     # whichever the header already has so the <map> include lands either way.
@@ -63,10 +60,11 @@
 
 # --- Patch resolution: uploaded (ephemeral) > operator file > vendored default -
 # Applied after the RC_1_1 compatibility fixes above so a tuning patch never has
-# to carry them, and before the build below. The scratch tree is reset and
-# re-cloned at the top of this file, so the non-forward steps always patch a
-# pristine checkout. The filename these look for is
-# libtorrent-<branch>.patch, distinct from the RC_1_1 build-compat
+# to carry them, and before the build below. Every tier must apply cleanly — a
+# single rejected hunk fails the build rather than silently producing an
+# unpatched library. The scratch tree is reset and re-cloned at the top of this
+# file, so each step always patches a pristine checkout. The filename these look
+# for is libtorrent-<branch>.patch, distinct from the RC_1_1 build-compat
 # libtorrent-RC_1_1-Jamfile.patch, so the two never collide.
 #
 # The vendored RC_1_2/RC_2_0 patches are byte-identical copies of the ones in
@@ -121,13 +119,10 @@
     - libtorrent_patch | length == 0
     - not (dz_operator_patch.stat.exists | default(false))
 
-- name: Apply the vendored default libtorrent patch (best effort)
+- name: Apply the vendored default libtorrent patch (must apply cleanly)
   ansible.builtin.command:
-    cmd: patch -p1 --forward -i "{{ deluge_vendor_root }}/patches/libtorrent-{{ dz_libtorrent_branch }}.patch"
+    cmd: patch -p1 -i "{{ deluge_vendor_root }}/patches/libtorrent-{{ dz_libtorrent_branch }}.patch"
     chdir: "{{ deluge_build_root }}/libtorrent"
-  register: dz_default_patch_apply
-  changed_when: dz_default_patch_apply.rc == 0
-  failed_when: false
   when:
     - libtorrent_patch | length == 0
     - not (dz_operator_patch.stat.exists | default(false))

@@ -3,10 +3,10 @@
 # root is only cleaned on success). The staging and configure steps below are
 # guarded by `creates:`, so a leftover source tree or `build/CMakeCache.txt`
 # would cause them to be skipped on retry; a leftover tree would also make the
-# non-forward patch steps fail (re-applying onto already-patched sources). Reset
-# just the libtorrent scratch subtree so every run stages, patches, configures,
-# and generates from a clean slate. The sibling qbittorrent/zlib/openssl build
-# trees under the same root are untouched.
+# patch steps fail (re-applying onto already-patched sources). Reset just the
+# libtorrent scratch subtree so every run stages, patches, configures, and
+# generates from a clean slate. The sibling qbittorrent/zlib/openssl build trees
+# under the same root are untouched.
 - name: Reset the libtorrent scratch source tree
   ansible.builtin.file:
     path: "{{ qbittorrent_build_root }}/libtorrent"
@@ -19,6 +19,8 @@
     creates: "{{ qbittorrent_build_root }}/libtorrent"
 
 # --- Patch resolution: uploaded (ephemeral) > operator file > vendored default -
+# Every tier must apply cleanly — a single rejected hunk fails the build rather
+# than silently producing an unpatched library.
 # The scratch build root is only removed after a successful build (the install
 # playbook runs cleanup.yml once the role returns), so the uploaded patch is
 # removed in `always:` — a patch that fails to apply must not leave the
@@ -66,13 +68,10 @@
     - libtorrent_patch | length == 0
     - not (qbt_operator_patch.stat.exists | default(false))
 
-- name: Apply the vendored default libtorrent patch (best effort)
+- name: Apply the vendored default libtorrent patch (must apply cleanly)
   ansible.builtin.command:
-    cmd: patch -p1 --forward -i "{{ qbittorrent_vendor_root }}/patches/libtorrent-{{ qbt_branch }}.patch"
+    cmd: patch -p1 -i "{{ qbittorrent_vendor_root }}/patches/libtorrent-{{ qbt_branch }}.patch"
     chdir: "{{ qbittorrent_build_root }}/libtorrent"
-  register: qbt_default_patch_apply
-  changed_when: qbt_default_patch_apply.rc == 0
-  failed_when: false
   when:
     - libtorrent_patch | length == 0
     - not (qbt_operator_patch.stat.exists | default(false))
