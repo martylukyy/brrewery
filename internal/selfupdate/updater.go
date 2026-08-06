@@ -58,7 +58,6 @@ type Config struct {
 	Repo            string
 	CurrentVersion  string
 	BinaryPath      string
-	WebRoot         string
 	AnsibleRoot     string
 	NginxEtc        string
 	SystemdUnitPath string
@@ -78,7 +77,6 @@ func DefaultConfig() Config {
 		Repo:            RepoFromEnv(),
 		CurrentVersion:  buildinfo.Version,
 		BinaryPath:      paths.BinaryPath,
-		WebRoot:         paths.WebRoot,
 		AnsibleRoot:     paths.AnsibleRoot,
 		NginxEtc:        "/etc/nginx",
 		SystemdUnitPath: "/etc/systemd/system/brrewery.service",
@@ -277,10 +275,8 @@ func (u *Updater) install(ctx context.Context, jobID, tag string) error {
 		return err
 	}
 
-	u.log(jobID, "Updating web assets")
-	if err := swapDir(filepath.Join(extractDir, "web", "dist"), u.cfg.WebRoot); err != nil {
-		return err
-	}
+	// No web assets step: the frontend is embedded in the binary, so installing
+	// the new binary below is what updates the dashboard.
 
 	u.log(jobID, "Updating nginx configuration")
 	if err := u.installNginx(ctx, jobID, extractDir); err != nil {
@@ -365,7 +361,7 @@ func validateArchive(dir string) error {
 	if err != nil || !binary.Mode().IsRegular() || binary.Mode().Perm()&0o100 == 0 {
 		return errors.New("release archive is missing an executable brrewery binary")
 	}
-	for _, sub := range []string{"web/dist", "ansible", "contrib/nginx"} {
+	for _, sub := range []string{"ansible", "contrib/nginx"} {
 		info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(sub)))
 		if err != nil || !info.IsDir() {
 			return fmt.Errorf("release archive is missing %s", sub)

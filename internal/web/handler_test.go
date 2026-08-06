@@ -40,6 +40,10 @@ func TestServeSPA_KnownRoutesServeShell(t *testing.T) {
 			body, _ := io.ReadAll(res.Body)
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 			assert.Contains(t, res.Header.Get("Content-Type"), "text/html")
+			// The shell's URL is stable across releases, so it must be
+			// revalidated — a cached copy would keep loading the previous
+			// build's hashed assets after an update.
+			assert.Equal(t, "no-cache", res.Header.Get("Cache-Control"))
 			assert.Contains(t, string(body), `id="root"`)
 		})
 	}
@@ -47,12 +51,15 @@ func TestServeSPA_KnownRoutesServeShell(t *testing.T) {
 
 func TestServeSPA_StaticAssetServesWithContentType(t *testing.T) {
 	cases := []struct {
-		target      string
-		body        string
-		contentType string
+		target       string
+		body         string
+		contentType  string
+		cacheControl string
 	}{
-		{"/assets/app.js", "console.log('app')", "javascript"},
-		{"/logos/x.webp", "webp-bytes", "image/webp"},
+		// Hashed bundle output: a changed file is a changed URL, so it can be
+		// cached forever. Files with a stable name are only revalidated.
+		{"/assets/app.js", "console.log('app')", "javascript", "public, max-age=31536000, immutable"},
+		{"/logos/x.webp", "webp-bytes", "image/webp", "no-cache"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.target, func(t *testing.T) {
@@ -63,6 +70,7 @@ func TestServeSPA_StaticAssetServesWithContentType(t *testing.T) {
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 			assert.Equal(t, tc.body, string(body))
 			assert.Contains(t, res.Header.Get("Content-Type"), tc.contentType)
+			assert.Equal(t, tc.cacheControl, res.Header.Get("Cache-Control"))
 		})
 	}
 }

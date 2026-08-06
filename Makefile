@@ -11,7 +11,6 @@ INTERNAL_WEB_DIR = internal/web
 LDFLAGS = -ldflags "-X github.com/autobrr/brrewery/internal/buildinfo.Version=$(VERSION) -X github.com/autobrr/brrewery/internal/buildinfo.Commit=$(GIT_COMMIT) -X github.com/autobrr/brrewery/internal/buildinfo.Date=$(BUILD_DATE)"
 
 PROD_BIN = /usr/local/bin/$(BINARY_NAME)
-PROD_WEB_ROOT = /var/www/brrewery
 
 .PHONY: all build frontend backend prod dev dev-backend dev-frontend clean test test-openapi lint lint-full lint-json lint-fix fmt gofix-changed gofix-check-changed precommit deps help ansible-syntax-check sync-ansible
 
@@ -30,13 +29,12 @@ backend:
 	@echo "Building backend..."
 	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/brrewery
 
+# The frontend is embedded in the binary (internal/web, //go:embed all:dist), so
+# installing the binary ships the dashboard with it — there is nothing to deploy
+# to a web root.
 prod: build sync-ansible
 	@echo "Installing $(BINARY_NAME) to $(PROD_BIN)..."
 	sudo install -m 0755 $(BINARY_NAME) $(PROD_BIN)
-	@echo "Deploying web assets to $(PROD_WEB_ROOT)..."
-	sudo install -d -m 0755 $(PROD_WEB_ROOT)
-	sudo rm -rf $(PROD_WEB_ROOT)/*
-	sudo cp -a $(INTERNAL_WEB_DIR)/dist/. $(PROD_WEB_ROOT)/
 
 dev:
 	@echo "Starting development mode..."

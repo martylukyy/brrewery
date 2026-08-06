@@ -45,7 +45,6 @@ type archiveEntry struct {
 func defaultArchiveEntries() []archiveEntry {
 	return []archiveEntry{
 		{"brrewery", 0o755, "new-binary"},
-		{"web/dist/index.html", 0o644, "<html>new</html>"},
 		{"ansible/playbooks/apps/install.yml", 0o644, "- hosts: localhost"},
 		{"contrib/nginx/nginx.conf", 0o644, "new nginx.conf"},
 		{"contrib/nginx/general.conf", 0o644, "new general.conf"},
@@ -147,7 +146,6 @@ func newFixture(t *testing.T, archive []byte, checksums string) *fixture {
 		Repo:            repo,
 		CurrentVersion:  testCurrentVersion,
 		BinaryPath:      filepath.Join(binDir, "brrewery"),
-		WebRoot:         filepath.Join(root, "www"),
 		AnsibleRoot:     filepath.Join(root, "ansible"),
 		NginxEtc:        nginxEtc,
 		SystemdUnitPath: filepath.Join(systemdDir, "brrewery.service"),
@@ -159,8 +157,6 @@ func newFixture(t *testing.T, archive []byte, checksums string) *fixture {
 
 	// Pre-existing install state the update must replace.
 	require.NoError(t, os.WriteFile(cfg.BinaryPath, []byte("old-binary"), 0o600))
-	require.NoError(t, os.MkdirAll(cfg.WebRoot, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(cfg.WebRoot, "index.html"), []byte("<html>old</html>"), 0o600))
 	require.NoError(t, os.MkdirAll(filepath.Join(cfg.AnsibleRoot, "playbooks"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(cfg.AnsibleRoot, "stale.yml"), []byte("old"), 0o600))
 	for _, rel := range nginxFiles {
@@ -231,7 +227,6 @@ func TestUpdateHappyPath(t *testing.T) {
 
 	assert.Equal(t, "new-binary", readFile(t, f.cfg.BinaryPath))
 	assert.Equal(t, "old-binary", readFile(t, f.cfg.BinaryPath+".bak"))
-	assert.Equal(t, "<html>new</html>", readFile(t, filepath.Join(f.cfg.WebRoot, "index.html")))
 	assert.NoFileExists(t, filepath.Join(f.cfg.AnsibleRoot, "stale.yml"))
 	assert.FileExists(t, filepath.Join(f.cfg.AnsibleRoot, "playbooks", "apps", "install.yml"))
 	assert.Equal(t, "new nginx.conf", readFile(t, filepath.Join(f.cfg.NginxEtc, "nginx.conf")))
@@ -337,7 +332,7 @@ func TestUpdateChecksumMismatchAbortsBeforeInstall(t *testing.T) {
 	assert.Contains(t, failed.Error, "checksum mismatch")
 
 	assert.Equal(t, "old-binary", readFile(t, f.cfg.BinaryPath))
-	assert.Equal(t, "<html>old</html>", readFile(t, filepath.Join(f.cfg.WebRoot, "index.html")))
+	assert.FileExists(t, filepath.Join(f.cfg.AnsibleRoot, "stale.yml"))
 	assert.Empty(t, f.rec.recorded())
 	assert.NoDirExists(t, f.cfg.StagingDir)
 

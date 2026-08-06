@@ -22,11 +22,12 @@ archives:
   - formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # The frontend is compiled into the binary (internal/web, //go:embed
+    # all:dist), so the archive only carries what lands outside it: the ansible
+    # tree and the nginx/systemd config install.sh and the self-updater deploy.
     files:
       - src: ansible/**
       - src: contrib/**
-      - src: internal/web/dist/**
-        dst: web/dist
 
 checksum:
   name_template: checksums.txt

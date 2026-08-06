@@ -1,5 +1,6 @@
 # brrewery dashboard vhost — installed as nginx's default site
-# (sites-available/default). HTTP redirects to HTTPS; API proxied to Go backend.
+# (sites-available/default). HTTP redirects to HTTPS; everything else is proxied
+# to the Go backend, which serves both the API and the embedded frontend.
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
@@ -24,47 +25,22 @@ server {
     ssl_certificate_key /etc/ssl/brrewery/privkey.pem;
     include /etc/nginx/ssl.conf;
 
-    root /var/www/brrewery;
-    index index.html;
-
-    location /api/ {
-        include /etc/nginx/proxy.conf;
-        proxy_pass http://127.0.0.1:8080;
-    }
-
-    location /health {
-        include /etc/nginx/proxy.conf;
-        proxy_pass http://127.0.0.1:8080;
-    }
-
     # Installed-app reverse-proxy location snippets, enabled by symlinking
     # sites-available/<id>.conf into sites-enabled (see the brrewery_nginx_site
     # Ansible role). This vhost is the default site, enabled as the extensionless
     # symlink sites-enabled/default, so this *.conf glob never re-includes it.
+    # The snippets use "location ^~ /<path>/", which wins over the "location /"
+    # below regardless of order.
     include /etc/nginx/sites-enabled/*.conf;
 
-    # The SPA's known client-side routes boot the app with a 200. Mirror the
-    # TanStack route tree in web/src/router.tsx — add a location per new route.
-    location = /      { try_files /index.html =404; }
-    location = /login { try_files /index.html =404; }
-
-    # Real static assets are served directly; anything else is a genuine 404 that
-    # still returns the index.html shell, so the in-app React <NotFound/> page
-    # renders against a true 404 instead of the dashboard masking a bad URL with
-    # a 200.
+    # Everything else — API, health, the SPA shell and its hashed assets — goes
+    # to the Go backend, which embeds the Vite bundle (internal/web,
+    # //go:embed all:dist). There is no web root on disk: an update swaps the
+    # binary and the frontend comes with it. The backend also decides
+    # 200-vs-404 for client-side routes, so this vhost no longer has to mirror
+    # the TanStack route tree in web/src/router.tsx.
     location / {
-        try_files $uri $uri/ =404;
-    }
-
-    # error_page without an "=code" keeps the 404 status while serving the shell.
-    # The named location re-includes the shared security headers (defining a
-    # per-location add_header otherwise drops the http-level ones) and marks the
-    # not-found response no-store, mirroring the embedded Go server so a 404 is
-    # never cached as a healthy page.
-    error_page 404 @spa_notfound;
-    location @spa_notfound {
-        include /etc/nginx/security.conf;
-        add_header Cache-Control "no-store" always;
-        try_files /index.html =404;
+        include /etc/nginx/proxy.conf;
+        proxy_pass http://127.0.0.1:8080;
     }
 }

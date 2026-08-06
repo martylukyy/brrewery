@@ -5,7 +5,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="$ROOT"
 BINARY_DEST="/usr/local/bin/brrewery"
-WEB_ROOT="/var/www/brrewery"
 LIB_DIR="/var/lib/brrewery"
 LOG_DIR="/var/log/brrewery"
 INSTALL_LOG="/var/log/brrewery-install.log"
@@ -96,9 +95,9 @@ run_with_log() {
   echo
 }
 
-# Download the brrewery release archive (binary, web assets, ansible playbooks
-# and contrib config) built by the Release GitHub workflow, verify its checksum
-# and unpack it to $RELEASE_DIR.
+# Download the brrewery release archive (binary with the frontend embedded,
+# ansible playbooks and contrib config) built by the Release GitHub workflow,
+# verify its checksum and unpack it to $RELEASE_DIR.
 fetch_release() {
   if [[ "$(uname -m)" != "x86_64" ]]; then
     echo "Unsupported architecture: $(uname -m) (release binaries are linux/amd64 only)" >&2
@@ -142,8 +141,8 @@ for release in json.load(sys.stdin):
       tar -xzf \"$archive\"
   "
 
-  if [[ ! -x "$RELEASE_DIR/brrewery" || ! -d "$RELEASE_DIR/web/dist" ]]; then
-    echo "Release archive $archive is missing the binary or web assets" >&2
+  if [[ ! -x "$RELEASE_DIR/brrewery" ]]; then
+    echo "Release archive $archive is missing the binary" >&2
     exit 1
   fi
 }
@@ -168,7 +167,7 @@ if [[ ! -d "$SOURCE_DIR/ansible" || ! -d "$SOURCE_DIR/contrib" ]]; then
 fi
 
 run_with_spinner "Creating directories" bash -c "
-  install -d -m 0750 \"$LIB_DIR\" \"$LIB_DIR/jobs\" \"$LOG_DIR\" \"$WEB_ROOT\" \"$ANSIBLE_DEST\" \"$VENDOR_DEST\" \"$QBT_PATCHES_DIR\" \"$SSL_DIR\" &&
+  install -d -m 0750 \"$LIB_DIR\" \"$LIB_DIR/jobs\" \"$LOG_DIR\" \"$ANSIBLE_DEST\" \"$VENDOR_DEST\" \"$QBT_PATCHES_DIR\" \"$SSL_DIR\" &&
     install -d -m 0755 \"$(dirname "$BINARY_DEST")\"
 "
 
@@ -183,10 +182,12 @@ run_with_spinner "Installing binary and ansible playbooks" bash -c "
     cp -a \"$SOURCE_DIR/ansible/.\" \"$ANSIBLE_DEST/\"
 "
 
-run_with_spinner "Deploying web assets" bash -c "
-  rm -rf \"${WEB_ROOT:?}\"/* &&
-    cp -a \"$RELEASE_DIR/web/dist/.\" \"$WEB_ROOT/\"
-"
+# The frontend is embedded in the binary, so there are no web assets to deploy.
+# Installs made before that change left a bundle in /var/www/brrewery that the
+# vhost no longer reads; drop it so a stale copy can't be mistaken for live.
+if [[ -d /var/www/brrewery ]]; then
+  run_with_spinner "Removing legacy web root" bash -c "rm -rf /var/www/brrewery"
+fi
 
 if [[ ! -f "$SSL_DIR/fullchain.pem" ]]; then
   run_with_spinner "Generating self-signed TLS certificate" bash -c "

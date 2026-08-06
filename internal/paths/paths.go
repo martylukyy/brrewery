@@ -13,7 +13,6 @@ const (
 	BackendListenAddress = "127.0.0.1:8080"
 	DevBackendListenAddr = "127.0.0.1:8081"
 	LogFile              = "/var/log/brrewery/brrewery.log"
-	WebRoot              = "/var/www/brrewery"
 	UserStorePath        = "/var/lib/brrewery/users.json"
 	JobsDir              = "/var/lib/brrewery/jobs"
 	SessionSecretPath    = "/var/lib/brrewery/session.key" //nolint:gosec // filesystem path, not a secret value
