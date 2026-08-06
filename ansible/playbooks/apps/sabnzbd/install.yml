@@ -221,6 +221,14 @@
         - { regexp: '^username\s*=', line: "username = {{ brrewery_user }}" }
         - { regexp: '^complete_dir\s*=', line: "complete_dir = {{ sabnzbd_complete_dir }}" }
         - { regexp: '^download_dir\s*=', line: "download_dir = {{ sabnzbd_incomplete_dir }}" }
+        # SABnzbd defaults to inet_exposure=0 (local access only). The nginx proxy
+        # connects from 127.0.0.1, but SABnzbd also inspects X-Forwarded-For
+        # (verify_xff_header defaults on), so every request coming in over the
+        # internet is refused with "External internet access denied -
+        # https://sabnzbd.org/access-denied". 5 exposes the full WebUI to external
+        # clients while still requiring them to log in with the credentials set
+        # below; loopback/LAN clients keep passwordless access.
+        - { regexp: '^inet_exposure\s*=', line: "inet_exposure = 5" }
       loop_control:
         label: "{{ item.line }}"
       notify: Restart SABnzbd

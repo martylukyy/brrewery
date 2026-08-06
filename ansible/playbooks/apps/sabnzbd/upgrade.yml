@@ -54,13 +54,35 @@
       changed_when: true
       failed_when: false
 
-    - name: Ensure SABnzbd url_base is configured
+    # SABnzbd rewrites sabnzbd.ini from its in-memory config when it shuts down,
+    # so keys added while it is running are dropped again on the next restart.
+    # Stop it first and start it back up once the ini is reconciled.
+    - name: Stop SABnzbd before editing its ini
+      ansible.builtin.systemd:
+        name: "sabnzbd@{{ brrewery_user }}.service"
+        state: stopped
+
+    - name: Ensure SABnzbd misc settings are configured
       ansible.builtin.lineinfile:
         path: "{{ brrewery_home }}/.config/sabnzbd/sabnzbd.ini"
-        regexp: '^url_base\s*='
-        line: "url_base = /sabnzbd"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
         insertafter: '^\[misc\]'
-      notify: Restart SABnzbd
+      loop:
+        - { regexp: '^url_base\s*=', line: "url_base = /sabnzbd" }
+        # Without this, SABnzbd refuses every request whose X-Forwarded-For chain
+        # contains a public address ("External internet access denied -
+        # https://sabnzbd.org/access-denied"), which is all traffic reaching it
+        # through the brrewery nginx proxy from the internet. 5 = full WebUI for
+        # external clients, login required; loopback/LAN clients are unaffected.
+        - { regexp: '^inet_exposure\s*=', line: "inet_exposure = 5" }
+      loop_control:
+        label: "{{ item.line }}"
+
+    - name: Start SABnzbd
+      ansible.builtin.systemd:
+        name: "sabnzbd@{{ brrewery_user }}.service"
+        state: started
 
     - name: Configure nginx reverse proxy for SABnzbd
       ansible.builtin.include_role:
