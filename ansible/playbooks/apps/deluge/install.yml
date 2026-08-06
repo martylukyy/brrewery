@@ -40,6 +40,24 @@
         - "{{ deluge_config_dir }}"
         - "{{ deluge_download_dir }}"
 
+    # core.conf holds deluged's default save path (download_location). Like
+    # web.conf it is written as a single header-less JSON object, which deluged
+    # merges over its own defaults — do NOT prepend a {"file": 1, ...} version
+    # header. force=false seeds it only on a fresh install: deluged rewrites
+    # core.conf on shutdown, so overwriting it on a re-install would reset every
+    # daemon setting the user has since changed back to Deluge's defaults.
+    - name: Seed the Deluge daemon default save path in core.conf
+      ansible.builtin.copy:
+        dest: "{{ deluge_config_dir }}/core.conf"
+        owner: "{{ brrewery_user }}"
+        group: "{{ brrewery_group }}"
+        mode: "0600"
+        force: false
+        content: |
+          {
+              "download_location": "{{ deluge_download_dir }}"
+          }
+
     - name: Install Deluge systemd template units
       ansible.builtin.include_role:
         name: deluge_build

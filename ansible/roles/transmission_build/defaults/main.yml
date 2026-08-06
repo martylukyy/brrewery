@@ -14,6 +14,10 @@ transmission_build_root: /tmp/brrewery-transmission-build
 # RPC/WebUI port (8080 is taken by the brrewery backend, 8086 by qBittorrent).
 transmission_rpc_port: 9091
 
+# Default save path (the install playbook sets brrewery_home from the brrewery
+# user).
+transmission_download_dir: "{{ brrewery_home }}/torrents/transmission"
+
 # Parallelism for the compile step.
 transmission_build_jobs: "{{ ansible_processor_vcpus | default(ansible_processor_count) | default(2) }}"
 

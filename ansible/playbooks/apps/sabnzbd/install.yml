@@ -148,13 +148,25 @@
       # Translations are cosmetic; a failure here must not abort the install.
       failed_when: false
 
-    - name: Ensure SABnzbd config directory exists
+    # complete_dir is the default save path finished downloads land in. The
+    # incomplete dir is kept as a sibling rather than nested inside it: SABnzbd
+    # warns at startup when the incomplete folder sits inside the complete one.
+    - name: Set SABnzbd download directory facts
+      ansible.builtin.set_fact:
+        sabnzbd_complete_dir: "{{ brrewery_home }}/nzbs/sabnzbd"
+        sabnzbd_incomplete_dir: "{{ brrewery_home }}/nzbs/.incomplete/sabnzbd"
+
+    - name: Ensure SABnzbd config and download directories exist
       ansible.builtin.file:
-        path: "{{ brrewery_home }}/.config/sabnzbd"
+        path: "{{ item }}"
         state: directory
         owner: "{{ brrewery_user }}"
         group: "{{ brrewery_group }}"
         mode: "0750"
+      loop:
+        - "{{ brrewery_home }}/.config/sabnzbd"
+        - "{{ sabnzbd_complete_dir }}"
+        - "{{ sabnzbd_incomplete_dir }}"
 
     - name: Require brrewery user password for SABnzbd account
       ansible.builtin.assert:
@@ -207,6 +219,8 @@
         - { regexp: '^port\s*=', line: "port = {{ sabnzbd_port }}" }
         - { regexp: '^url_base\s*=', line: "url_base = /sabnzbd" }
         - { regexp: '^username\s*=', line: "username = {{ brrewery_user }}" }
+        - { regexp: '^complete_dir\s*=', line: "complete_dir = {{ sabnzbd_complete_dir }}" }
+        - { regexp: '^download_dir\s*=', line: "download_dir = {{ sabnzbd_incomplete_dir }}" }
       loop_control:
         label: "{{ item.line }}"
       notify: Restart SABnzbd

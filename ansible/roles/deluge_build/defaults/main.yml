@@ -30,7 +30,7 @@ deluge_build_jobs: "{{ ansible_processor_vcpus | default(ansible_processor_count
 # brrewery user). deluged exposes an RPC port for clients; deluge-web serves the
 # WebUI that nginx reverse-proxies at /deluge/.
 deluge_config_dir: "{{ deluge_home }}/.config/deluge"
-deluge_download_dir: "{{ deluge_home }}/Downloads/deluge"
+deluge_download_dir: "{{ deluge_home }}/torrents/deluge"
 deluge_daemon_port: 58846
 deluge_web_port: 8112
 # Base path deluge-web runs under (nginx reverse-proxies it here); deluge-web is

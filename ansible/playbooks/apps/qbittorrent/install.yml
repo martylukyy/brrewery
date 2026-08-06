@@ -25,13 +25,20 @@
       ansible.builtin.set_fact:
         brrewery_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
 
-    - name: Ensure qBittorrent config directory exists
+    - name: Set qBittorrent default save path fact
+      ansible.builtin.set_fact:
+        qbittorrent_download_dir: "{{ brrewery_home }}/torrents/qbittorrent"
+
+    - name: Ensure qBittorrent config and download directories exist
       ansible.builtin.file:
-        path: "{{ brrewery_home }}/.config/qBittorrent"
+        path: "{{ item }}"
         state: directory
         owner: "{{ brrewery_user }}"
         group: "{{ brrewery_group }}"
         mode: "0750"
+      loop:
+        - "{{ brrewery_home }}/.config/qBittorrent"
+        - "{{ qbittorrent_download_dir }}"
 
     - name: Write qBittorrent configuration
       ansible.builtin.copy:
@@ -53,6 +60,9 @@
           WebUI\Password_PBKDF2="{{ qbittorrent_webui_password_hash }}"
 
           [BitTorrent]
+          # Default save path for new torrents
+          Session\DefaultSavePath={{ qbittorrent_download_dir }}
+
           # Automatic torrent management mode by default
           Session\DisableAutoTMMByDefault=false
 

@@ -16,7 +16,7 @@ rtorrent_build_jobs: "{{ ansible_processor_vcpus | default(ansible_processor_cou
 # brrewery user). The SCGI socket is what ruTorrent connects to.
 rtorrent_state_dir: "{{ rtorrent_home }}/.local/share/rtorrent"
 rtorrent_session_dir: "{{ rtorrent_state_dir }}/session"
-rtorrent_download_dir: "{{ rtorrent_home }}/Downloads/rtorrent"
+rtorrent_download_dir: "{{ rtorrent_home }}/torrents/rtorrent"
 rtorrent_scgi_socket: "{{ rtorrent_state_dir }}/rpc.socket"
 rtorrent_rc_path: "{{ rtorrent_home }}/.rtorrent.rc"
 # Single fixed listen port keeps firewalling predictable; widen if desired.

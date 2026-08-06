@@ -46,7 +46,7 @@
 
     - name: Ensure Transmission download directory exists
       ansible.builtin.file:
-        path: "{{ brrewery_home }}/Downloads/transmission"
+        path: "{{ transmission_download_dir }}"
         state: directory
         owner: "{{ brrewery_user }}"
         group: "{{ brrewery_group }}"
@@ -86,7 +86,7 @@
               "rpc-password": "{{ brrewery_user_password }}",
               "rpc-whitelist-enabled": false,
               "rpc-host-whitelist-enabled": false,
-              "download-dir": "{{ brrewery_home }}/Downloads/transmission"
+              "download-dir": "{{ transmission_download_dir }}"
           }
       no_log: true
 
