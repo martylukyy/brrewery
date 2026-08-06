@@ -52,6 +52,39 @@
           WebUI\Username={{ brrewery_user }}
           WebUI\Password_PBKDF2="{{ qbittorrent_webui_password_hash }}"
 
+          [BitTorrent]
+          # Automatic torrent management mode by default
+          Session\DisableAutoTMMByDefault=false
+
+          # TCP only — no uTP
+          Session\BTProtocol=TCP
+
+          # No connection or upload slot limits
+          Session\MaxConnections=-1
+          Session\MaxConnectionsPerTorrent=-1
+          Session\MaxUploads=-1
+          Session\MaxUploadsPerTorrent=-1
+
+          # Private-tracker friendly: no peer discovery
+          Session\DHTEnabled=false
+          Session\PeXEnabled=false
+          Session\LSDEnabled=false
+
+          # No queueing — all torrents run
+          Session\QueueingSystemEnabled=false
+
+          # libtorrent tuning
+          Session\SuggestMode=true
+          Session\SendBufferWatermark=204800
+          Session\SendBufferLowWatermark=2048
+          Session\SendBufferWatermarkFactor=250
+          Session\MultiConnectionsPerIp=true
+          Session\FilePoolSize=250000
+          Session\PieceExtentAffinity=true
+          Session\SocketBacklogSize=1500
+          Session\AsyncIOThreadsCount=4
+          Session\CoalesceReadWrite=false
+
     - name: Ensure vendored libraries are visible to the dynamic linker
       ansible.builtin.copy:
         dest: /etc/ld.so.conf.d/brrewery-vendored.conf
