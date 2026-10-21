@@ -3,6 +3,7 @@ import { Dialog as SheetPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { usePortalContainer } from "@/hooks/use-portal-container"
 import { IconX } from "@tabler/icons-react"
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
@@ -53,8 +54,12 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  // One container for overlay + content keeps the overlay below the content
+  // even when an extension reorders <body> (see usePortalContainer).
+  const container = usePortalContainer("sheet-portal-root")
+
   return (
-    <SheetPortal>
+    <SheetPortal container={container}>
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"
