@@ -17,6 +17,9 @@ func TestReleaseResolver_ResolveLatest(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`[
+			{"name":"release-5.3.0"},
+			{"name":"release-5.3.0rc1"},
+			{"name":"release-5.3.0beta1"},
 			{"name":"release-5.2.0"},
 			{"name":"release-5.2.1"},
 			{"name":"release-5.1.4"},
@@ -30,9 +33,23 @@ func TestReleaseResolver_ResolveLatest(t *testing.T) {
 		TagsURL: server.URL,
 	}
 
-	got, err := resolver.ResolveLatest(context.Background(), "5.2")
-	require.NoError(t, err)
-	assert.Equal(t, "5.2.1", got)
+	tests := []struct {
+		minor string
+		want  string
+	}{
+		{minor: "5.2", want: "5.2.1"},
+		// Pre-release tags (rc/beta) must never be picked over the final release.
+		{minor: "5.3", want: "5.3.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.minor, func(t *testing.T) {
+			t.Parallel()
+			got, err := resolver.ResolveLatest(context.Background(), tt.minor)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestManifest_ResolveSelection(t *testing.T) {

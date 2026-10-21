@@ -31,6 +31,10 @@ type InstallSecret struct {
 type InstallOptionChoice struct {
 	Value string `json:"value" yaml:"value"`
 	Label string `json:"label" yaml:"label"`
+	// When limits this choice to some values of another option (e.g. a
+	// libtorrent branch only offered for the qBittorrent versions that support
+	// it). A nil When offers the choice whenever its option is shown.
+	When *InstallOptionWhen `json:"when,omitempty" yaml:"when,omitempty"`
 }
 
 // InstallOptionWhen gates an option so it is only shown when another option's

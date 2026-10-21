@@ -98,6 +98,9 @@ export type InstallSecret = {
 export type InstallOptionChoice = {
   value: string;
   label: string;
+  // Limits this choice to some values of another option (e.g. a libtorrent
+  // branch only offered for the qBittorrent versions that support it).
+  when?: InstallOptionWhen;
 };
 
 export type InstallOptionWhen = {

@@ -11,7 +11,7 @@ const (
 	QbittorrentVersion = "qbittorrent_version"
 	// QbittorrentRelease is the resolved patch release set by brrewery before Ansible.
 	QbittorrentRelease = "qbittorrent_release"
-	// LibtorrentBranch selects the libtorrent line (RC_1_2 or RC_2_0) to compile against.
+	// LibtorrentBranch selects the libtorrent line (RC_1_2, RC_2_0 or RC_2_1) to compile against.
 	LibtorrentBranch = "libtorrent_branch"
 	// LibtorrentPatch carries an optional, ephemeral base64-encoded libtorrent patch
 	// uploaded for a single build. It is never persisted to disk by the API.
