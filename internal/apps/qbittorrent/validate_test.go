@@ -46,6 +46,10 @@ func TestValidateInstallOptions(t *testing.T) {
 		{name: "4.3 rejects rc20", version: "4.3", branch: qbittorrent.BranchRC20, wantErr: qbittorrent.ErrBranchNotAllowed},
 		{name: "unknown minor", version: "9.9", branch: "", wantErr: qbittorrent.ErrUnknownVersion},
 		{name: "empty version", version: "", branch: "", wantErr: qbittorrent.ErrUnknownVersion},
+		{name: "5.3 rc12", version: "5.3", branch: qbittorrent.BranchRC12},
+		{name: "5.3 rc21", version: "5.3", branch: qbittorrent.BranchRC21},
+		{name: "5.3 rejects rc20", version: "5.3", branch: qbittorrent.BranchRC20, wantErr: qbittorrent.ErrBranchNotAllowed},
+		{name: "5.2 rejects rc21", version: "5.2", branch: qbittorrent.BranchRC21, wantErr: qbittorrent.ErrBranchNotAllowed},
 		{name: "garbage branch", version: "5.2", branch: "nope", wantErr: qbittorrent.ErrBranchNotAllowed},
 	}
 
@@ -99,4 +103,16 @@ func TestInstallOptions(t *testing.T) {
 	// 4.3 is RC_1_2-only, so it must not gate the branch step.
 	assert.NotContains(t, opts[1].When.OneOf, "4.3")
 	assert.Contains(t, opts[1].When.OneOf, "5.2")
+	assert.Contains(t, opts[1].When.OneOf, "5.3")
+
+	// Each branch choice is offered only for the versions whose manifest line lists it.
+	choiceVersions := make(map[string][]string, len(opts[1].Choices))
+	for _, choice := range opts[1].Choices {
+		require.NotNil(t, choice.When, choice.Value)
+		assert.Equal(t, extravars.QbittorrentVersion, choice.When.Key)
+		choiceVersions[choice.Value] = choice.When.OneOf
+	}
+	assert.Equal(t, []string{"4.4", "4.5", "4.6", "5.0", "5.1", "5.2", "5.3"}, choiceVersions[qbittorrent.BranchRC12])
+	assert.Equal(t, []string{"4.4", "4.5", "4.6", "5.0", "5.1", "5.2"}, choiceVersions[qbittorrent.BranchRC20])
+	assert.Equal(t, []string{"5.3"}, choiceVersions[qbittorrent.BranchRC21])
 }

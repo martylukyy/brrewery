@@ -70,6 +70,17 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
     return branchOption.when.one_of.includes(version);
   }, [branchOption, version]);
 
+  // Branch choices can be limited to some versions (e.g. libtorrent 2.1 only for
+  // qBittorrent 5.3+). A selection that the current version does not offer falls
+  // back to its first available branch.
+  const branchChoices = useMemo(
+    () => branchOption?.choices?.filter((choice) => !choice.when?.one_of || choice.when.one_of.includes(version)) ?? [],
+    [branchOption, version],
+  );
+  const selectedBranch = branchChoices.some((choice) => choice.value === branch)
+    ? branch
+    : (branchChoices[0]?.value ?? "");
+
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
     const file = event.target.files?.[0];
@@ -124,8 +135,8 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
     if (versionOption) {
       extraVars[versionOption.key] = version;
     }
-    if (branchVisible && branch && branchOption) {
-      extraVars[branchOption.key] = branch;
+    if (branchVisible && selectedBranch && branchOption) {
+      extraVars[branchOption.key] = selectedBranch;
     }
     if (patch) {
       extraVars[PATCH_KEY] = patch.base64;
@@ -175,7 +186,7 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
                 {branchVisible && (
                   <fieldset className="space-y-2">
                     <legend className="mb-1 block text-sm text-foreground">libtorrent version</legend>
-                    {branchOption?.choices?.map((choice) => (
+                    {branchChoices.map((choice) => (
                       <label
                         key={choice.value}
                         className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2 hover:bg-accent/50"
@@ -184,7 +195,7 @@ export function InstallOptionsModal({ appIds, apps, onClose, onConfirm }: Props)
                           type="radio"
                           name="libtorrent-branch"
                           value={choice.value}
-                          checked={branch === choice.value}
+                          checked={selectedBranch === choice.value}
                           onChange={() => setBranch(choice.value)}
                         />
                         <span className="text-sm text-foreground">{choice.label}</span>

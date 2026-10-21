@@ -22,6 +22,7 @@ const AppID = "qbittorrent"
 const (
 	BranchRC12 = "RC_1_2"
 	BranchRC20 = "RC_2_0"
+	BranchRC21 = "RC_2_1"
 )
 
 // Manifest mirrors ansible/roles/qbittorrent_build/files/qbittorrent/manifest.yml.
@@ -53,8 +54,8 @@ type LibtorrentSpec struct {
 }
 
 // LibtorrentBranchSpec pins the libtorrent tag and its compatible Boost for a
-// branch. Boost is per-branch because RC_1_2 and RC_2_0 require different Boost
-// versions (see the manifest header).
+// branch. Boost is per-branch because RC_1_2 and RC_2_0/RC_2_1 require
+// different Boost versions (see the manifest header).
 type LibtorrentBranchSpec struct {
 	Tag string `yaml:"tag"`
 	// Boost pins the Boost release (underscore form, e.g. 1_86_0) this branch builds against.

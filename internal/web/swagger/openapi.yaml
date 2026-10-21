@@ -125,6 +125,13 @@ components:
           description: Value submitted as the extra-var when this choice is selected.
         label:
           type: string
+        when:
+          $ref: '#/components/schemas/InstallOptionWhen'
+          description: >-
+            Limits this choice to some values of another option (e.g. a
+            libtorrent branch only offered for the qBittorrent versions that
+            support it). Absent means the choice is offered whenever its option
+            is shown.
     InstallOptionWhen:
       type: object
       required: [key]

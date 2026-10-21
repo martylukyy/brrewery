@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { InstallOptionsModal } from "@/components/install-options-modal";
 import type { AppStatus } from "@/lib/api";
 
-const branchVersions = ["4.4", "4.5", "4.6", "5.0", "5.1", "5.2"];
+const branchVersions = ["4.4", "4.5", "4.6", "5.0", "5.1", "5.2", "5.3"];
 
 const apps: AppStatus[] = [
   {
@@ -24,6 +24,7 @@ const apps: AppStatus[] = [
           { value: "4.3", label: "4.3" },
           { value: "4.6", label: "4.6" },
           { value: "5.2", label: "5.2" },
+          { value: "5.3", label: "5.3" },
         ],
       },
       {
@@ -31,8 +32,9 @@ const apps: AppStatus[] = [
         label: "libtorrent version",
         type: "select",
         choices: [
-          { value: "RC_1_2", label: "libtorrent 1.2" },
-          { value: "RC_2_0", label: "libtorrent 2.0" },
+          { value: "RC_1_2", label: "libtorrent 1.2", when: { key: "qbittorrent_version", one_of: branchVersions } },
+          { value: "RC_2_0", label: "libtorrent 2.0", when: { key: "qbittorrent_version", one_of: branchVersions.slice(0, -1) } },
+          { value: "RC_2_1", label: "libtorrent 2.1", when: { key: "qbittorrent_version", one_of: ["5.3"] } },
         ],
         when: { key: "qbittorrent_version", one_of: branchVersions },
       },
@@ -119,6 +121,50 @@ describe("InstallOptionsModal", () => {
     expect(onConfirm).toHaveBeenCalledWith({
       qbittorrent_version: "4.6",
       libtorrent_branch: "RC_2_0",
+    });
+  });
+
+  it("offers only the libtorrent branches the chosen version supports", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderModal();
+
+    await user.click(screen.getByRole("radio", { name: "4.6" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.queryByRole("radio", { name: "libtorrent 2.1" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("radio", { name: "5.3" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.queryByRole("radio", { name: "libtorrent 2.0" })).toBeNull();
+    expect(screen.getByRole("radio", { name: "libtorrent 1.2" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "libtorrent 2.1" }));
+    await user.click(screen.getByRole("button", { name: "Start install" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      qbittorrent_version: "5.3",
+      libtorrent_branch: "RC_2_1",
+    });
+  });
+
+  it("falls back to an offered branch when the version change hides the selected one", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderModal();
+
+    await user.click(screen.getByRole("radio", { name: "5.3" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("radio", { name: "libtorrent 2.1" }));
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("radio", { name: "4.6" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("radio", { name: "libtorrent 1.2" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Start install" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      qbittorrent_version: "4.6",
+      libtorrent_branch: "RC_1_2",
     });
   });
 
