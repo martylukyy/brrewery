@@ -21,8 +21,16 @@ session.path.set = {{ rtorrent_session_dir }}
 # SCGI socket ruTorrent connects to.
 network.scgi.open_local = {{ rtorrent_scgi_socket }}
 
+{# rtorrent 0.16.18 replaced network.port_range/port_random with
+   network.listen.port.range/random and dropped the old names; it refuses to
+   start on an unknown command. tasks/rc_migrate.yml renames them on upgrade. #}
+{% if rtorrent_release is version('0.16.18', '>=') %}
+network.listen.port.range.set = {{ rtorrent_port_range }}
+network.listen.port.random.set = no
+{% else %}
 network.port_range.set = {{ rtorrent_port_range }}
 network.port_random.set = no
+{% endif %}
 protocol.encryption.set = allow_incoming,try_outgoing,enable_retry
 protocol.pex.set = yes
 trackers.use_udp.set = yes

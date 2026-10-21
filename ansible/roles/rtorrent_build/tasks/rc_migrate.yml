@@ -1,0 +1,19 @@
+---
+# Upgrades keep ~/.rtorrent.rc (operator changes), but rtorrent refuses to start
+# on an unknown command. 0.16.18 replaced network.port_range/port_random with
+# network.listen.port.range/random and dropped the old names, so rename just
+# those assignments to the form the release being installed understands (in
+# either direction, as an upgrade can also switch to an older line).
+- name: Use the listen-port command names of rtorrent >= 0.16.18
+  ansible.builtin.replace:
+    path: "{{ rtorrent_rc_path }}"
+    regexp: '^(\s*)network\.port_(range|random)(\.set)?(\s*=)'
+    replace: '\1network.listen.port.\2\3\4'
+  when: rtorrent_release is version('0.16.18', '>=')
+
+- name: Use the listen-port command names of rtorrent < 0.16.18
+  ansible.builtin.replace:
+    path: "{{ rtorrent_rc_path }}"
+    regexp: '^(\s*)network\.listen\.port\.(range|random)(\.set)?(\s*=)'
+    replace: '\1network.port_\2\3\4'
+  when: rtorrent_release is version('0.16.18', '<')

@@ -9,14 +9,6 @@
     - brrewery_user
     - rtorrent_build
   tasks:
-    # Deliberately does NOT rewrite ~/.rtorrent.rc: that would discard any
-    # operator changes. Just restart so the freshly built binary is picked up.
-    - name: Restart rtorrent for brrewery user after rebuild
-      ansible.builtin.systemd:
-        name: "rtorrent@{{ brrewery_user }}.service"
-        state: restarted
-        daemon_reload: true
-
     - name: Look up brrewery user home directory
       ansible.builtin.getent:
         database: passwd
@@ -26,6 +18,19 @@
     - name: Set rtorrent home fact
       ansible.builtin.set_fact:
         rtorrent_home: "{{ brrewery_passwd.ansible_facts.getent_passwd[brrewery_user][4] }}"
+
+    # Deliberately does NOT rewrite ~/.rtorrent.rc: that would discard any
+    # operator changes. Only commands the new release renamed are migrated.
+    - name: Migrate rtorrent configuration commands renamed upstream
+      ansible.builtin.include_role:
+        name: rtorrent_build
+        tasks_from: rc_migrate.yml
+
+    - name: Restart rtorrent for brrewery user after rebuild
+      ansible.builtin.systemd:
+        name: "rtorrent@{{ brrewery_user }}.service"
+        state: restarted
+        daemon_reload: true
 
     - name: Wait for the rtorrent SCGI socket to appear
       ansible.builtin.wait_for:
