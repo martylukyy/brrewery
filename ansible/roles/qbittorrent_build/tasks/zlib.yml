@@ -1,14 +1,26 @@
 ---
+# zlib is only needed to link qbittorrent-nox, so it is built as a static,
+# position-independent archive into the scratch build root and linked in
+# statically: nothing is installed on the host. A libz.so in <prefix>/lib
+# (/usr/local/lib, on the distro's default loader path) would replace the
+# system zlib for every program on the host.
+- name: Set vendored zlib build facts
+  ansible.builtin.set_fact:
+    qbt_zlib_prefix: "{{ qbittorrent_build_root }}/zlib-dist"
+
 # A previous failed run can leave a partially-configured tree behind (the build
 # root is only cleaned on success). The staging and configure steps below are
 # guarded by `creates:`, so a leftover source tree or `build/CMakeCache.txt`
-# would cause them to be skipped on retry. Reset just the zlib scratch subtree
+# would cause them to be skipped on retry. Reset just the zlib scratch subtrees
 # so every run stages, configures, and generates from a clean slate. The sibling
 # qbittorrent/openssl/libtorrent build trees under the same root are untouched.
-- name: Reset the zlib scratch source tree
+- name: Reset the zlib scratch trees
   ansible.builtin.file:
-    path: "{{ qbittorrent_build_root }}/zlib"
+    path: "{{ item }}"
     state: absent
+  loop:
+    - "{{ qbittorrent_build_root }}/zlib"
+    - "{{ qbt_zlib_prefix }}"
 
 - name: Stage zlib source into the build root
   ansible.builtin.command:
@@ -16,13 +28,16 @@
   args:
     creates: "{{ qbittorrent_build_root }}/zlib"
 
-- name: Configure vendored zlib (static)
+# zlib >= 1.3.2 ignores BUILD_SHARED_LIBS; ZLIB_BUILD_SHARED controls the
+# shared library (default ON).
+- name: Configure vendored zlib (static, PIC)
   ansible.builtin.command:
     cmd: >-
       cmake -B build -G Ninja
       -D CMAKE_BUILD_TYPE=Release
-      -D CMAKE_INSTALL_PREFIX={{ qbittorrent_prefix }}
-      -D BUILD_SHARED_LIBS=OFF
+      -D CMAKE_INSTALL_PREFIX={{ qbt_zlib_prefix }}
+      -D ZLIB_BUILD_SHARED=OFF
+      -D CMAKE_POSITION_INDEPENDENT_CODE=ON
     chdir: "{{ qbittorrent_build_root }}/zlib"
     # build.ninja only exists after a successful generate step; CMakeCache.txt
     # is written earlier (during configure) and would survive a failed generate,
@@ -37,10 +52,7 @@
     chdir: "{{ qbittorrent_build_root }}/zlib"
     creates: "{{ qbittorrent_build_root }}/zlib/build/libz.a"
 
-# No `creates:` guard: the prefix path is unversioned, so a previously
-# installed libz.a would satisfy it and a manifest version bump would build the
-# new lib but never install it. Re-running the install copy is cheap.
-- name: Install vendored zlib
+- name: Install vendored zlib into the scratch prefix
   ansible.builtin.command:
     cmd: cmake --install build
     chdir: "{{ qbittorrent_build_root }}/zlib"

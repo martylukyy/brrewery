@@ -43,9 +43,9 @@
         path: "{{ qbittorrent_bin }}"
         state: absent
 
-    # Hosts installed by older releases still have the vendored Qt and OpenSSL
-    # on the host-wide loader path; removing qBittorrent must not leave them
-    # shadowing the distro's Qt/OpenSSL for every other program.
+    # Hosts installed by older releases still have the vendored Qt, OpenSSL and
+    # zlib on the host-wide loader path; removing qBittorrent must not leave them
+    # shadowing the distro's copies for every other program.
     - name: Remove vendored libraries from the host-wide loader path
       ansible.builtin.include_role:
         name: qbittorrent_build

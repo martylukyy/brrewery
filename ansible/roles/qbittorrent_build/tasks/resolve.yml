@@ -108,10 +108,11 @@
 
 # Older brrewery releases built Qt against an OpenSSL installed in
 # <prefix>/lib and relied on a host-wide ld.so.conf entry to find both. That
-# OpenSSL is removed (tasks/loader_cleanup.yml) and nothing is on the global
-# loader path any more, so a Qt whose QtNetwork lacks the run path to
-# qbittorrent_openssl_prefix is rebuilt the same way. The run path is stored as
-# plain text in the library's dynamic section, so grep can check it.
+# OpenSSL is removed (tasks/loader_cleanup.yml, right after this file) and
+# nothing is on the global loader path any more, so a Qt whose QtNetwork lacks
+# the run path to qbittorrent_openssl_prefix is rebuilt the same way. The run
+# path is stored as plain text in the library's dynamic section, so grep can
+# check it.
 - name: Check whether an already-installed vendored Qt finds the vendored OpenSSL
   ansible.builtin.command:
     cmd: >-

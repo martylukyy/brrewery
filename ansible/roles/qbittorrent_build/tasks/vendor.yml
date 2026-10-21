@@ -97,12 +97,11 @@
   when: item.matched | int == 0
   loop_control:
     label: "{{ item.item.dest }}"
-  # Hosts installed by older releases still have a vendored OpenSSL on the
-  # global loader path (removed by loader_cleanup.yml once the new build is in
-  # place); it shadows the system libcrypto for this module's Python too, and
-  # its default trust store can be empty, breaking HTTPS verification ("unable
-  # to get local issuer certificate"). Pin the system CA bundle so source
-  # downloads always verify, independent of whichever OpenSSL ends up loaded.
+  # Older releases put a vendored OpenSSL on the global loader path (removed by
+  # loader_cleanup.yml before this runs), where it shadowed the system libcrypto
+  # for this module's Python too, with a possibly empty trust store ("unable to
+  # get local issuer certificate"). Pin the system CA bundle so source downloads
+  # always verify, independent of whichever OpenSSL ends up loaded.
   environment:
     SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
     SSL_CERT_DIR: /etc/ssl/certs
