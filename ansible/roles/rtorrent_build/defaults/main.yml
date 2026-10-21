@@ -1,7 +1,13 @@
 ---
-# Install prefix for both libtorrent (shared lib) and the rtorrent binary.
+# Install prefix for the rtorrent binary.
 rtorrent_prefix: /usr/local
 rtorrent_bin: /usr/local/bin/rtorrent
+# rakshasa libtorrent (a shared lib) gets its own prefix: <rtorrent_prefix>/lib
+# (/usr/local/lib) is on the distro's default loader path, and e.g. libtorrent
+# 0.13.8 (the 0.9.8 line) shares its soname (libtorrent.so.21) with the distro's
+# libtorrent21 package, so a copy there replaces the distro's for every program.
+# rtorrent finds it through an embedded run path instead.
+rtorrent_libtorrent_prefix: /opt/brrewery-libtorrent-rakshasa
 
 # Writable trees: the vendored manifest/patches + downloaded source cache, and
 # the scratch directory used for out-of-tree-ish builds.

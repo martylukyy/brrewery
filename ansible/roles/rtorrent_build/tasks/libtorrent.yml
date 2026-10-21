@@ -1,7 +1,8 @@
 ---
 # Build rakshasa libtorrent (the C++ library rtorrent links against), installed
-# as a shared lib under {{ rtorrent_prefix }}. Each run stages a clean copy of the
-# vendored source so configure/patch always start from a pristine tree.
+# as a shared lib under {{ rtorrent_libtorrent_prefix }}, off the host-wide loader
+# path. Each run stages a clean copy of the vendored source so configure/patch
+# always start from a pristine tree.
 - name: Reset the libtorrent scratch source tree
   ansible.builtin.file:
     path: "{{ rtorrent_build_root }}/libtorrent"
@@ -34,7 +35,7 @@
 - name: Configure libtorrent
   ansible.builtin.shell:
     cmd: >-
-      ./configure --prefix={{ rtorrent_prefix }}
+      ./configure --prefix={{ rtorrent_libtorrent_prefix }}
       {{ ('CXXFLAGS=' ~ rt_cxxflags) | quote if (rt_cxxflags | trim | length > 0) else '' }}
     chdir: "{{ rtorrent_build_root }}/libtorrent"
 
@@ -43,20 +44,10 @@
     cmd: make -j{{ rtorrent_build_jobs }}
     chdir: "{{ rtorrent_build_root }}/libtorrent"
 
+# Installed over the previous build: the old versioned libtorrent.so.N stays
+# next to the new one, so the installed rtorrent keeps working if the rtorrent
+# build below fails (every libtorrent release bumps the soname).
 - name: Install libtorrent
   ansible.builtin.command:
     cmd: make install
     chdir: "{{ rtorrent_build_root }}/libtorrent"
-
-- name: Ensure /usr/local/lib is on the dynamic linker path
-  ansible.builtin.copy:
-    dest: /etc/ld.so.conf.d/brrewery-vendored.conf
-    mode: "0644"
-    content: |
-      # Managed by brrewery — vendored libraries under /usr/local
-      {{ rtorrent_prefix }}/lib
-
-- name: Refresh the dynamic linker cache
-  ansible.builtin.command:
-    cmd: ldconfig
-  changed_when: false

@@ -1,0 +1,47 @@
+---
+# Undo the host-wide library install made by older brrewery releases: they put
+# rakshasa libtorrent into <rtorrent_prefix> (/usr/local), whose lib dir is on
+# the distro's default loader path, so it replaced the distro's libtorrent of
+# the same soname (e.g. libtorrent.so.21 from the libtorrent21 package) for
+# every program. rtorrent now finds libtorrent in rtorrent_libtorrent_prefix
+# through its run path, so this only removes.
+#
+# Runs after a successful build (tasks/main.yml), so a failed rebuild leaves the
+# installed rtorrent working, and on removal (playbooks/apps/rtorrent/remove.yml).
+
+# Older qbittorrent_build and rtorrent_build releases both wrote this file;
+# neither does any more. /usr/local/lib is on the loader path via the distro's
+# own /etc/ld.so.conf.d/libc.conf anyway.
+- name: Remove brrewery's host-wide loader path entry
+  ansible.builtin.file:
+    path: /etc/ld.so.conf.d/brrewery-vendored.conf
+    state: absent
+  register: rt_loader_conf_cleanup
+
+- name: Find libtorrent that older releases installed into the shared prefix
+  ansible.builtin.find:
+    paths:
+      - "{{ rtorrent_prefix }}/lib"
+      - "{{ rtorrent_prefix }}/lib/pkgconfig"
+    patterns:
+      - "libtorrent.so*"
+      - "libtorrent.a"
+      - "libtorrent.la"
+      - "libtorrent.pc"
+    # so the .so version symlinks are matched too, not just real files
+    file_type: any
+    recurse: false
+  register: rt_old_libtorrent_files
+
+- name: Remove libtorrent that older releases installed into the shared prefix
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ [rtorrent_prefix ~ '/include/torrent'] + (rt_old_libtorrent_files.files | map(attribute='path') | list) }}"
+  register: rt_old_libtorrent_cleanup
+
+- name: Refresh the dynamic linker cache
+  ansible.builtin.command:
+    cmd: ldconfig
+  changed_when: true
+  when: rt_loader_conf_cleanup is changed or rt_old_libtorrent_cleanup is changed

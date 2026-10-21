@@ -6,6 +6,7 @@
   vars:
     rtorrent_prefix: /usr/local
     rtorrent_bin: /usr/local/bin/rtorrent
+    rtorrent_libtorrent_prefix: /opt/brrewery-libtorrent-rakshasa
   roles:
     - brrewery_user
   tasks:
@@ -54,38 +55,26 @@
     - name: Remove rtorrent and libtorrent when no instances remain
       when: rtorrent_units.stdout_lines | length == 0
       block:
-        - name: Find installed libtorrent artifacts
-          ansible.builtin.find:
-            paths:
-              - "{{ rtorrent_prefix }}/lib"
-              - "{{ rtorrent_prefix }}/lib/pkgconfig"
-            patterns:
-              - "libtorrent.so*"
-              - "libtorrent.a"
-              - "libtorrent.la"
-              - "libtorrent.pc"
-            # so the .so version symlinks are matched too, not just real files
-            file_type: any
-            recurse: false
-          register: rtorrent_libtorrent_files
-
-        - name: Remove rtorrent binary, libtorrent libraries and headers
+        - name: Remove rtorrent binary and libtorrent
           ansible.builtin.file:
             path: "{{ item }}"
             state: absent
-          loop: "{{ [rtorrent_bin, rtorrent_prefix ~ '/include/torrent']
-                    + (rtorrent_libtorrent_files.files | map(attribute='path') | list) }}"
+          loop:
+            - "{{ rtorrent_bin }}"
+            - "{{ rtorrent_libtorrent_prefix }}"
+
+        # Also removes a libtorrent that older releases installed into the shared
+        # prefix (on the host-wide loader path) and refreshes the linker cache.
+        - name: Remove vendored libtorrent from the host-wide loader path
+          ansible.builtin.include_role:
+            name: rtorrent_build
+            tasks_from: loader_cleanup.yml
 
         - name: Remove rtorrent systemd template unit
           ansible.builtin.file:
             path: /etc/systemd/system/rtorrent@.service
             state: absent
           notify: Reload systemd
-
-        - name: Refresh the dynamic linker cache
-          ansible.builtin.command:
-            cmd: ldconfig
-          changed_when: false
 
   handlers:
     - name: Reload systemd

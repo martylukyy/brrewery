@@ -159,7 +159,8 @@
 
 # Nothing vendored is on the host-wide loader path, so make sure the binary's
 # run path really resolves the vendored Qt and OpenSSL, nothing is missing, and
-# nothing is loaded from <prefix>/lib (the distro's default loader path).
+# no OpenSSL/zlib is loaded from <prefix>/lib (the distro's default loader path,
+# where older releases installed them).
 - name: Resolve qbittorrent-nox shared libraries
   ansible.builtin.command:
     cmd: ldd "{{ qbittorrent_prefix }}/bin/qbittorrent-nox"
@@ -172,7 +173,7 @@
       - "'not found' not in qbt_ldd.stdout"
       - (qbt_qt_prefix_path ~ '/lib/libQt' ~ qbt_qt_major ~ 'Core.so') in qbt_ldd.stdout
       - (qbittorrent_openssl_prefix ~ '/lib/libssl.so') in qbt_ldd.stdout
-      - (qbittorrent_prefix ~ '/lib/') not in qbt_ldd.stdout
+      - qbt_ldd.stdout is not search(qbittorrent_prefix ~ '/lib/lib(ssl|crypto|z)[.]so')
     fail_msg: "qbittorrent-nox does not resolve the vendored Qt/OpenSSL through its run path:\n{{ qbt_ldd.stdout }}"
 
 - name: Clean the build root

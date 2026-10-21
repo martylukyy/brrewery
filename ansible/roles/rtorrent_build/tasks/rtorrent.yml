@@ -42,7 +42,8 @@
   when: rt_source == 'git-archive'
 
 # PKG_CONFIG_PATH points configure at the libtorrent.pc just installed under the
-# prefix (PKG_CHECK_MODULES libtorrent >= <release>).
+# libtorrent prefix (PKG_CHECK_MODULES libtorrent >= <release>). That prefix is
+# not on the host-wide loader path, so the binary carries a run path to it.
 - name: Configure rtorrent
   ansible.builtin.shell:
     cmd: >-
@@ -50,7 +51,8 @@
       {{ ('CXXFLAGS=' ~ rt_cxxflags) | quote if (rt_cxxflags | trim | length > 0) else '' }}
     chdir: "{{ rtorrent_build_root }}/rtorrent"
   environment:
-    PKG_CONFIG_PATH: "{{ rtorrent_prefix }}/lib/pkgconfig"
+    PKG_CONFIG_PATH: "{{ rtorrent_libtorrent_prefix }}/lib/pkgconfig"
+    LDFLAGS: "-Wl,-rpath,{{ rtorrent_libtorrent_prefix }}/lib"
 
 - name: Build rtorrent
   ansible.builtin.command:
@@ -62,11 +64,6 @@
     cmd: make install
     chdir: "{{ rtorrent_build_root }}/rtorrent"
 
-- name: Refresh the dynamic linker cache
-  ansible.builtin.command:
-    cmd: ldconfig
-  changed_when: false
-
 - name: Verify the rtorrent binary was produced
   ansible.builtin.stat:
     path: "{{ rtorrent_bin }}"
@@ -77,6 +74,22 @@
     that:
       - rt_installed_bin.stat.exists
     fail_msg: "rtorrent build did not produce {{ rtorrent_bin }}"
+
+# libtorrent is not on the host-wide loader path, so make sure the run path
+# really resolves the vendored copy (and nothing is missing) before the old
+# host-wide copy is removed by loader_cleanup.yml.
+- name: Resolve rtorrent shared libraries
+  ansible.builtin.command:
+    cmd: ldd "{{ rtorrent_bin }}"
+  register: rt_ldd
+  changed_when: false
+
+- name: Fail when rtorrent does not load the vendored libtorrent
+  ansible.builtin.assert:
+    that:
+      - "'not found' not in rt_ldd.stdout"
+      - (rtorrent_libtorrent_prefix ~ '/lib/libtorrent.so') in rt_ldd.stdout
+    fail_msg: "rtorrent does not resolve the vendored libtorrent through its run path:\n{{ rt_ldd.stdout }}"
 
 # rtorrent has no --version; -h prints the help banner including the version.
 # It needs a TTY and exits non-zero for -h, so just confirm it runs and links

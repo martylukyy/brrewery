@@ -15,3 +15,9 @@
 
 - name: Build and install rtorrent
   ansible.builtin.import_tasks: rtorrent.yml
+
+# Only after the new binary is installed and verified: older releases put
+# libtorrent on the host-wide loader path, replacing the distro's copy of the
+# same soname for every program; take it off it again.
+- name: Remove vendored libtorrent from the host-wide loader path
+  ansible.builtin.import_tasks: loader_cleanup.yml

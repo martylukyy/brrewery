@@ -14,16 +14,14 @@
 # the vendored Qt is rebuilt anyway (resolve.yml), and the system libz.so.1 /
 # libssl.so.3 stand in for the removed copies until the new build is in place.
 
-# rtorrent_build writes the same file with only <prefix>/lib, so drop just the
-# Qt lines instead of the whole file.
-- name: Remove vendored Qt from the host-wide loader path
-  ansible.builtin.lineinfile:
+# Older qbittorrent_build and rtorrent_build releases both wrote this file
+# (the vendored Qt lib dir plus <prefix>/lib); neither does any more.
+# /usr/local/lib is on the loader path via the distro's own
+# /etc/ld.so.conf.d/libc.conf anyway.
+- name: Remove brrewery's host-wide loader path entry
+  ansible.builtin.file:
     path: /etc/ld.so.conf.d/brrewery-vendored.conf
-    regexp: "{{ item }}"
     state: absent
-  loop:
-    - '^{{ qbittorrent_prefix }}/qt[0-9]+/lib$'
-    - '^# Managed by brrewery — vendored Qt'
   register: qbt_loader_conf_cleanup
 
 # The shared zlib carries its full version in the file name (libz.so.1.3.2).
