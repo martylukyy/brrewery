@@ -32,11 +32,17 @@
   when: qbittorrent_version == "4.3"
 
 # qtbase is configured -openssl-linked against the vendored OpenSSL (built into
-# <prefix> earlier in main.yml) so QtNetwork's SSL classes are enabled; without
-# them qBittorrent's HTTPS WebUI code (QSslKey/QSslCertificate) fails to compile
-# with "incomplete type". Qt 6 takes raw CMake args after `--` (OPENSSL_ROOT_DIR
-# tells FindOpenSSL where to look); Qt 5's qmake-based configure takes -I/-L and
-# OPENSSL_LIBS instead.
+# qbittorrent_openssl_prefix earlier in main.yml) so QtNetwork's SSL classes are
+# enabled; without them qBittorrent's HTTPS WebUI code (QSslKey/QSslCertificate)
+# fails to compile with "incomplete type". Qt 6 takes raw CMake args after `--`
+# (OPENSSL_ROOT_DIR tells FindOpenSSL where to look); Qt 5's qmake-based
+# configure takes -I/-L and OPENSSL_LIBS instead.
+#
+# Neither Qt nor OpenSSL is on the host-wide loader path: a vendored Qt there
+# replaces the distro Qt for every program (desktop sessions such as KDE Plasma
+# then load two Qt versions and freeze). Qt already embeds its own lib dir as a
+# run path (-rpath is the default); -R adds the vendored OpenSSL lib dir so
+# QtNetwork finds libssl/libcrypto without any ld.so.conf entry.
 - name: Configure and build vendored qtbase
   ansible.builtin.shell: |
     set -euo pipefail
@@ -45,14 +51,15 @@
       # Qt 5 produces a qmake/Makefile build; cmake --build cannot drive it.
       ./configure -prefix "{{ qbittorrent_prefix }}/qt{{ qbt_qt_major }}" \
         -release -opensource -confirm-license -no-gui -no-widgets -nomake examples -nomake tests \
-        -openssl-linked -I "{{ qbittorrent_prefix }}/include" -L "{{ qbittorrent_prefix }}/lib" \
-        OPENSSL_LIBS="-lssl -lcrypto"
+        -openssl-linked -I "{{ qbittorrent_openssl_prefix }}/include" -L "{{ qbittorrent_openssl_prefix }}/lib" \
+        -R "{{ qbittorrent_openssl_prefix }}/lib" OPENSSL_LIBS="-lssl -lcrypto"
       make -j{{ qbittorrent_build_jobs }}
       make install
     else
       ./configure -prefix "{{ qbittorrent_prefix }}/qt{{ qbt_qt_major }}" \
         -release -opensource -confirm-license -no-gui -no-widgets -nomake examples -nomake tests \
-        -openssl-linked -- -DOPENSSL_ROOT_DIR="{{ qbittorrent_prefix }}"
+        -openssl-linked -R "{{ qbittorrent_openssl_prefix }}/lib" \
+        -- -DOPENSSL_ROOT_DIR="{{ qbittorrent_openssl_prefix }}"
       cmake --build . --parallel {{ qbittorrent_build_jobs }}
       cmake --install .
     fi
@@ -62,7 +69,7 @@
   environment:
     CFLAGS: "{{ qbt_compiler_flags }}"
     CXXFLAGS: "{{ qbt_compiler_flags }}"
-    OPENSSL_ROOT_DIR: "{{ qbittorrent_prefix }}"
+    OPENSSL_ROOT_DIR: "{{ qbittorrent_openssl_prefix }}"
 
 - name: Build and install vendored qttools
   ansible.builtin.shell: |
@@ -85,17 +92,3 @@
 - name: Expose vendored Qt for later build steps
   ansible.builtin.set_fact:
     qbt_qt_prefix_path: "{{ qbittorrent_prefix ~ '/qt' ~ qbt_qt_major }}"
-
-- name: Register vendored library paths with the dynamic linker
-  ansible.builtin.copy:
-    dest: /etc/ld.so.conf.d/brrewery-vendored.conf
-    mode: "0644"
-    content: |
-      # Managed by brrewery — vendored Qt and package libraries under /usr/local
-      {{ qbittorrent_prefix }}/lib
-      {{ qbt_qt_prefix_path }}/lib
-
-- name: Refresh dynamic linker cache for vendored libraries
-  ansible.builtin.command:
-    cmd: ldconfig
-  changed_when: true

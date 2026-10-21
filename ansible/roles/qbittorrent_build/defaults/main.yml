@@ -7,6 +7,11 @@ qbittorrent_operator_patches_dir: /var/lib/brrewery/patches/qbittorrent
 
 # Install prefix and scratch build directory.
 qbittorrent_prefix: /usr/local
+# Vendored OpenSSL gets its own prefix: <qbittorrent_prefix>/lib (/usr/local/lib)
+# is on the distro's default loader path, so a libssl/libcrypto installed there
+# replaces the system OpenSSL for every program on the host. Qt and
+# qbittorrent-nox find it through an embedded run path instead.
+qbittorrent_openssl_prefix: /opt/brrewery-openssl3
 qbittorrent_build_root: /tmp/brrewery-qbittorrent-build
 qbittorrent_boost_root: /opt
 

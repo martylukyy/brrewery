@@ -95,20 +95,6 @@
           Session\AsyncIOThreadsCount=4
           Session\CoalesceReadWrite=false
 
-    - name: Ensure vendored libraries are visible to the dynamic linker
-      ansible.builtin.copy:
-        dest: /etc/ld.so.conf.d/brrewery-vendored.conf
-        mode: "0644"
-        content: |
-          # Managed by brrewery — vendored Qt and package libraries under /usr/local
-          {{ qbittorrent_prefix | default('/usr/local') }}/lib
-          {{ qbittorrent_prefix | default('/usr/local') }}/qt{{ qbt_qt_major | default('6') }}/lib
-
-    - name: Refresh dynamic linker cache
-      ansible.builtin.command:
-        cmd: ldconfig
-      changed_when: true
-
     - name: Install qBittorrent systemd template unit
       ansible.builtin.include_role:
         name: qbittorrent_build

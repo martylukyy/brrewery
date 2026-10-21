@@ -106,7 +106,22 @@
   failed_when: false
   changed_when: false
 
-- name: Remove a stale vendored Qt that was built without SSL
+# Older brrewery releases built Qt against an OpenSSL installed in
+# <prefix>/lib and relied on a host-wide ld.so.conf entry to find both. That
+# OpenSSL is removed (tasks/loader_cleanup.yml) and nothing is on the global
+# loader path any more, so a Qt whose QtNetwork lacks the run path to
+# qbittorrent_openssl_prefix is rebuilt the same way. The run path is stored as
+# plain text in the library's dynamic section, so grep can check it.
+- name: Check whether an already-installed vendored Qt finds the vendored OpenSSL
+  ansible.builtin.command:
+    cmd: >-
+      grep -qF "{{ qbittorrent_openssl_prefix }}/lib"
+      "{{ qbittorrent_prefix }}/qt{{ qbt_qt_major }}/lib/libQt{{ qbt_qt_major }}Network.so.{{ qbt_qt_major }}"
+  register: qbt_qt_openssl_rpath_ok
+  failed_when: false
+  changed_when: false
+
+- name: Remove a stale vendored Qt (built without SSL or against the old OpenSSL location)
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
@@ -115,7 +130,7 @@
     - "{{ qbittorrent_vendor_root }}/sources/qt/{{ qbt_qt_version }}"
   loop_control:
     label: "{{ item }}"
-  when: qbt_qt_ssl_ok.rc != 0
+  when: qbt_qt_ssl_ok.rc != 0 or qbt_qt_openssl_rpath_ok.rc != 0
 
 - name: Ensure clean build root
   ansible.builtin.file:

@@ -5,10 +5,18 @@
   gather_facts: true
   vars:
     qbittorrent_webui_port: 8086
+    qbittorrent_bin: /usr/local/bin/qbittorrent-nox
   roles:
     - brrewery_user
     - qbittorrent_build
   tasks:
+    # Older units set LD_LIBRARY_PATH to the shared /usr/local/lib, which wins
+    # over the binary's run path; re-render the unit without it.
+    - name: Update qBittorrent systemd template unit
+      ansible.builtin.include_role:
+        name: qbittorrent_build
+        tasks_from: service_unit.yml
+
     - name: Restart qBittorrent for brrewery user after rebuild
       ansible.builtin.systemd:
         name: "qbittorrent@{{ brrewery_user }}.service"

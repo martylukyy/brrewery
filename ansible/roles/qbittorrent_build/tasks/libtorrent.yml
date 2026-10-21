@@ -86,8 +86,8 @@
       -D BUILD_SHARED_LIBS=OFF
       -D CMAKE_CXX_STANDARD={{ qbt_cxx_std }}
       -D CMAKE_INSTALL_PREFIX={{ qbittorrent_prefix }}
-      -D CMAKE_PREFIX_PATH={{ qbittorrent_prefix }}
-      -D OPENSSL_ROOT_DIR={{ qbittorrent_prefix }}
+      -D CMAKE_PREFIX_PATH={{ qbittorrent_openssl_prefix }};{{ qbittorrent_prefix }}
+      -D OPENSSL_ROOT_DIR={{ qbittorrent_openssl_prefix }}
       -D BOOST_ROOT={{ qbt_boost_root_path }}
     chdir: "{{ qbittorrent_build_root }}/libtorrent"
     # build.ninja only exists after a successful generate step; CMakeCache.txt
@@ -97,7 +97,7 @@
   environment:
     CFLAGS: "{{ qbt_compiler_flags }}"
     CXXFLAGS: "{{ qbt_compiler_flags }}"
-    PKG_CONFIG_PATH: "{{ qbittorrent_prefix }}/lib/pkgconfig"
+    PKG_CONFIG_PATH: "{{ qbittorrent_openssl_prefix }}/lib/pkgconfig:{{ qbittorrent_prefix }}/lib/pkgconfig"
 
 - name: Build libtorrent
   ansible.builtin.command:

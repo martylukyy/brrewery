@@ -31,9 +31,13 @@
   loop_control:
     label: "{{ item.path | basename }}"
 
-- name: Compose extra CMake prefix path for vendored Qt
+# The vendored OpenSSL prefix is listed explicitly: qBittorrent prefers CMake
+# package configs, and /usr/local is a default search prefix, so on hosts
+# upgraded from older releases the stale OpenSSLConfig.cmake there would win.
+- name: Compose extra CMake prefix path for vendored Qt and OpenSSL
   ansible.builtin.set_fact:
-    qbt_cmake_prefix: "{{ ('-D CMAKE_PREFIX_PATH=' ~ qbt_qt_prefix_path) if (qbt_qt_prefix_path | default('') | length > 0) else '' }}"
+    qbt_cmake_prefix: >-
+      -D CMAKE_PREFIX_PATH={{ (([qbt_qt_prefix_path | default('')] | select | list) + [qbittorrent_openssl_prefix]) | join(';') }}
 
 # --- cmake build (qBittorrent 4.4+) --------------------------------------------
 # qBittorrent links Qt::CorePrivate (src/base uses Qt private APIs). Our
@@ -43,6 +47,10 @@
 # Without it the generate step fails: 'Target "qbt_base" links to Qt::CorePrivate
 # but the target was not found'. QT_FIND_PRIVATE_MODULES=ON is Qt's documented
 # knob to load the private module counterparts (no-op for the Qt5 autotools line).
+#
+# The vendored Qt and OpenSSL are deliberately not on the host-wide loader path
+# (that would replace the distro's Qt/OpenSSL for every program), so the binary
+# carries its own run path to both lib dirs.
 - name: Configure qbittorrent-nox (cmake + Ninja)
   ansible.builtin.command:
     cmd: >-
@@ -53,7 +61,8 @@
       -D QT_FIND_PRIVATE_MODULES=ON
       -D CMAKE_CXX_STANDARD={{ qbt_cxx_std }}
       -D CMAKE_INSTALL_PREFIX={{ qbittorrent_prefix }}
-      -D OPENSSL_ROOT_DIR={{ qbittorrent_prefix }}
+      -D OPENSSL_ROOT_DIR={{ qbittorrent_openssl_prefix }}
+      -D CMAKE_INSTALL_RPATH={{ qbt_qt_prefix_path }}/lib;{{ qbittorrent_openssl_prefix }}/lib
       -D BOOST_ROOT={{ qbt_boost_root_path }}
       {{ qbt_cmake_prefix }}
     chdir: "{{ qbittorrent_build_root }}/qbittorrent"
@@ -64,7 +73,7 @@
   environment:
     CFLAGS: "{{ qbt_compiler_flags }}"
     CXXFLAGS: "{{ qbt_compiler_flags }}"
-    PKG_CONFIG_PATH: "{{ qbittorrent_prefix }}/lib/pkgconfig"
+    PKG_CONFIG_PATH: "{{ qbittorrent_openssl_prefix }}/lib/pkgconfig:{{ qbittorrent_prefix }}/lib/pkgconfig"
   when: qbt_build_system == 'cmake'
 
 - name: Build qbittorrent-nox (cmake)
@@ -104,11 +113,15 @@
     # qBittorrent's FIND_QT5 locates qmake via pkg-config: it reads host_bins
     # from Qt5Core.pc, so the vendored Qt pkgconfig dir must be on
     # PKG_CONFIG_PATH. PATH also exposes the Qt 5 tools (e.g. lrelease).
+    # configure copies LDFLAGS into conf.pri, so the -rpath reaches the final
+    # link (same run path as the cmake build above).
     PATH: "{{ qbt_qt_prefix_path }}/bin:{{ ansible_env.PATH }}"
     CFLAGS: "{{ qbt_compiler_flags }}"
     CXXFLAGS: "{{ qbt_compiler_flags }}"
-    LDFLAGS: "-L{{ qbittorrent_prefix }}/lib"
-    PKG_CONFIG_PATH: "{{ qbt_qt_prefix_path }}/lib/pkgconfig:{{ qbittorrent_prefix }}/lib/pkgconfig"
+    LDFLAGS: >-
+      -L{{ qbittorrent_openssl_prefix }}/lib -L{{ qbittorrent_prefix }}/lib
+      -Wl,-rpath,{{ qbt_qt_prefix_path }}/lib:{{ qbittorrent_openssl_prefix }}/lib
+    PKG_CONFIG_PATH: "{{ qbt_qt_prefix_path }}/lib/pkgconfig:{{ qbittorrent_openssl_prefix }}/lib/pkgconfig:{{ qbittorrent_prefix }}/lib/pkgconfig"
   when: qbt_build_system == 'autotools'
 
 - name: Build qbittorrent-nox (autotools)
@@ -137,6 +150,23 @@
     that:
       - qbt_installed_bin.stat.exists
     fail_msg: qbittorrent-nox build did not produce a binary
+
+# Nothing vendored is on the host-wide loader path, so make sure the binary's
+# run path really resolves the vendored Qt and OpenSSL (and nothing is missing)
+# before the old host-wide copies are removed by loader_cleanup.yml.
+- name: Resolve qbittorrent-nox shared libraries
+  ansible.builtin.command:
+    cmd: ldd "{{ qbittorrent_prefix }}/bin/qbittorrent-nox"
+  register: qbt_ldd
+  changed_when: false
+
+- name: Fail when qbittorrent-nox does not load the vendored Qt and OpenSSL
+  ansible.builtin.assert:
+    that:
+      - "'not found' not in qbt_ldd.stdout"
+      - (qbt_qt_prefix_path ~ '/lib/libQt' ~ qbt_qt_major ~ 'Core.so') in qbt_ldd.stdout
+      - (qbittorrent_openssl_prefix ~ '/lib/libssl.so') in qbt_ldd.stdout
+    fail_msg: "qbittorrent-nox does not resolve the vendored Qt/OpenSSL through its run path:\n{{ qbt_ldd.stdout }}"
 
 - name: Clean the build root
   ansible.builtin.file:

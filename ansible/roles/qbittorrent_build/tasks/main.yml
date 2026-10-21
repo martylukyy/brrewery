@@ -30,3 +30,9 @@
 
 - name: Build and install qbittorrent-nox
   ansible.builtin.import_tasks: qbittorrent.yml
+
+# Only after the new binary is installed and verified: older releases put the
+# vendored Qt and OpenSSL on the host-wide loader path, replacing the distro's
+# copies for every program; take them off it again.
+- name: Remove vendored libraries from the host-wide loader path
+  ansible.builtin.import_tasks: loader_cleanup.yml
