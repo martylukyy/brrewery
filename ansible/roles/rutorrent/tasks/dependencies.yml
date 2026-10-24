@@ -1,6 +1,8 @@
 ---
 # PHP-FPM + the extensions ruTorrent uses, plus the external CLI tools its core
 # and common plugins shell out to. php-fpm pulls the distro's default PHP.
+# Plugins look the tools up on PATH, both as the web server (PHP-FPM pool) and
+# as the rTorrent user, so distro packages in /usr/bin satisfy both checks.
 - name: Install ruTorrent runtime dependencies
   ansible.builtin.apt:
     name:
@@ -9,14 +11,26 @@
       - php-curl
       - php-xml
       - php-mbstring
+      - php-zip # source
+      - php-sqlite3 # geoip (peer comments)
       - curl
       - gzip
       - unzip
       - mediainfo
       - apache2-utils
+      - ffmpeg # screenshots
+      - sox # spectrogram
+      # _cloudflare runs `python -c "import cloudscraper"`; Debian only ships
+      # python3, python-is-python3 provides the `python` name.
+      - python-is-python3
+      - python3-cloudscraper
+      # Compiles unrar from source (tasks/externals.yml).
+      - build-essential
     state: present
     update_cache: true
     cache_valid_time: 3600
+  # Load newly installed PHP extensions into the running pool.
+  notify: Restart php-fpm
 
 # Discover the installed PHP version from its FPM pool directory so the role does
 # not hardcode a PHP minor (e.g. 8.4) and works as the distro moves forward.

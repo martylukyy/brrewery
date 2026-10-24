@@ -1,0 +1,65 @@
+---
+# Plugin tools Debian does not ship in main: dumptorrent (dump plugin) and
+# RARLAB unrar (unpack plugin).
+
+# ruTorrent's dump plugin points at this fork; its release .deb installs
+# dumptorrent and scrapec to /usr/bin and only depends on libc6.
+- name: Install dumptorrent (dump plugin)
+  ansible.builtin.apt:
+    deb: "https://github.com/tomcdj71/dumptorrent/releases/download/v{{ rutorrent_dumptorrent_version }}/dumptorrent_{{ rutorrent_dumptorrent_version }}-ubuntu-latest_amd64.deb"
+  environment:
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_DIR: /etc/ssl/certs
+
+# RARLAB unrar is only in Debian's non-free component, and unrar-free does not
+# understand the switches the unpack plugin passes (-ai -c- -kb ...), so build
+# it from the RARLAB source release. `-iver` prints the RAR version (e.g. 7.23);
+# rebuild only when it differs from the pinned one (or unrar is missing).
+- name: Read the installed unrar version
+  ansible.builtin.command:
+    cmd: "{{ rutorrent_unrar_bin }} -iver"
+  register: rutorrent_unrar_installed
+  changed_when: false
+  failed_when: false
+
+- name: Build and install unrar from source (unpack plugin)
+  when: (rutorrent_unrar_installed.stdout | default('') | trim) != rutorrent_unrar_version
+  block:
+    - name: Reset the unrar scratch build directory
+      ansible.builtin.file:
+        path: "{{ rutorrent_unrar_build_root }}"
+        state: absent
+
+    - name: Create the unrar scratch build directory
+      ansible.builtin.file:
+        path: "{{ rutorrent_unrar_build_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download and extract the unrar source
+      ansible.builtin.unarchive:
+        src: "https://www.rarlab.com/rar/unrarsrc-{{ rutorrent_unrar_release }}.tar.gz"
+        dest: "{{ rutorrent_unrar_build_root }}"
+        remote_src: true
+        extra_opts:
+          - --strip-components=1
+      environment:
+        SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+        SSL_CERT_DIR: /etc/ssl/certs
+
+    - name: Build unrar
+      ansible.builtin.command:
+        cmd: make -f makefile -j{{ ansible_processor_vcpus | default(2) }}
+        chdir: "{{ rutorrent_unrar_build_root }}"
+
+    - name: Install unrar
+      ansible.builtin.copy:
+        src: "{{ rutorrent_unrar_build_root }}/unrar"
+        dest: "{{ rutorrent_unrar_bin }}"
+        remote_src: true
+        mode: "0755"
+
+    - name: Clean the unrar scratch build directory
+      ansible.builtin.file:
+        path: "{{ rutorrent_unrar_build_root }}"
+        state: absent

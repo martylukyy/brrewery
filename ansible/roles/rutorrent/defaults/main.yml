@@ -21,6 +21,16 @@ rutorrent_fpm_socket: /run/php/rutorrent.sock
 # nginx HTTP Basic auth credentials file (ruTorrent has no auth of its own).
 rutorrent_htpasswd: /etc/nginx/brrewery/rutorrent.htpasswd
 
+# Plugin tools installed outside the distro (tasks/externals.yml).
+# dumptorrent: release tag of github.com/tomcdj71/dumptorrent (dump plugin).
+rutorrent_dumptorrent_version: "1.7.0"
+# unrar (unpack plugin): RARLAB names the source tarball unrarsrc-<release>,
+# while the binary reports the RAR version (`unrar -iver`), so pin both together.
+rutorrent_unrar_release: "7.2.7"
+rutorrent_unrar_version: "7.23"
+rutorrent_unrar_bin: /usr/local/bin/unrar
+rutorrent_unrar_build_root: /tmp/brrewery-unrar-build
+
 # Resolved at runtime (tasks/resolve.yml + dependencies.yml).
 rutorrent_version: ""
 rutorrent_tarball_url: ""

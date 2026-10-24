@@ -5,6 +5,9 @@
 - name: Install ruTorrent dependencies (PHP-FPM + tools)
   ansible.builtin.import_tasks: dependencies.yml
 
+- name: Install plugin tools Debian does not package (dumptorrent, unrar)
+  ansible.builtin.import_tasks: externals.yml
+
 - name: Install ruTorrent source and configuration
   ansible.builtin.import_tasks: install.yml
 
