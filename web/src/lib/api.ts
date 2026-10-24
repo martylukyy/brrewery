@@ -353,12 +353,28 @@ export type TrafficPeriod = {
   tx_bytes: number;
 };
 
+export type VnstatTraffic = {
+  rx_bytes: number;
+  tx_bytes: number;
+};
+
+// VnstatSummary is resolved against the server's clock; a period vnstat has no
+// entry for yet reports zero.
+export type VnstatSummary = {
+  this_hour: VnstatTraffic;
+  last_hour: VnstatTraffic;
+  this_day: VnstatTraffic;
+  this_month: VnstatTraffic;
+  all_time: VnstatTraffic;
+};
+
 export type VnstatReport = {
   installed: boolean;
   message?: string;
   version?: string;
   days?: TrafficPeriod[];
   months?: TrafficPeriod[];
+  summary?: VnstatSummary;
 };
 
 export function getVnstatReport(params: { days: number; months: number }) {

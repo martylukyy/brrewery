@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useSetting } from "@/hooks/use-setting";
-import { getVnstatReport, type TrafficPeriod } from "@/lib/api";
+import { getVnstatReport, type TrafficPeriod, type VnstatSummary } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import {
   DEFAULT_VNSTAT_RANGE,
@@ -24,6 +24,18 @@ import {
   vnstatReportRequest,
   type VnstatRangeId,
 } from "@/lib/vnstat-range";
+
+const SUMMARY_ROWS: { key: keyof VnstatSummary; label: string }[] = [
+  { key: "this_hour", label: "This Hour" },
+  { key: "last_hour", label: "Last Hour" },
+  { key: "this_day", label: "This Day" },
+  { key: "this_month", label: "This Month" },
+  { key: "all_time", label: "All Time" },
+];
+
+function summaryPeriods(summary: VnstatSummary): TrafficPeriod[] {
+  return SUMMARY_ROWS.map(({ key, label }) => ({ label, ...summary[key] }));
+}
 
 export function VnstatPanel() {
   const vnstat = useQuery({
@@ -88,7 +100,10 @@ export function VnstatPanel() {
         />
       }
     >
-      <div>
+      <div className="space-y-4">
+        {report.summary && (
+          <TrafficTable periods={summaryPeriods(report.summary)} reverse={false} />
+        )}
         <TrafficTable periods={tableConfig.periods} reverse={tableConfig.reverse} />
       </div>
     </Panel>

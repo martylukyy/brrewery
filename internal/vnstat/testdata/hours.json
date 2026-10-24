@@ -1,0 +1,54 @@
+{
+  "vnstatversion": "2.12",
+  "jsonversion": "2",
+  "interfaces": [
+    {
+      "name": "eth0",
+      "traffic": {
+        "total": { "rx": 50000000, "tx": 20000000 },
+        "hour": [
+          {
+            "date": { "year": 2026, "month": 5, "day": 30 },
+            "time": { "hour": 13, "minute": 0 },
+            "rx": 100000,
+            "tx": 50000
+          },
+          {
+            "date": { "year": 2026, "month": 5, "day": 30 },
+            "time": { "hour": 14, "minute": 0 },
+            "rx": 200000,
+            "tx": 100000
+          }
+        ]
+      }
+    },
+    {
+      "name": "wlan0",
+      "traffic": {
+        "total": { "rx": 5000000, "tx": 2000000 },
+        "hour": [
+          {
+            "date": { "year": 2026, "month": 5, "day": 30 },
+            "time": { "hour": 14, "minute": 0 },
+            "rx": 10000,
+            "tx": 5000
+          }
+        ]
+      }
+    },
+    {
+      "name": "lo",
+      "traffic": {
+        "total": { "rx": 999999999, "tx": 999999999 },
+        "hour": [
+          {
+            "date": { "year": 2026, "month": 5, "day": 30 },
+            "time": { "hour": 14, "minute": 0 },
+            "rx": 999999,
+            "tx": 999999
+          }
+        ]
+      }
+    }
+  ]
+}

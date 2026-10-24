@@ -11,6 +11,10 @@ import (
 
 const runTimeout = 10 * time.Second
 
+// summaryHours is how many hourly entries the summary needs: the current and
+// the previous hour.
+const summaryHours = 2
+
 var ErrNotInstalled = errors.New("vnstat is not installed")
 
 type commandRunner interface {
@@ -37,9 +41,10 @@ func NewCollector() *Collector {
 	return &Collector{runner: execRunner{}}
 }
 
-// Collect reads the last dayLimit days and monthLimit months of traffic. The
-// limits are supplied by the caller so the available ranges can be defined by
-// the frontend rather than hardcoded here.
+// Collect reads the last dayLimit days and monthLimit months of traffic, plus
+// the summary of the current periods. The limits are supplied by the caller so
+// the available ranges can be defined by the frontend rather than hardcoded
+// here.
 func (c *Collector) Collect(ctx context.Context, dayLimit, monthLimit int) (Report, error) {
 	if _, err := c.runner.LookPath("vnstat"); err != nil {
 		return Report{
@@ -61,5 +66,10 @@ func (c *Collector) Collect(ctx context.Context, dayLimit, monthLimit int) (Repo
 		return Report{}, fmt.Errorf("vnstat months: %w", err)
 	}
 
-	return parseReport(dayJSON, monthJSON)
+	hourJSON, err := c.runner.Output(runCtx, "vnstat", "--json", "h", strconv.Itoa(summaryHours))
+	if err != nil {
+		return Report{}, fmt.Errorf("vnstat hours: %w", err)
+	}
+
+	return parseReport(dayJSON, monthJSON, hourJSON, time.Now())
 }

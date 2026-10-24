@@ -5,6 +5,7 @@
     {
       "name": "eth0",
       "traffic": {
+        "total": { "rx": 50000000, "tx": 20000000 },
         "day": [
           {
             "date": { "year": 2026, "month": 5, "day": 29 },
@@ -22,6 +23,7 @@
     {
       "name": "wlan0",
       "traffic": {
+        "total": { "rx": 5000000, "tx": 2000000 },
         "day": [
           {
             "date": { "year": 2026, "month": 5, "day": 30 },
@@ -34,6 +36,7 @@
     {
       "name": "lo",
       "traffic": {
+        "total": { "rx": 999999999, "tx": 999999999 },
         "day": [
           {
             "date": { "year": 2026, "month": 5, "day": 30 },

@@ -445,6 +445,25 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TrafficPeriod'
+        summary:
+          $ref: '#/components/schemas/VnstatSummary'
+    VnstatSummary:
+      type: object
+      description: >-
+        Traffic of the current periods, resolved against the server's local
+        clock. A period vnstat has no entry for yet reports zero.
+      required: [this_hour, last_hour, this_day, this_month, all_time]
+      properties:
+        this_hour:
+          $ref: '#/components/schemas/NetworkCounters'
+        last_hour:
+          $ref: '#/components/schemas/NetworkCounters'
+        this_day:
+          $ref: '#/components/schemas/NetworkCounters'
+        this_month:
+          $ref: '#/components/schemas/NetworkCounters'
+        all_time:
+          $ref: '#/components/schemas/NetworkCounters'
     SystemInfo:
       type: object
       properties:
